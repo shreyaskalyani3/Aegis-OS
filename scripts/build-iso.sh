@@ -15,6 +15,7 @@
 # =============================================================================
 
 # shellcheck source=lib/common.sh
+AEGIS_BLACKARCH_EXCLUDE="malboxes"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 BUILD_USER="${AEGIS_BUILD_USER:-builder}"
