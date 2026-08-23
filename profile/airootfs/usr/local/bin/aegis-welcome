@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-welcome — on first desktop login, offer to run the setup wizard.
+#  Silent no-op once setup has completed. Launched from XDG autostart.
+# =============================================================================
+set -uo pipefail
+
+MARKER="${HOME}/.config/aegis/setup-done"
+[[ -f "${MARKER}" ]] && exit 0
+
+term=""
+for t in xfce4-terminal alacritty xterm; do
+    command -v "$t" >/dev/null 2>&1 && { term="$t"; break; }
+done
+[[ -z "${term}" ]] && exit 0
+
+case "${term}" in
+    xfce4-terminal) exec "${term}" --title="Aegis OS Setup" --command="bash -lc aegis-setup" ;;
+    alacritty)      exec "${term}" --title "Aegis OS Setup" -e bash -lc aegis-setup ;;
+    xterm)          exec "${term}" -T "Aegis OS Setup" -e bash -lc aegis-setup ;;
+esac

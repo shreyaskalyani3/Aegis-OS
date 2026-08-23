@@ -1,0 +1,25 @@
+# Build artifacts
+/out/
+/work/
+*.iso
+*.iso.*
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.log
+
+# Local repo databases
+*.db
+*.db.tar*
+*.files
+*.files.tar*
+
+# makepkg / editor cruft
+src/
+pkg/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json

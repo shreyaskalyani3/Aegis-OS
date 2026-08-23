@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-motd — prints the Aegis OS banner, quick hints, and a rotating tip.
+#  Invoked from the interactive shell rc (once per login shell).
+# =============================================================================
+
+# Colors (respect NO_COLOR / non-tty)
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    R=$'\e[1;31m'; W=$'\e[1;37m'; D=$'\e[0;90m'; Y=$'\e[0;33m'; C=$'\e[0;36m'; Z=$'\e[0m'
+else
+    R=''; W=''; D=''; Y=''; C=''; Z=''
+fi
+
+ver="$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-rolling}")"
+
+cat <<EOF
+${R} █████╗ ███████╗ ██████╗ ██╗███████╗${Z}   ${W}Aegis OS${Z} ${D}${ver} (Sentinel)${Z}
+${R}██╔══██╗██╔════╝██╔════╝ ██║██╔════╝${Z}   ${D}Offensive & Defensive Security · Agent-native${Z}
+${R}███████║█████╗  ██║  ███╗██║███████╗${Z}
+${R}██╔══██║██╔══╝  ██║   ██║██║╚════██║${Z}   ${C}aegis-setup${Z}  ${D}first-run wizard (agents + tools)${Z}
+${R}██║  ██║███████╗╚██████╔╝██║███████║${Z}   ${C}aegis-ai${Z}     ${D}launch Claude Code / OpenCode / Aider / Codex${Z}
+${R}╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝${Z}   ${C}aegis-tools${Z}  ${D}install BlackArch tool groups${Z}
+EOF
+
+# Rotating security reminder / tip.
+tips=(
+"Only test systems you own or are explicitly authorized to test."
+"List BlackArch groups:  pacman -Sg | grep '^blackarch'"
+"Install a category:     aegis-tools install blackarch-scanner"
+"Update everything:      sudo pacman -Syu"
+"Start an AI agent here: aegis-ai   (or: claude / opencode / aider / codex)"
+"Search all tools:       aegis-tools search <keyword>"
+"Wordlists live in:      /usr/share/seclists  and  /usr/share/wordlists"
+)
+idx=$(( ${RANDOM:-0} % ${#tips[@]} ))
+printf '%s\n' "${Y}  ⚠  ${tips[$idx]}${Z}"
+echo

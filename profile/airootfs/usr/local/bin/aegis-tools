@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-tools — manage the BlackArch security arsenal by category/group.
+#  The image bakes in the major categories (chosen at build via AEGIS_TOOL_SET);
+#  this installs any of the remaining 2800+ tools on demand.
+# =============================================================================
+set -uo pipefail
+
+C_T=$'\e[1;37m'; C_G=$'\e[36m'; C_D=$'\e[0;90m'; C_Y=$'\e[0;33m'; C_R=$'\e[31m'; Z=$'\e[0m'
+
+# Curated categories → BlackArch group. (See `aegis-tools groups` for the full list.)
+CATS=(
+"blackarch-scanner|Network & vulnerability scanners (nmap suites, masscan, ...)"
+"blackarch-recon|Reconnaissance & OSINT (subdomains, DNS, harvesting)"
+"blackarch-webapp|Web application testing (nikto, wpscan, sqlmap, ...)"
+"blackarch-fuzzer|Fuzzers (ffuf, wfuzz, protocol fuzzers)"
+"blackarch-exploitation|Exploitation frameworks & helpers"
+"blackarch-cracker|Password & hash cracking (hashcat, john companions)"
+"blackarch-wireless|Wi-Fi / Bluetooth / RF attacks"
+"blackarch-sniffer|Sniffers & man-in-the-middle"
+"blackarch-proxy|Intercepting proxies & tunnelers"
+"blackarch-forensic|Digital forensics & incident response"
+"blackarch-reversing|Reverse engineering & binary analysis"
+"blackarch-crypto|Cryptography & steganography"
+"blackarch-malware|Malware analysis & sandboxing"
+"blackarch-mobile|Mobile (Android/iOS) assessment"
+"blackarch-social|Social-engineering toolkits"
+"blackarch-windows|Windows / Active Directory tooling"
+"blackarch-defensive|Defensive / blue-team utilities"
+)
+
+have_blackarch(){ pacman-conf --repo-list 2>/dev/null | grep -qx blackarch; }
+
+usage(){
+cat <<EOF
+${C_T}aegis-tools${Z} — install & explore the BlackArch security arsenal
+
+${C_T}Usage${Z}
+  aegis-tools categories            Curated categories you can install
+  aegis-tools install <group...>    Install one or more groups (sudo pacman -S)
+  aegis-tools groups                List ALL BlackArch groups
+  aegis-tools info <group>          Show packages in a group
+  aegis-tools search <keyword>      Search every repo for a tool
+  aegis-tools count                 How many BlackArch tools are available
+  aegis-tools full                  Install the ENTIRE arsenal (huge; confirms)
+
+${C_T}Examples${Z}
+  aegis-tools install blackarch-scanner blackarch-webapp
+  aegis-tools search burp
+EOF
+}
+
+require_blackarch(){
+    if ! have_blackarch; then
+        echo "${C_R}The BlackArch repository is not configured on this system.${Z}" >&2
+        echo "It is enabled by default in Aegis OS builds; re-add it with the official strap.sh:" >&2
+        echo "  curl -O https://blackarch.org/strap.sh && sudo bash strap.sh" >&2
+        return 1
+    fi
+}
+
+cmd="${1:-}"; shift || true
+case "${cmd}" in
+    categories|cats|"")
+        echo "${C_T}Curated categories${Z}  ${C_D}(install: aegis-tools install <group>)${Z}"
+        for entry in "${CATS[@]}"; do
+            g="${entry%%|*}"; d="${entry#*|}"
+            printf '  ${C_G}%-24s${Z} %s\n' "$g" "$d"
+        done
+        echo
+        echo "${C_D}Full list: aegis-tools groups   ·   All 2800+ at once: aegis-tools full${Z}"
+        ;;
+    install|add)
+        [[ $# -ge 1 ]] || { echo "usage: aegis-tools install <group...>"; exit 1; }
+        require_blackarch || exit 1
+        echo "${C_Y}Installing: $* ${Z}"
+        sudo pacman -Sy --needed "$@"
+        ;;
+    groups|list)
+        require_blackarch || exit 1
+        pacman -Sg 2>/dev/null | awk '$1 ~ /^blackarch/ {print $1}' | sort -u
+        ;;
+    info|show)
+        [[ $# -ge 1 ]] || { echo "usage: aegis-tools info <group>"; exit 1; }
+        pacman -Sg "$1" 2>/dev/null | awk '{print $2}' | sort
+        ;;
+    search|find)
+        [[ $# -ge 1 ]] || { echo "usage: aegis-tools search <keyword>"; exit 1; }
+        pacman -Ss "$*"
+        ;;
+    count)
+        require_blackarch || exit 1
+        n="$(pacman -Sg 2>/dev/null | awk '$1 ~ /^blackarch/ {print $2}' | sort -u | wc -l)"
+        echo "${n} BlackArch tools available."
+        ;;
+    full|everything)
+        require_blackarch || exit 1
+        echo "${C_R}WARNING:${Z} installing the entire BlackArch arsenal downloads tens of GB"
+        echo "and can take a very long time. Prefer installing categories you need."
+        printf 'Type EXACTLY "install everything" to proceed: '
+        read -r confirm
+        [[ "${confirm}" == "install everything" ]] || { echo "Aborted."; exit 1; }
+        sudo pacman -Sy --needed blackarch
+        ;;
+    -h|--help|help) usage ;;
+    *) echo "unknown subcommand: ${cmd}"; echo; usage; exit 1 ;;
+esac

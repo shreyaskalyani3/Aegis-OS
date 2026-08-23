@@ -1,0 +1,15 @@
+[Unit]
+Description=Aegis OS live environment setup (user, autologin, locale)
+Documentation=https://aegis-os.example/docs
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=display-manager.service systemd-user-sessions.service getty.target
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/aegis-live-setup
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

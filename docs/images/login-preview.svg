@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace">
+  <defs>
+    <radialGradient id="wp" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="#131a24"/>
+      <stop offset="55%" stop-color="#0b0f16"/>
+      <stop offset="100%" stop-color="#05070a"/>
+    </radialGradient>
+    <linearGradient id="sh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+    <linearGradient id="wm" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffd9df"/><stop offset="100%" stop-color="#c9737f"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#1b2733" stroke-width="1" opacity="0.28"/>
+    </pattern>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="card" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="30" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- ===== Wallpaper (dimmed) ===== -->
+  <rect width="1600" height="1000" fill="url(#wp)"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <g transform="translate(800 300) scale(0.85)" opacity="0.5" filter="url(#glow)">
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="url(#sh)" opacity="0.14"/>
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#sh)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M0 -66 L46 78 L20 78 L11 44 L-11 44 L-20 78 L-46 78 Z M-4 18 L4 18 L0 -6 Z" fill="#f0f6fc"/>
+    <circle cx="0" cy="104" r="12" fill="#ff2e4d"/><rect x="-4" y="104" width="8" height="26" fill="#ff2e4d"/>
+  </g>
+  <rect width="1600" height="1000" fill="#05070a" opacity="0.45"/>
+
+  <!-- ===== Greeter top bar ===== -->
+  <rect x="0" y="0" width="1600" height="34" fill="#11161d" opacity="0.9"/>
+  <text x="20" y="22" font-size="13" fill="#8b98a5">sentinel</text>
+  <text x="1360" y="22" font-size="13" fill="#dbe4ec">Xfce Session</text>
+  <g stroke="#aeb9c4" stroke-width="1.6" fill="none">
+    <circle cx="1452" cy="17" r="8"/><path d="M1452 12 v5 l3 3"/>
+  </g>
+  <text x="1586" y="22" text-anchor="end" font-size="13" fill="#ffffff">14:32</text>
+
+  <!-- ===== Login card ===== -->
+  <g filter="url(#card)">
+    <rect x="570" y="300" width="460" height="392" rx="14" fill="#2b333e"/>
+    <rect x="570" y="300" width="460" height="392" rx="14" fill="none" stroke="#3a4451" stroke-width="1"/>
+
+    <!-- shield avatar -->
+    <circle cx="800" cy="368" r="46" fill="#1d2732" stroke="#ff3355" stroke-width="2"/>
+    <g transform="translate(800 368) scale(0.24)">
+      <path d="M0 -66 L46 78 L20 78 L11 44 L-11 44 L-20 78 L-46 78 Z M-4 18 L4 18 L0 -6 Z" fill="#ff5570"/>
+      <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+            fill="none" stroke="#ff3355" stroke-width="10" stroke-linejoin="round" transform="scale(0.62)"/>
+    </g>
+
+    <text x="800" y="452" text-anchor="middle" font-size="24" fill="#f0f6fc">aegis</text>
+    <text x="800" y="476" text-anchor="middle" font-size="12.5" fill="#8b98a5">Administrator</text>
+
+    <!-- password field -->
+    <rect x="614" y="500" width="372" height="46" rx="9" fill="#0d1117" stroke="#3a4451" stroke-width="1"/>
+    <g stroke="#8b98a5" stroke-width="1.6" fill="none">
+      <rect x="632" y="516" width="14" height="10" rx="2"/><path d="M635 516 v-3 a4 4 0 0 1 8 0 v3"/>
+    </g>
+    <text x="660" y="530" font-size="20" fill="#c9d1d9" letter-spacing="3">&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</text>
+    <rect x="828" y="514" width="2" height="18" fill="#ff2e4d"/>
+
+    <!-- log in button -->
+    <rect x="614" y="562" width="372" height="46" rx="9" fill="#c22740"/>
+    <text x="800" y="591" text-anchor="middle" font-size="16" fill="#ffffff">Log In</text>
+
+    <!-- session selector -->
+    <text x="800" y="644" text-anchor="middle" font-size="13" fill="#8b98a5">Session:  Xfce  &#9662;</text>
+  </g>
+
+  <!-- ===== Footer wordmark ===== -->
+  <text x="800" y="930" text-anchor="middle" font-size="30" font-weight="700" letter-spacing="10" fill="url(#wm)">AEGIS&#160;OS</text>
+  <text x="800" y="958" text-anchor="middle" font-size="13" letter-spacing="8" fill="#ff2e4d">&#8212;&#160;&#160;S&#160;E&#160;N&#160;T&#160;I&#160;N&#160;E&#160;L&#160;&#160;&#8212;</text>
+  <text x="800" y="984" text-anchor="middle" font-family="'Noto Sans','DejaVu Sans',sans-serif" font-size="12.5" letter-spacing="2" fill="#4a5b68">For authorized security testing only.</text>
+</svg>

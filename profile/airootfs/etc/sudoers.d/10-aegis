@@ -1,0 +1,12 @@
+# Aegis OS sudo policy
+# Members of the wheel group may run any command (with password).
+%wheel ALL=(ALL:ALL) ALL
+
+# Keep AI agent credentials across sudo so agents work under elevated shells.
+Defaults env_keep += "ANTHROPIC_API_KEY OPENAI_API_KEY OPENROUTER_API_KEY GEMINI_API_KEY"
+Defaults env_keep += "CLAUDE_CODE_* AEGIS_*"
+
+# Sensible defaults
+Defaults timestamp_timeout=15
+Defaults passwd_tries=5
+Defaults insults

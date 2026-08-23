@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-ai-install — install the bundled AI coding agents (per-user).
+#  Usage: aegis-ai-install [claude|opencode|aider|codex|all ...]
+#  Commands verified against upstream docs (Aug 2026).
+# =============================================================================
+set -uo pipefail
+
+if [[ "$(id -u)" -eq 0 ]]; then
+    echo "Run aegis-ai-install as your normal user (not root) so agents install into \$HOME." >&2
+    exit 1
+fi
+
+# Install user-global npm packages under ~/.local (no sudo, auto-updatable).
+export NPM_CONFIG_PREFIX="${HOME}/.local"
+mkdir -p "${HOME}/.local/bin"
+case ":${PATH}:" in *":${HOME}/.local/bin:"*) ;; *) export PATH="${HOME}/.local/bin:${PATH}";; esac
+
+have(){ command -v "$1" >/dev/null 2>&1; }
+log(){ printf '\e[1;34m::\e[0m %s\n' "$*"; }
+ok(){  printf '  \e[32m✓\e[0m %s\n' "$*"; }
+err(){ printf '  \e[31m✗\e[0m %s\n' "$*" >&2; }
+
+install_claude(){
+    have claude && { ok "Claude Code already installed"; return 0; }
+    log "Installing Claude Code (Anthropic)"
+    if curl -fsSL https://claude.ai/install.sh | bash;         then ok "Claude Code installed (native)"; return 0; fi
+    if have npm && npm install -g @anthropic-ai/claude-code;   then ok "Claude Code installed (npm)";    return 0; fi
+    err "Claude Code install failed — see https://code.claude.com/docs/en/setup"; return 1
+}
+install_opencode(){
+    if pacman -Qi opencode >/dev/null 2>&1 || have opencode; then ok "OpenCode already present"; return 0; fi
+    log "Installing OpenCode"
+    if curl -fsSL https://opencode.ai/install | bash;          then ok "OpenCode installed"; return 0; fi
+    if have npm && npm install -g opencode-ai;                 then ok "OpenCode installed (npm)"; return 0; fi
+    err "OpenCode install failed — see https://opencode.ai/docs"; return 1
+}
+install_aider(){
+    have aider && { ok "Aider already installed"; return 0; }
+    log "Installing Aider"
+    if curl -LsSf https://aider.chat/install.sh | sh;          then ok "Aider installed"; return 0; fi
+    if have uv && uv tool install --force --with pip aider-chat@latest; then ok "Aider installed (uv)"; return 0; fi
+    if have pipx && pipx install aider-chat;                   then ok "Aider installed (pipx)"; return 0; fi
+    err "Aider install failed — see https://aider.chat/docs/install.html"; return 1
+}
+install_codex(){
+    have codex && { ok "Codex CLI already installed"; return 0; }
+    log "Installing Codex CLI (OpenAI)"
+    if have npm && npm install -g @openai/codex;               then ok "Codex CLI installed (npm)"; return 0; fi
+    if curl -fsSL https://chatgpt.com/codex/install.sh | sh;   then ok "Codex CLI installed"; return 0; fi
+    err "Codex CLI install failed — see https://github.com/openai/codex"; return 1
+}
+
+targets=("$@")
+[[ ${#targets[@]} -eq 0 ]] && targets=(all)
+rc=0
+for t in "${targets[@]}"; do
+    case "$t" in
+        claude|claude-code) install_claude || rc=1 ;;
+        opencode)           install_opencode || rc=1 ;;
+        aider)              install_aider || rc=1 ;;
+        codex)              install_codex || rc=1 ;;
+        all)                install_claude || rc=1; install_opencode || rc=1
+                            install_aider  || rc=1; install_codex    || rc=1 ;;
+        *) err "unknown agent: $t (use: claude|opencode|aider|codex|all)"; rc=1 ;;
+    esac
+done
+
+echo
+log "Done. Ensure ~/.local/bin is on your PATH (Aegis' zsh config adds it)."
+log "Authenticate with:  aegis-setup   (or run each agent and follow its login prompt)."
+exit "$rc"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Aegis Setup
+GenericName=First-run Setup
+Comment=Configure AI agents, API keys, and install security tool groups
+Exec=xfce4-terminal --title=Aegis\ Setup --command="bash -lc aegis-setup"
+Icon=preferences-system
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;
+Keywords=setup;wizard;ai;agent;api;keys;tools;

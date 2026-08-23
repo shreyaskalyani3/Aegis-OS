@@ -1,0 +1,323 @@
+# =============================================================================
+#  profile/packages.x86_64 — packages installed into the Aegis OS image
+# =============================================================================
+#  Lines starting with # are ignored. Every listed package MUST exist in a
+#  configured repo at build time or mkarchiso fails. High-confidence core/extra
+#  names are always on; a curated set of stable BlackArch tools lives in the
+#  guarded block near the bottom (stripped when AEGIS_ENABLE_BLACKARCH=0).
+#
+#  How much of the 2800+ BlackArch arsenal is baked in is controlled by
+#  AEGIS_TOOL_SET in aegis.conf: `broad` (default) makes build-iso.sh APPEND the
+#  major category groups (AEGIS_BLACKARCH_GROUPS) here at staging time; `full`
+#  appends the whole `blackarch` group; `lean` appends nothing. Anything not
+#  baked in is always installable post-boot via `aegis-tools`.
+# =============================================================================
+
+# --- Base system -------------------------------------------------------------
+base
+base-devel
+linux
+linux-headers
+linux-firmware
+intel-ucode
+amd-ucode
+mkinitcpio
+mkinitcpio-archiso
+mkinitcpio-nfs-utils
+sudo
+pacman-contrib
+reflector
+archlinux-keyring
+plymouth
+
+# --- Boot / firmware ---------------------------------------------------------
+grub
+efibootmgr
+syslinux
+edk2-shell
+memtest86+
+memtest86+-efi
+
+# --- Filesystems / disks -----------------------------------------------------
+e2fsprogs
+dosfstools
+exfatprogs
+f2fs-tools
+ntfs-3g
+btrfs-progs
+xfsprogs
+gptfdisk
+parted
+lvm2
+mdadm
+cryptsetup
+dmraid
+smartmontools
+hdparm
+nvme-cli
+gpart
+testdisk
+
+# --- Core CLI / system utils -------------------------------------------------
+zsh
+zsh-completions
+zsh-autosuggestions
+zsh-syntax-highlighting
+bash-completion
+vim
+neovim
+nano
+git
+git-lfs
+wget
+curl
+rsync
+openssh
+tmux
+htop
+btop
+iotop
+ncdu
+tree
+less
+man-db
+man-pages
+which
+usbutils
+pciutils
+lshw
+dmidecode
+lsof
+strace
+ltrace
+unzip
+zip
+p7zip
+unrar
+tar
+jq
+yq
+ripgrep
+fd
+bat
+fzf
+eza
+zoxide
+wl-clipboard
+xclip
+xsel
+neofetch
+figlet
+lolcat
+bc
+inetutils
+whois
+bind
+
+# --- Networking --------------------------------------------------------------
+networkmanager
+network-manager-applet
+networkmanager-openvpn
+networkmanager-openconnect
+nm-connection-editor
+dhcpcd
+iwd
+wpa_supplicant
+wireless-regdb
+iw
+dnsmasq
+openvpn
+openconnect
+wireguard-tools
+modemmanager
+mobile-broadband-provider-info
+usb_modeswitch
+ethtool
+iproute2
+net-tools
+bridge-utils
+macchanger
+tor
+torsocks
+proxychains-ng
+
+# --- Xorg + video ------------------------------------------------------------
+xorg-server
+xorg-xinit
+xorg-xrandr
+xorg-xset
+xorg-xkill
+xorg-xhost
+xf86-input-libinput
+mesa
+xf86-video-vesa
+xf86-video-amdgpu
+xf86-video-intel
+xf86-video-nouveau
+
+# --- VM guest tools (many users run Aegis in a VM) ---------------------------
+virtualbox-guest-utils
+open-vm-tools
+qemu-guest-agent
+spice-vdagent
+hyperv
+
+# --- Audio -------------------------------------------------------------------
+pipewire
+pipewire-alsa
+pipewire-pulse
+pipewire-jack
+wireplumber
+pavucontrol
+pamixer
+alsa-utils
+sof-firmware
+
+# --- Bluetooth ---------------------------------------------------------------
+bluez
+bluez-utils
+blueman
+
+# --- Desktop: XFCE -----------------------------------------------------------
+xfce4
+xfce4-goodies
+lightdm
+lightdm-gtk-greeter
+lightdm-gtk-greeter-settings
+xfce4-terminal
+alacritty
+network-manager-applet
+blueman
+gvfs
+gvfs-mtp
+gvfs-smb
+thunar-archive-plugin
+thunar-volman
+xarchiver
+file-roller
+mousepad
+ristretto
+galculator
+firefox
+gnome-keyring
+xdg-user-dirs
+xdg-utils
+polkit-gnome
+
+# --- Theming / fonts ---------------------------------------------------------
+arc-gtk-theme
+papirus-icon-theme
+gnome-themes-extra
+librsvg
+qt5ct
+kvantum
+ttf-dejavu
+ttf-liberation
+ttf-jetbrains-mono-nerd
+noto-fonts
+noto-fonts-emoji
+noto-fonts-cjk
+terminus-font
+ttf-nerd-fonts-symbols
+ttf-nerd-fonts-symbols-mono
+
+# --- Installer (install Aegis to disk) ---------------------------------------
+calamares
+archinstall
+arch-install-scripts
+
+# --- AI agent runtimes & tooling ---------------------------------------------
+nodejs
+npm
+python
+python-pip
+python-pipx
+python-virtualenv
+uv
+go
+rustup
+ripgrep
+
+# --- AI agent (native Arch package) ------------------------------------------
+opencode
+
+# --- Aegis custom packages (from the local [aegis] repo) ---------------------
+aegis-meta
+
+# --- Security arsenal: high-confidence core/extra tools (always on) ----------
+nmap
+wireshark-qt
+wireshark-cli
+tcpdump
+socat
+openbsd-netcat
+arp-scan
+masscan
+aircrack-ng
+hashcat
+hashcat-utils
+john
+hydra
+sqlmap
+metasploit
+radare2
+gdb
+binwalk
+sleuthkit
+mitmproxy
+hcxtools
+hcxdumptool
+smbclient
+lynis
+yara
+clamav
+perl-image-exiftool
+nasm
+tcpreplay
+ndisc6
+iftop
+nethogs
+whois
+
+# =============================================================================
+#  BlackArch-only tools (installed only when AEGIS_ENABLE_BLACKARCH=1).
+#  build-iso.sh deletes everything between these markers if BlackArch is off.
+#  These are well-known, stable BlackArch package names.
+# =============================================================================
+# >>> AEGIS_BLACKARCH_ONLY >>>
+blackarch-keyring
+blackarch-mirrorlist
+nikto
+dirb
+gobuster
+ffuf
+wfuzz
+wpscan
+whatweb
+wafw00f
+sublist3r
+theharvester
+dnsrecon
+dnsenum
+fierce
+enum4linux
+smbmap
+netexec
+responder
+bettercap
+dsniff
+reaver
+bully
+wifite
+mdk4
+seclists
+wordlists
+exploitdb
+evil-winrm
+impacket
+hash-identifier
+hashid
+cewl
+crunch
+sslscan
+# <<< AEGIS_BLACKARCH_ONLY <<<

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-desktop-setup — per-user desktop polish, run once at XFCE login.
+#  Applies the Aegis wallpaper across whatever monitors exist (their xfconf
+#  property names are not known ahead of time), idempotently. Safe no-op if
+#  XFCE/xfconf is unavailable.
+# =============================================================================
+set -uo pipefail
+
+WALL="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"
+[[ -r "${WALL}" ]] || exit 0
+command -v xfconf-query >/dev/null 2>&1 || exit 0
+
+# xfdesktop registers a /backdrop/.../last-image property per monitor+workspace
+# only after it has started; wait briefly for it to appear.
+props=()
+for _ in $(seq 1 12); do
+    mapfile -t props < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/last-image$' || true)
+    [[ ${#props[@]} -gt 0 ]] && break
+    sleep 1
+done
+
+apply() {  # $1 = last-image property path
+    local img_prop="$1" base="${1%/last-image}"
+    xfconf-query -c xfce4-desktop -p "${img_prop}" -s "${WALL}" 2>/dev/null || \
+        xfconf-query -c xfce4-desktop -n -t string -p "${img_prop}" -s "${WALL}" 2>/dev/null || true
+    # image-style 5 = "Scaled" to fill the screen.
+    xfconf-query -c xfce4-desktop -p "${base}/image-style" -s 5 2>/dev/null || \
+        xfconf-query -c xfce4-desktop -n -t int -p "${base}/image-style" -s 5 2>/dev/null || true
+}
+
+if [[ ${#props[@]} -gt 0 ]]; then
+    for p in "${props[@]}"; do apply "${p}"; done
+else
+    # No monitors registered yet — seed the conventional single-monitor path.
+    apply "/backdrop/screen0/monitor0/workspace0/last-image"
+fi
+
+exit 0

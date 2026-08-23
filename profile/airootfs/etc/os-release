@@ -1,0 +1,14 @@
+NAME="Aegis OS"
+PRETTY_NAME="Aegis OS (Sentinel) __AEGIS_VERSION__"
+ID=aegis
+ID_LIKE=arch
+BUILD_ID=__AEGIS_VERSION__
+VERSION="__AEGIS_VERSION__"
+VERSION_ID="__AEGIS_VERSION__"
+ANSI_COLOR="1;31"
+HOME_URL="https://aegis-os.example"
+DOCUMENTATION_URL="https://aegis-os.example/docs"
+SUPPORT_URL="https://aegis-os.example/support"
+BUG_REPORT_URL="https://aegis-os.example/issues"
+PRIVACY_POLICY_URL="https://aegis-os.example/privacy"
+LOGO=aegis

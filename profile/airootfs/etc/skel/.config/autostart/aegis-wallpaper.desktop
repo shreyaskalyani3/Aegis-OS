@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Aegis Desktop Polish
+Comment=Applies the Aegis wallpaper across all monitors on login
+Exec=aegis-desktop-setup
+Icon=preferences-desktop-wallpaper
+Terminal=false
+Categories=System;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

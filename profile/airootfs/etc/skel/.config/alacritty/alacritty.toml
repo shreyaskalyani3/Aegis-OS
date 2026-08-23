@@ -1,0 +1,49 @@
+# ~/.config/alacritty/alacritty.toml — Aegis OS dark terminal theme
+# Alacritty >= 0.13 TOML format.
+
+[window]
+opacity = 0.96
+padding = { x = 8, y = 8 }
+dynamic_title = true
+decorations = "full"
+
+[scrolling]
+history = 50000
+
+[font]
+size = 11.0
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold   = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+
+# --- Aegis palette: near-black background with a red security accent ---------
+[colors.primary]
+background = "#0d1117"
+foreground = "#c9d1d9"
+
+[colors.cursor]
+cursor = "#ff2e4d"
+text   = "#0d1117"
+
+[colors.normal]
+black   = "#161b22"
+red     = "#ff2e4d"
+green   = "#3fb950"
+yellow  = "#d29922"
+blue    = "#58a6ff"
+magenta = "#bc8cff"
+cyan    = "#39c5cf"
+white   = "#b1bac4"
+
+[colors.bright]
+black   = "#484f58"
+red     = "#ff6a7f"
+green   = "#56d364"
+yellow  = "#e3b341"
+blue    = "#79c0ff"
+magenta = "#d2a8ff"
+cyan    = "#56d4dd"
+white   = "#f0f6fc"
+
+[cursor]
+style = { shape = "Block", blinking = "On" }

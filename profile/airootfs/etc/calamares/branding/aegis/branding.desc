@@ -1,0 +1,33 @@
+# =============================================================================
+#  Aegis OS — Calamares branding
+# =============================================================================
+---
+componentName: aegis
+
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 820px,540px
+windowPlacement: center
+
+strings:
+    productName:         "Aegis OS"
+    shortProductName:    "Aegis"
+    version:             "Sentinel"
+    shortVersion:        "Sentinel"
+    versionedName:       "Aegis OS (Sentinel)"
+    shortVersionedName:  "Aegis"
+    bootloaderEntryName:  "Aegis OS"
+    productUrl:          "https://aegis-os.example"
+    supportUrl:          "https://aegis-os.example/support"
+    knownIssuesUrl:      "https://aegis-os.example/issues"
+    releaseNotesUrl:     "https://aegis-os.example/news"
+
+slideshow: "show.qml"
+slideshowAPI: 2
+
+style:
+    sidebarBackground:    "#0d1117"
+    sidebarText:          "#c9d1d9"
+    sidebarTextSelect:    "#ff2e4d"
+    sidebarTextHighlight: "#ff2e4d"

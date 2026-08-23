@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <radialGradient id="bg" cx="28%" cy="80%" r="90%">
+      <stop offset="0%" stop-color="#121821"/>
+      <stop offset="60%" stop-color="#0a0e14"/>
+      <stop offset="100%" stop-color="#05070a"/>
+    </radialGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/>
+      <stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+
+  <!-- small emblem, lower-left, lots of negative space -->
+  <g transform="translate(150 860) scale(0.62)">
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#shield)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M0 -66 L46 78 L20 78 L11 44 L-11 44 L-20 78 L-46 78 Z M-4 18 L4 18 L0 -6 Z"
+          fill="#f0f6fc"/>
+    <circle cx="0" cy="104" r="12" fill="#ff2e4d"/>
+    <rect x="-4" y="104" width="8" height="26" fill="#ff2e4d"/>
+  </g>
+
+  <text x="256" y="852" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="72" font-weight="700" letter-spacing="8" fill="#f0f6fc">AEGIS&#160;OS</text>
+  <text x="260" y="902" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="22" letter-spacing="9" fill="#ff2e4d">SENTINEL</text>
+</svg>

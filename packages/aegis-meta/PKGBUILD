@@ -1,0 +1,117 @@
+# Maintainer: Aegis OS Project <security@aegis-os.example>
+# =============================================================================
+#  aegis-meta — Aegis OS release identity + curated core metapackage.
+# =============================================================================
+#  Built into the local [aegis] repo by scripts/build-iso.sh (via makepkg) and
+#  installed by mkarchiso onto the live image; Calamares also pulls it onto the
+#  target system, so it doubles as the "this is an Aegis system" marker.
+#
+#  It ships release-identity files and depends on a curated set of packages
+#  that are ALWAYS present in the official core/extra repos. It deliberately
+#  does NOT depend on BlackArch packages — the 2800+ tool arsenal is enumerated
+#  in profile/packages.x86_64 and installed on demand post-boot via `aegis-tools`.
+#  Keeping the dep list to rock-solid names means this package can never break
+#  the ISO build with an unresolvable dependency.
+# =============================================================================
+
+# Pull branding (name/codename/tagline) from the repo's single source of truth.
+# aegis.conf preserves an already-set AEGIS_VERSION, so sourcing it is safe.
+_aegis_conf="${startdir}/../../aegis.conf"
+# shellcheck disable=SC1090
+[[ -r "${_aegis_conf}" ]] && source "${_aegis_conf}"
+
+pkgname=aegis-meta
+# Version: prefer the env passed by build-iso.sh, then the repo VERSION file,
+# then today's date — always makepkg-valid (digits and dots only).
+pkgver="${AEGIS_VERSION:-}"
+[[ -z "${pkgver}" ]] && pkgver="$(cat "${startdir}/../../VERSION" 2>/dev/null || true)"
+[[ -z "${pkgver}" ]] && pkgver="$(date +%Y.%m.%d 2>/dev/null || echo 2026.01.01)"
+pkgver="${pkgver//[^0-9.]/}"
+pkgrel=1
+pkgdesc="Aegis OS release identity and core metapackage (security + AI-agent workstation)"
+arch=('any')
+url="${AEGIS_URL:-https://aegis-os.example}"
+license=('GPL3')
+provides=("aegis=${pkgver}" "aegis-release=${pkgver}")
+conflicts=('aegis-release')
+# Curated essentials guaranteed to exist in core/extra. The rest of the system
+# is defined in profile/packages.x86_64; do not duplicate the full list here.
+# NOTE: only real package names here — pacman cannot satisfy a dependency on a
+# group (so 'xfce4-session', not the 'xfce4' group).
+depends=(
+  base
+  sudo
+  zsh
+  git
+  networkmanager
+  xorg-server
+  xfce4-session
+  xfwm4
+  xfdesktop
+  lightdm
+  lightdm-gtk-greeter
+  nodejs
+  npm
+  python
+  python-pipx
+  python-virtualenv
+  go
+  rustup
+  nmap
+)
+options=('!strip' '!emptydirs')
+
+package() {
+  local _name="${AEGIS_NAME:-Aegis OS}"
+  local _id="${AEGIS_ID:-aegis}"
+  local _codename="${AEGIS_CODENAME:-Sentinel}"
+  local _tagline="${AEGIS_TAGLINE:-Offensive & Defensive Security, Agent-Native}"
+  local _vendor="${AEGIS_VENDOR:-Aegis OS Project}"
+  local _url="${AEGIS_URL:-https://aegis-os.example}"
+
+  # --- Release identity (parseable, lsb-release style) ---------------------
+  install -d "${pkgdir}/usr/lib"
+  cat > "${pkgdir}/usr/lib/aegis-release" <<EOF
+NAME="${_name}"
+ID=${_id}
+VERSION="${pkgver}"
+VERSION_ID=${pkgver}
+CODENAME=${_codename}
+TAGLINE="${_tagline}"
+VENDOR="${_vendor}"
+HOME_URL="${_url}"
+BUILD_ID=${pkgver}-${pkgrel}
+EOF
+
+  # --- Plain version string (handy for scripts) ----------------------------
+  install -d "${pkgdir}/usr/share/aegis"
+  printf '%s\n' "${pkgver}" > "${pkgdir}/usr/share/aegis/version"
+
+  # --- ASCII branding (shared by motd/welcome tooling) ---------------------
+  cat > "${pkgdir}/usr/share/aegis/logo.txt" <<'EOF'
+      _              _         ___  ____
+     / \   ___  __ _(_)___    / _ \/ ___|
+    / _ \ / _ \/ _` | / __|  | | | \___ \
+   / ___ \  __/ (_| | \__ \  | |_| |___) |
+  /_/   \_\___|\__, |_|___/   \___/|____/
+               |___/
+EOF
+
+  # --- Documentation / provenance ------------------------------------------
+  install -d "${pkgdir}/usr/share/doc/aegis"
+  cat > "${pkgdir}/usr/share/doc/aegis/README" <<EOF
+${_name} (${_codename}) — ${_tagline}
+
+This metapackage marks an Aegis OS installation and pulls in the curated core
+of the platform. The complete security arsenal is available on demand:
+
+    aegis-tools categories      # list installable tool groups
+    aegis-tools install <group> # install a BlackArch tool group
+    aegis-ai                    # launch / install an AI coding agent
+    aegis-setup                 # first-run setup wizard
+
+Homepage: ${_url}
+
+Authorized use only. See /usr/share/doc/aegis and the project ETHICS notice.
+EOF
+}
