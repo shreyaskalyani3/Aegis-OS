@@ -106,7 +106,7 @@ zoxide
 wl-clipboard
 xclip
 xsel
-neofetch
+fastfetch
 figlet
 lolcat
 bc
@@ -205,7 +205,7 @@ xdg-utils
 polkit-gnome
 
 # --- Theming / fonts ---------------------------------------------------------
-arc-gtk-theme
+adw-gtk-theme
 papirus-icon-theme
 gnome-themes-extra
 librsvg
@@ -311,7 +311,6 @@ bully
 wifite
 mdk4
 seclists
-wordlists
 exploitdb
 evil-winrm
 impacket

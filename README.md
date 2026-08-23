@@ -12,7 +12,7 @@ Live + installable ISO · BlackArch arsenal · XFCE · Claude Code · OpenCode �
 
 <img src="docs/images/desktop-preview.svg" alt="Aegis OS desktop — XFCE with the Aegis MOTD terminal and the aegis-ai agent launcher" width="92%">
 
-<sub>XFCE 4 · Arc-Dark + Papirus · the <code>aegis</code> MOTD banner · the <code>aegis-ai</code> launcher · a live <code>nmap -sV</code> scan</sub>
+<sub>XFCE 4 · adw-gtk3-dark + Papirus · the <code>aegis</code> MOTD banner · the <code>aegis-ai</code> launcher · a live <code>nmap -sV</code> scan</sub>
 
 </div>
 
@@ -40,7 +40,7 @@ the branding, and the build tooling that compile into a distributable `.iso`.
 |-------|---------|
 | **Base** | Arch Linux (rolling), current `linux` kernel, `mkinitcpio`-generated live image |
 | **Tools** | BlackArch (2800+ tools) — **all major categories baked in** by default, the rest on demand via `aegis-tools`. Tune with `AEGIS_TOOL_SET` (`lean`/`broad`/`full`) |
-| **Desktop** | XFCE 4 with a dark "Aegis" theme (Arc-Dark + Papirus-Dark), custom wallpaper, autologin live user |
+| **Desktop** | XFCE 4 with a dark "Aegis" theme (adw-gtk3-dark + Papirus-Dark), custom wallpaper, autologin live user |
 | **AI agents** | Claude Code, OpenCode (native Arch pkg), Aider, Codex — unified `aegis-ai` launcher + `aegis-setup` wizard |
 | **Runtimes** | Node.js 22, Python + `pipx` + `uv`, Go, Rust, Git, ripgrep — so agents & tools work out of the box |
 | **Installer** | Calamares graphical installer — Aegis is **installable to disk**, not just a live CD |
@@ -57,7 +57,7 @@ for how the agents are integrated.
 
 <img src="docs/images/login-preview.svg" alt="Aegis OS LightDM greeter — shield avatar, aegis user, Xfce session" width="64%">
 
-<sub>The LightDM greeter (Arc-Dark): shield avatar, the <code>aegis</code> user, Xfce session.</sub>
+<sub>The LightDM greeter (adw-gtk3-dark): shield avatar, the <code>aegis</code> user, Xfce session.</sub>
 
 </div>
 

@@ -30,7 +30,7 @@ tips=(
 "Update everything:      sudo pacman -Syu"
 "Start an AI agent here: aegis-ai   (or: claude / opencode / aider / codex)"
 "Search all tools:       aegis-tools search <keyword>"
-"Wordlists live in:      /usr/share/seclists  and  /usr/share/wordlists"
+"Wordlists live in:      /usr/share/seclists   (SecLists collection)"
 )
 idx=$(( ${RANDOM:-0} % ${#tips[@]} ))
 printf '%s\n' "${Y}  ⚠  ${tips[$idx]}${Z}"
