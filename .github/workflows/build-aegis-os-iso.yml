@@ -35,7 +35,8 @@ jobs:
         run: |
           echo "Building Aegis OS"
           echo "Tool set: $AEGIS_TOOL_SET"
-          ./scripts/build-iso.sh
+          sudo ./scripts/build-iso.sh
+
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4
