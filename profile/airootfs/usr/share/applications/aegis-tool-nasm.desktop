@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=NASM
+GenericName=x86 / x86-64 assembler
+Comment=x86 / x86-64 assembler
+Exec=xfce4-terminal --title="NASM" --command="aegis-run --group blackarch-reversing --desc 'x86 / x86-64 assembler' nasm"
+Icon=aegis-cat-reversing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Reversing;
+Keywords=security;aegis;nasm;

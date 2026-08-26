@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=theHarvester
+GenericName=OSINT e-mail, host and name gathering
+Comment=OSINT e-mail, host and name gathering
+Exec=xfce4-terminal --title="theHarvester" --command="aegis-run --pkg theharvester --group blackarch-recon --desc 'OSINT e-mail, host and name gathering' theHarvester"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;theHarvester;

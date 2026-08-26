@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=wafw00f
+GenericName=Identify the web application firewall in front of a site
+Comment=Identify the web application firewall in front of a site
+Exec=xfce4-terminal --title="wafw00f" --command="aegis-run --group blackarch-scanner --desc 'Identify the web application firewall in front of a site' wafw00f"
+Icon=aegis-cat-vuln
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Vuln;
+Keywords=security;aegis;wafw00f;

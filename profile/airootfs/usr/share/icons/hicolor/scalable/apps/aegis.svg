@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis OS — application icon (shield + stylized 'A' + keyhole).
+  Geometry is the wallpaper emblem from aegis-wallpaper.svg, scaled to a 48x48
+  icon grid. Rendered by librsvg (installed), so SVG is safe to use here.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/>
+      <stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(24 22) scale(0.115)">
+    <!-- shield body -->
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="url(#shield)" opacity="0.22"/>
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#shield)" stroke-width="16" stroke-linejoin="round"/>
+    <!-- stylized 'A' / spear -->
+    <path d="M0 -66 L46 78 L20 78 L11 44 L-11 44 L-20 78 L-46 78 Z M-4 18 L4 18 L0 -6 Z"
+          fill="#f0f6fc"/>
+    <!-- keyhole (security motif) -->
+    <circle cx="0" cy="104" r="12" fill="#ff2e4d"/>
+    <rect x="-4" y="104" width="8" height="26" fill="#ff2e4d"/>
+  </g>
+</svg>

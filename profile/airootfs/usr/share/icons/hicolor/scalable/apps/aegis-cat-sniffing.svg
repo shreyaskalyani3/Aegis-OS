@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aegis OS — Sniffing and MITM (intercepted signal) category icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="#131a24" stroke="#2a3542" stroke-width="1.5"/>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="url(#a)" opacity="0.10"/>
+  <path d="M6 24 L12 24 L15 14 L19 34 L23 18 L27 30 L30 24 L42 24"
+        fill="none" stroke="#f0f6fc" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24" cy="24" r="5.5" fill="#131a24" stroke="#ff2e4d" stroke-width="2.6"/>
+</svg>

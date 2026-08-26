@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=John the Ripper
+GenericName=Offline password cracker
+Comment=Offline password cracker
+Exec=xfce4-terminal --title="John the Ripper" --command="aegis-run --group blackarch-cracker --desc 'Offline password cracker' john"
+Icon=aegis-cat-passwords
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Passwords;
+Keywords=security;aegis;john;

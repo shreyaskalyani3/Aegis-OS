@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install Aegis OS
+GenericName=System Installer
+Comment=Install Aegis OS to your hard drive
+Exec=pkexec calamares
+Icon=aegis-install
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;

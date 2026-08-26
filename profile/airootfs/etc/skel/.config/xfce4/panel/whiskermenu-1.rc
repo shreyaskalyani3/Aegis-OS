@@ -1,0 +1,46 @@
+####
+# Whisker Menu — Aegis OS defaults.
+#
+# load-hierarchy=true matters here: the security arsenal is organised as nested
+# categories (Aegis Tools -> 01 Information Gathering -> nmap, ...) and Whisker
+# only walks sub-categories when hierarchy loading is on. Without it the tool
+# menu collapses to a flat list.
+####
+button-icon=aegis
+button-title=Aegis
+show-button-icon=true
+show-button-title=true
+button-single-row=false
+
+load-hierarchy=true
+category-icon-size=1
+item-icon-size=2
+hover-switch-category=false
+launcher-show-name=true
+launcher-show-description=true
+launcher-show-tooltip=true
+
+menu-width=520
+menu-height=560
+menu-opacity=100
+position-search-alternate=true
+position-commands-alternate=false
+position-categories-alternate=false
+stay-on-focus-out=false
+confirm-session-command=true
+
+recent-items-max=10
+favorites-in-recent=true
+display-recent-default=false
+
+favorites=xfce4-terminal-emulator.desktop,aegis-tools.desktop,aegis-ai.desktop,aegis-setup.desktop,aegis-install.desktop,firefox.desktop,thunar.desktop
+
+show-command-settings=true
+show-command-lockscreen=true
+show-command-switchuser=false
+show-command-logout=true
+show-command-menueditor=false
+show-command-profile=false
+command-settings=xfce4-settings-manager
+command-lockscreen=xflock4
+command-logout=xfce4-session-logout

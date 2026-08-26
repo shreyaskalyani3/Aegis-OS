@@ -8,5 +8,5 @@ Exec=xfce4-terminal --title=Aegis\ Setup --command="bash -lc aegis-setup"
 Icon=preferences-system
 Terminal=false
 StartupNotify=true
-Categories=System;Settings;
+Categories=System;Settings;X-Aegis-Maintenance;
 Keywords=setup;wizard;ai;agent;api;keys;tools;

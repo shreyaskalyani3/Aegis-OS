@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=iftop
+GenericName=Live bandwidth usage by connection
+Comment=Live bandwidth usage by connection
+Exec=xfce4-terminal --title="iftop" --command="aegis-run --group blackarch-sniffer --desc 'Live bandwidth usage by connection' iftop"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;iftop;

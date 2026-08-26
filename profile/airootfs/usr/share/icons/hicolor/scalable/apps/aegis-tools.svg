@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis OS — "Aegis Tools" launcher icon (shield + crosshair reticle).
+  Shares the wallpaper palette so panel/menu art matches the desktop.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/>
+      <stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(24 22) scale(0.115)">
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="url(#shield)" opacity="0.22"/>
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#shield)" stroke-width="16" stroke-linejoin="round"/>
+
+    <!-- crosshair reticle: target acquisition -->
+    <circle cx="0" cy="10" r="62" fill="none" stroke="#f0f6fc" stroke-width="14"/>
+    <circle cx="0" cy="10" r="14" fill="#ff2e4d"/>
+    <g stroke="#f0f6fc" stroke-width="14" stroke-linecap="round">
+      <path d="M0 -92 L0 -50"/>
+      <path d="M0 70 L0 112"/>
+      <path d="M-92 10 L-50 10"/>
+      <path d="M50 10 L92 10"/>
+    </g>
+  </g>
+</svg>

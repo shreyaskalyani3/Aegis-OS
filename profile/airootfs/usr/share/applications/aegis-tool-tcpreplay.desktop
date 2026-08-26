@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=tcpreplay
+GenericName=Replay captured network traffic
+Comment=Replay captured network traffic
+Exec=xfce4-terminal --title="tcpreplay" --command="aegis-run --group blackarch-sniffer --desc 'Replay captured network traffic' tcpreplay"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;tcpreplay;

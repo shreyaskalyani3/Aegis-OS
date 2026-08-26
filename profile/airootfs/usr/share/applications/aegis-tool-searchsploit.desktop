@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SearchSploit
+GenericName=Offline Exploit-DB search
+Comment=Offline Exploit-DB search
+Exec=xfce4-terminal --title="SearchSploit" --command="aegis-run --pkg exploitdb --group blackarch-exploitation --desc 'Offline Exploit-DB search' searchsploit"
+Icon=aegis-cat-exploit
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Exploit;
+Keywords=security;aegis;searchsploit;

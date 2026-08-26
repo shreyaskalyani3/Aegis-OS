@@ -67,6 +67,24 @@ EOF
 # --- XDG user dirs -----------------------------------------------------------
 runuser -u "${LIVE_USER}" -- xdg-user-dirs-update 2>/dev/null || true
 
+# --- Trust the desktop launchers ---------------------------------------------
+# XFCE >= 4.16 refuses to run a .desktop file on the desktop unless it is
+# executable AND carries a metadata::xfce-exe-checksum matching its contents;
+# otherwise the user gets an "Untrusted application launcher" prompt. /etc/skel
+# ships mode 0644 (the repo is authored on Windows, so nothing there has an exec
+# bit), so grant both here. gio comes from gvfs, already in packages.x86_64.
+LIVE_HOME="$(getent passwd "${LIVE_USER}" | cut -d: -f6)"
+if [[ -n "${LIVE_HOME}" && -d "${LIVE_HOME}/Desktop" ]]; then
+    for launcher in "${LIVE_HOME}"/Desktop/*.desktop; do
+        [[ -f "${launcher}" ]] || continue
+        chmod +x "${launcher}"
+        sum="$(sha256sum "${launcher}" | cut -d' ' -f1)"
+        runuser -u "${LIVE_USER}" -- \
+            gio set "${launcher}" metadata::xfce-exe-checksum "${sum}" 2>/dev/null || true
+    done
+    chown -R "${LIVE_USER}:${LIVE_USER}" "${LIVE_HOME}/Desktop" 2>/dev/null || true
+fi
+
 # --- VM guest integration (auto-detect) --------------------------------------
 # IMPORTANT: use --no-block (fire-and-forget). A plain `systemctl start` waits
 # for the unit's job to finish, and some guest agents block indefinitely: e.g.

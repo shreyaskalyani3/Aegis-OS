@@ -65,7 +65,7 @@ case "${cmd}" in
         echo "${C_T}Curated categories${Z}  ${C_D}(install: aegis-tools install <group>)${Z}"
         for entry in "${CATS[@]}"; do
             g="${entry%%|*}"; d="${entry#*|}"
-            printf '  ${C_G}%-24s${Z} %s\n' "$g" "$d"
+            printf '  %s%-24s%s %s\n' "${C_G}" "$g" "${Z}" "$d"
         done
         echo
         echo "${C_D}Full list: aegis-tools groups   ·   All 2800+ at once: aegis-tools full${Z}"

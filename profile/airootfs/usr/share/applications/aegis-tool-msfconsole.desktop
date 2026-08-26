@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Metasploit Console
+GenericName=Exploitation and post-exploitation framework
+Comment=Exploitation and post-exploitation framework
+Exec=xfce4-terminal --title="Metasploit Console" --command="aegis-run --pkg metasploit --group blackarch-exploitation --desc 'Exploitation and post-exploitation framework' msfconsole"
+Icon=aegis-cat-exploit
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Exploit;
+Keywords=security;aegis;msfconsole;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Wfuzz
+GenericName=Web application fuzzer
+Comment=Web application fuzzer
+Exec=xfce4-terminal --title="Wfuzz" --command="aegis-run --group blackarch-webapp --desc 'Web application fuzzer' wfuzz"
+Icon=aegis-cat-web
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Web;
+Keywords=security;aegis;wfuzz;

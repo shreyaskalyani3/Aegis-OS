@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis OS — "Aegis AI" launcher icon (shield + terminal prompt / neural spark).
+  Shares the wallpaper palette so panel/menu art matches the desktop.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/>
+      <stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(24 22) scale(0.115)">
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="url(#shield)" opacity="0.22"/>
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#shield)" stroke-width="16" stroke-linejoin="round"/>
+
+    <!-- shell prompt chevron + caret: an agent at the command line -->
+    <g fill="none" stroke="#f0f6fc" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-58 -44 L-14 4 L-58 52"/>
+    </g>
+    <rect x="8" y="34" width="66" height="18" rx="9" fill="#ff2e4d"/>
+    <!-- spark: generative accent -->
+    <path d="M56 -56 L64 -30 L90 -22 L64 -14 L56 12 L48 -14 L22 -22 L48 -30 Z" fill="#ff6a7f"/>
+  </g>
+</svg>

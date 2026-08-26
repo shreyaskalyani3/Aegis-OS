@@ -40,7 +40,7 @@ the branding, and the build tooling that compile into a distributable `.iso`.
 |-------|---------|
 | **Base** | Arch Linux (rolling), current `linux` kernel, `mkinitcpio`-generated live image |
 | **Tools** | BlackArch (2800+ tools) — **all major categories baked in** by default, the rest on demand via `aegis-tools`. Tune with `AEGIS_TOOL_SET` (`lean`/`broad`/`full`) |
-| **Desktop** | XFCE 4 with a dark "Aegis" theme (adw-gtk3-dark + Papirus-Dark), custom wallpaper, autologin live user |
+| **Desktop** | XFCE 4, dark "Aegis" theme (adw-gtk3-dark + Papirus-Dark + Daloa decorations), Aegis wallpaper, branded top panel, a **10-category Aegis Tools menu**, an **Install Aegis OS** desktop icon, autologin live user |
 | **AI agents** | Claude Code, OpenCode (native Arch pkg), Aider, Codex — unified `aegis-ai` launcher + `aegis-setup` wizard |
 | **Runtimes** | Node.js 22, Python + `pipx` + `uv`, Go, Rust, Git, ripgrep — so agents & tools work out of the box |
 | **Installer** | Calamares graphical installer — Aegis is **installable to disk**, not just a live CD |
@@ -53,6 +53,8 @@ for how the agents are integrated.
 
 ## 🖼️ Look & feel
 
+### The greeter
+
 <div align="center">
 
 <img src="docs/images/login-preview.svg" alt="Aegis OS LightDM greeter — shield avatar, aegis user, Xfce session" width="64%">
@@ -61,10 +63,34 @@ for how the agents are integrated.
 
 </div>
 
+### The desktop
+
+The XFCE session is configured **statically**, via xfconf XML shipped in
+[`etc/skel/.config/xfce4/`](profile/airootfs/etc/skel/.config/xfce4/). `useradd -m` copies
+`/etc/skel` before the first login, so the config is already in place when `xfdesktop` and
+`xfce4-panel` first read their channels — the Aegis desktop is what you see on the first frame,
+with no flash of stock XFCE and no first-run "Default or Empty panel?" dialog.
+
+| Piece | Ships as | What you get |
+|-------|----------|--------------|
+| **Top panel** | [`xfce4-panel.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml) | Whisker "Aegis" menu button, launchers for Terminal / Files / Firefox / Aegis Tools / Aegis AI / Install, window buttons, workspace pager, tray, clock, session actions |
+| **Aegis Tools menu** | [`aegis-tools.menu`](profile/airootfs/etc/xdg/menus/xfce-applications-merged/aegis-tools.menu) + 10 category files + 73 launchers | Kali-style numbered categories: Information Gathering → Anonymity & Maintenance |
+| **Wallpaper** | [`xfce4-desktop.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml) | Sentinel wallpaper, seeded across every common monitor name |
+| **Window borders** | [`xfwm4.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml) | `Daloa` dark decorations, matching adw-gtk3-dark |
+| **Terminal** | [`terminalrc`](profile/airootfs/etc/skel/.config/xfce4/terminal/terminalrc) | GitHub-dark palette, JetBrainsMono Nerd Font, red cursor |
+| **Install icon** | [`etc/skel/Desktop/`](profile/airootfs/etc/skel/Desktop/) | **Install Aegis OS** on the desktop, marked trusted by `aegis-live-setup` so XFCE does not warn |
+| **Brand icons** | [`hicolor/scalable/apps/`](profile/airootfs/usr/share/icons/hicolor/scalable/apps/) | 14 self-hosted SVGs — every `Icon=` in the profile resolves |
+
+Every menu entry runs through
+[`aegis-run`](profile/airootfs/usr/local/bin/aegis-run), which holds the terminal open on exit —
+and, when the tool is not in this build's `AEGIS_TOOL_SET`, explains what it is and offers to
+install it instead of failing silently. So the menu stays useful on a `lean` image.
+
+### Wallpapers
+
 Aegis ships **four** SVG wallpapers in `/usr/share/backgrounds/aegis/` (they render because
-`librsvg` is installed); the red **Sentinel** design is the default for both the desktop
-([`aegis-desktop-setup`](profile/airootfs/usr/local/bin/aegis-desktop-setup)) and the greeter
-([`lightdm-gtk-greeter.conf`](profile/airootfs/etc/lightdm/lightdm-gtk-greeter.conf)):
+`librsvg` is installed); the red **Sentinel** design is the default for both the desktop and the
+greeter ([`lightdm-gtk-greeter.conf`](profile/airootfs/etc/lightdm/lightdm-gtk-greeter.conf)):
 
 | Wallpaper | File | Vibe |
 |-----------|------|------|
@@ -73,11 +99,15 @@ Aegis ships **four** SVG wallpapers in `/usr/share/backgrounds/aegis/` (they ren
 | **Blue Team** | `aegis-wallpaper-blueteam.svg` | Cyan defensive palette |
 | **Minimal** | `aegis-wallpaper-minimal.svg` | Small lower-left emblem, lots of negative space |
 
-Switch the desktop from **Settings → Desktop** (or point `WALL=` in `aegis-desktop-setup` at
-another file); switch the greeter by editing `background =` in `lightdm-gtk-greeter.conf`.
+Switch the desktop from **Settings → Desktop** (or edit the `last-image` values in
+`xfce4-desktop.xml`); switch the greeter by editing `background =` in
+`lightdm-gtk-greeter.conf`. Multi-head and hotplugged outputs that the static file cannot
+predict are caught after login by
+[`aegis-desktop-setup`](profile/airootfs/usr/local/bin/aegis-desktop-setup), which only fills in
+monitors that are missing or wrong.
 
-> The images above are hand-drawn SVG mockups of the configured theme, not photos of a running
-> system — the real look is produced by the same colors, fonts, and layout the profile ships.
+> The two images above are hand-drawn SVGs of the shipped design, rendered from the same colors,
+> fonts, and layout the profile configures.
 
 ---
 
@@ -93,7 +123,8 @@ another file); switch the greeter by editing `background =` in `lightdm-gtk-gree
    git push -u origin main
    ```
 2. In the repo, open the **Actions** tab and run the **Build Aegis OS ISO** workflow
-   (it also runs automatically on every push to `main` and on tags like `v2026.08.23`).
+   (it also runs automatically when you push a tag like `v2026.08.23` — but *not* on a
+   plain push to `main`, so ordinary commits never burn a 40-minute build).
 3. When it finishes (~20–40 min), download the ISO from the workflow **Artifacts**,
    or — if you pushed a tag — from the auto-created **Release**.
 
@@ -126,7 +157,10 @@ Full details, prerequisites, and troubleshooting are in [`docs/BUILDING.md`](doc
 - **Try it live:** write the ISO to a USB stick ([Rufus](https://rufus.ie/),
   [balenaEtcher](https://etcher.balena.io/), or `dd`) and boot it. Autologins to the
   `aegis` live user. Default creds: `aegis` / `aegis`.
-- **Install to disk:** launch **Install Aegis OS** from the desktop (Calamares).
+- **Install to disk:** double-click **Install Aegis OS** on the desktop, or use the shield
+  launcher in the panel (both run Calamares).
+- **Find the tools:** the **Aegis** menu button in the panel → **Aegis Tools** → 10 numbered
+  categories. Anything not baked into this build offers to install itself when you launch it.
 - **First boot:** run `aegis-setup` (or it opens automatically) to install/authenticate
   the AI agents and pull tool groups.
 
@@ -138,6 +172,7 @@ Full details, prerequisites, and troubleshooting are in [`docs/BUILDING.md`](doc
 aegis.conf                 # ← single source of truth (name, version, user, repos)
 build.sh                   # top-level build dispatcher (auto / docker / native)
 scripts/                   # build-iso.sh, build-docker.sh, setup-wsl.sh, lib/
+scripts/dev/               # check-profile.sh (static profile lint), menu/icon generators
 docker/Dockerfile          # Arch build image for local Docker builds
 .github/workflows/         # GitHub Actions ISO build + release
 profile/                   # the archiso profile
@@ -149,6 +184,20 @@ packages/                  # custom aegis-* packages (PKGBUILDs → local repo)
 branding/                  # logos, wallpaper, plymouth splash
 docs/                      # BUILDING, AI-AGENTS, TOOLS, ETHICS
 ```
+
+**Before you spend two hours on a build,** lint the profile — it runs on Windows, needs no Arch,
+no Docker and no root, and catches the failures that otherwise only surface after a boot
+(malformed XML, `.desktop` files missing keys, `Icon=` names that resolve to nothing, scripts
+with no `file_permissions` entry — which would silently ship non-executable):
+
+```bash
+bash scripts/dev/check-profile.sh
+```
+
+The Aegis Tools menu is generated: the tables at the top of
+[`scripts/dev/gen-tools-menu.sh`](scripts/dev/gen-tools-menu.sh) are the single source of truth
+for all 73 tool launchers and the 10 category files. Edit the tables, re-run it, then re-run the
+linter. Its output is committed, so builds have no dependency on the generator.
 
 ---
 

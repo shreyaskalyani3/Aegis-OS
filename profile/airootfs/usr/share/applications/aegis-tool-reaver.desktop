@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Reaver
+GenericName=WPS PIN recovery attack
+Comment=WPS PIN recovery attack
+Exec=xfce4-terminal --title="Reaver" --command="aegis-run --group blackarch-wireless --desc 'WPS PIN recovery attack' reaver"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;reaver;

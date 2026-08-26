@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Radare2
+GenericName=Reverse engineering and binary analysis framework
+Comment=Reverse engineering and binary analysis framework
+Exec=xfce4-terminal --title="Radare2" --command="aegis-run --pkg radare2 --group blackarch-reversing --desc 'Reverse engineering and binary analysis framework' r2"
+Icon=aegis-cat-reversing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Reversing;
+Keywords=security;aegis;r2;

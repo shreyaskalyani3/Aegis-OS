@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ProxyChains
+GenericName=Force a program through a proxy chain
+Comment=Force a program through a proxy chain
+Exec=xfce4-terminal --title="ProxyChains" --command="aegis-run --pkg proxychains-ng --group blackarch-defensive --desc 'Force a program through a proxy chain' proxychains4"
+Icon=aegis-cat-maintenance
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Maintenance;
+Keywords=security;aegis;proxychains4;

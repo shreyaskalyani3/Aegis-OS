@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sleuth Kit (fls)
+GenericName=List files and directories in a disk image
+Comment=List files and directories in a disk image
+Exec=xfce4-terminal --title="Sleuth Kit (fls)" --command="aegis-run --pkg sleuthkit --group blackarch-forensic --desc 'List files and directories in a disk image' fls"
+Icon=aegis-cat-forensics
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Forensics;
+Keywords=security;aegis;fls;

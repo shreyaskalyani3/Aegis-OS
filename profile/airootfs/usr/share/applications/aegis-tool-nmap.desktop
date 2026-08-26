@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Nmap
+GenericName=Network, port & service scanner
+Comment=Network, port & service scanner
+Exec=xfce4-terminal --title="Nmap" --command="aegis-run --group blackarch-recon --desc 'Network, port & service scanner' nmap"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;nmap;

@@ -2,6 +2,11 @@
 # =============================================================================
 #  aegis-motd — prints the Aegis OS banner, quick hints, and a rotating tip.
 #  Invoked from the interactive shell rc (once per login shell).
+#
+#  The banner is inline rather than read from /usr/share/aegis/logo.txt because
+#  the hint column is interleaved into the same lines as the letterform. That
+#  letterform is the distro's canonical one — if you change it here, change it in
+#  branding/logo.txt and packages/aegis-meta/PKGBUILD too.
 # =============================================================================
 
 # Colors (respect NO_COLOR / non-tty)

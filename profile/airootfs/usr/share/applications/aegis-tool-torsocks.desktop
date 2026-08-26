@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Torsocks
+GenericName=Route a single command through Tor
+Comment=Route a single command through Tor
+Exec=xfce4-terminal --title="Torsocks" --command="aegis-run --group blackarch-defensive --desc 'Route a single command through Tor' torsocks"
+Icon=aegis-cat-maintenance
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Maintenance;
+Keywords=security;aegis;torsocks;

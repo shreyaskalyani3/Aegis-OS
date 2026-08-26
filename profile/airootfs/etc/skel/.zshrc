@@ -61,6 +61,7 @@ alias please='sudo'
 alias ai='aegis-ai'
 alias tools='aegis-tools'
 alias setup='aegis-setup'
+alias run='aegis-run'
 
 # --- fzf & zoxide (if present) ----------------------------------------------
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"

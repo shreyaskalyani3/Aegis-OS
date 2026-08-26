@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ExifTool
+GenericName=Read, write and strip file metadata
+Comment=Read, write and strip file metadata
+Exec=xfce4-terminal --title="ExifTool" --command="aegis-run --pkg perl-image-exiftool --group blackarch-forensic --desc 'Read, write and strip file metadata' exiftool"
+Icon=aegis-cat-forensics
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Forensics;
+Keywords=security;aegis;exiftool;

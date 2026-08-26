@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TestDisk
+GenericName=Partition table and boot sector recovery
+Comment=Partition table and boot sector recovery
+Exec=xfce4-terminal --title="TestDisk" --command="aegis-run --group blackarch-forensic --desc 'Partition table and boot sector recovery' testdisk"
+Icon=aegis-cat-forensics
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Forensics;
+Keywords=security;aegis;testdisk;

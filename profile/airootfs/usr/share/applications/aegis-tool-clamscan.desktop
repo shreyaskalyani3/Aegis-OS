@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ClamAV Scan
+GenericName=On-demand antivirus / malware file scan
+Comment=On-demand antivirus / malware file scan
+Exec=xfce4-terminal --title="ClamAV Scan" --command="aegis-run --pkg clamav --group blackarch-scanner --desc 'On-demand antivirus / malware file scan' clamscan"
+Icon=aegis-cat-vuln
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Vuln;
+Keywords=security;aegis;clamscan;

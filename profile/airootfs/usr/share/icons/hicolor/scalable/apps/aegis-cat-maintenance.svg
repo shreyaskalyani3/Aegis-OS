@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aegis OS — Anonymity and Maintenance (mask over gear teeth) category icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="#131a24" stroke="#2a3542" stroke-width="1.5"/>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="url(#a)" opacity="0.10"/>
+  <path d="M11 20 h26 a0 0 0 0 1 0 0 c0 9 -6 14 -13 14 c-7 0 -13 -5 -13 -14 z"
+        fill="none" stroke="#f0f6fc" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M11 20 c4 -6 22 -6 26 0" fill="none" stroke="#f0f6fc" stroke-width="2.4"/>
+  <circle cx="18" cy="24" r="2.6" fill="#ff2e4d"/><circle cx="30" cy="24" r="2.6" fill="#ff2e4d"/>
+  <path d="M19 30 c3 2 7 2 10 0" fill="none" stroke="#8b98a5" stroke-width="2" stroke-linecap="round"/>
+</svg>

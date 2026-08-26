@@ -181,6 +181,11 @@ blueman
 # --- Desktop: XFCE -----------------------------------------------------------
 xfce4
 xfce4-goodies
+# Whisker Menu is the panel's "Aegis" menu button (see etc/skel/.config/xfce4/
+# xfconf/xfce-perchannel-xml/xfce4-panel.xml). It already arrives via the
+# xfce4-goodies group; pinned explicitly so the panel can never reference a
+# plugin the image lacks.
+xfce4-whiskermenu-plugin
 lightdm
 lightdm-gtk-greeter
 lightdm-gtk-greeter-settings

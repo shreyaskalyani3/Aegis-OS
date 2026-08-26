@@ -1,0 +1,52 @@
+[Configuration]
+# xfce4-terminal — Aegis OS palette. Matches the MOTD banner / zsh prompt
+# colours in .zshrc and aegis-motd so the terminal reads as one piece with the
+# rest of the branding.
+FontName=JetBrainsMono Nerd Font 11
+FontUseSystem=FALSE
+MiscAlwaysShowTabs=FALSE
+MiscBell=FALSE
+MiscBellUrgent=FALSE
+MiscBordersDefault=TRUE
+MiscCursorBlinks=TRUE
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
+MiscDefaultGeometry=100x30
+MiscInheritGeometry=FALSE
+MiscMenubarDefault=TRUE
+MiscMouseAutohide=FALSE
+MiscMouseWheelZoom=TRUE
+MiscToolbarDefault=FALSE
+MiscConfirmClose=TRUE
+MiscCycleTabs=TRUE
+MiscTabCloseButtons=TRUE
+MiscTabCloseMiddleClick=TRUE
+MiscTabPosition=GTK_POS_TOP
+MiscHighlightUrls=TRUE
+MiscMiddleClickOpensUri=FALSE
+MiscCopyOnSelect=FALSE
+MiscShowRelaunchDialog=TRUE
+MiscRewrapOnResize=TRUE
+MiscUseShiftArrowsToScroll=FALSE
+MiscSlimTabs=FALSE
+MiscNewTabAdjacent=FALSE
+MiscSearchDialogOpacity=100
+MiscShowUnsafePasteDialog=TRUE
+ScrollingUnlimited=TRUE
+ScrollingBar=TERMINAL_SCROLLBAR_RIGHT
+ScrollingOnOutput=FALSE
+ScrollingOnKeystroke=TRUE
+BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
+BackgroundDarkness=0.960000
+ColorForeground=#c9d1d9
+ColorBackground=#0d1117
+ColorCursor=#ff2e4d
+ColorCursorForeground=#0d1117
+ColorCursorUseDefault=FALSE
+ColorSelection=#264f78
+ColorSelectionBackground=#264f78
+ColorSelectionUseDefault=FALSE
+ColorBold=#f0f6fc
+ColorBoldUseDefault=FALSE
+ColorBoldIsBright=TRUE
+ColorPalette=#484f58;#ff7b72;#7ee787;#e3b341;#79c0ff;#d2a8ff;#56d4dd;#b1bac4;#6e7681;#ffa198;#56d364;#f2cc60;#a5d6ff;#e2c5ff;#b3f0ff;#f0f6fc
+TitleMode=TERMINAL_TITLE_REPLACE

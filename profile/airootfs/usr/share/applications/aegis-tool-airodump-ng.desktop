@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Airodump-ng
+GenericName=802.11 packet capture and AP discovery
+Comment=802.11 packet capture and AP discovery
+Exec=xfce4-terminal --title="Airodump-ng" --command="aegis-run --pkg aircrack-ng --group blackarch-wireless --desc '802.11 packet capture and AP discovery' airodump-ng"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;airodump-ng;

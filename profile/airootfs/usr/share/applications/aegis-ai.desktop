@@ -5,8 +5,8 @@ Name=Aegis AI Agent
 GenericName=AI Coding Agent
 Comment=Launch or install an AI coding agent (Claude Code, OpenCode, Aider, Codex)
 Exec=xfce4-terminal --title=Aegis\ AI --command="bash -lc aegis-ai"
-Icon=utilities-terminal
+Icon=aegis-ai
 Terminal=false
 StartupNotify=true
-Categories=Development;Utility;
+Categories=Development;Utility;X-Aegis-Maintenance;
 Keywords=ai;agent;claude;opencode;aider;codex;llm;

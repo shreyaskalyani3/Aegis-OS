@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Binwalk
+GenericName=Firmware image analysis and extraction
+Comment=Firmware image analysis and extraction
+Exec=xfce4-terminal --title="Binwalk" --command="aegis-run --group blackarch-forensic --desc 'Firmware image analysis and extraction' binwalk"
+Icon=aegis-cat-forensics
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Forensics;
+Keywords=security;aegis;binwalk;

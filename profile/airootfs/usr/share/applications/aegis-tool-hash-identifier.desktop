@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Hash Identifier
+GenericName=Identify the type of a hash
+Comment=Identify the type of a hash
+Exec=xfce4-terminal --title="Hash Identifier" --command="aegis-run --group blackarch-cracker --desc 'Identify the type of a hash' hash-identifier"
+Icon=aegis-cat-passwords
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Passwords;
+Keywords=security;aegis;hash-identifier;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MDK4
+GenericName=802.11 protocol stress testing
+Comment=802.11 protocol stress testing
+Exec=xfce4-terminal --title="MDK4" --command="aegis-run --group blackarch-wireless --desc '802.11 protocol stress testing' mdk4"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;mdk4;

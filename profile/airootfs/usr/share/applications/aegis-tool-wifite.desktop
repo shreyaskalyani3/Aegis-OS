@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Wifite
+GenericName=Automated wireless network auditor
+Comment=Automated wireless network auditor
+Exec=xfce4-terminal --title="Wifite" --command="aegis-run --group blackarch-wireless --desc 'Automated wireless network auditor' wifite"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;wifite;

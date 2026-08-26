@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TShark
+GenericName=Terminal packet analyser
+Comment=Terminal packet analyser
+Exec=xfce4-terminal --title="TShark" --command="aegis-run --pkg wireshark-cli --group blackarch-sniffer --desc 'Terminal packet analyser' tshark"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;tshark;

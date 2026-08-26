@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=dmidecode
+GenericName=Dump hardware / DMI tables
+Comment=Dump hardware / DMI tables
+Exec=xfce4-terminal --title="dmidecode" --command="aegis-run --group blackarch-forensic --desc 'Dump hardware / DMI tables' dmidecode"
+Icon=aegis-cat-forensics
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Forensics;
+Keywords=security;aegis;dmidecode;

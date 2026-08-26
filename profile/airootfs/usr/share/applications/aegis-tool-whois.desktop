@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=whois
+GenericName=Domain and IP registration lookup
+Comment=Domain and IP registration lookup
+Exec=xfce4-terminal --title="whois" --command="aegis-run --group blackarch-recon --desc 'Domain and IP registration lookup' whois"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;whois;

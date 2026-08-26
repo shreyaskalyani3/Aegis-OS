@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Firefox
+GenericName=Web Browser
+Comment=Browse the web (and proxy it through Burp/mitmproxy)
+Exec=firefox %u
+Icon=firefox
+Terminal=false
+StartupNotify=true
+Categories=Network;WebBrowser;

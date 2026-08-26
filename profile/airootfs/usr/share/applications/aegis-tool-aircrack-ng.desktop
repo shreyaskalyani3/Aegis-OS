@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Aircrack-ng
+GenericName=WEP and WPA/WPA2-PSK key cracking
+Comment=WEP and WPA/WPA2-PSK key cracking
+Exec=xfce4-terminal --title="Aircrack-ng" --command="aegis-run --group blackarch-wireless --desc 'WEP and WPA/WPA2-PSK key cracking' aircrack-ng"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;aircrack-ng;

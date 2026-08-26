@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=smbclient
+GenericName=Interactive SMB/CIFS client
+Comment=Interactive SMB/CIFS client
+Exec=xfce4-terminal --title="smbclient" --command="aegis-run --group blackarch-recon --desc 'Interactive SMB/CIFS client' smbclient"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;smbclient;

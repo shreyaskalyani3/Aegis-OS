@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Hydra
+GenericName=Parallel network login brute-forcer
+Comment=Parallel network login brute-forcer
+Exec=xfce4-terminal --title="Hydra" --command="aegis-run --group blackarch-cracker --desc 'Parallel network login brute-forcer' hydra"
+Icon=aegis-cat-passwords
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Passwords;
+Keywords=security;aegis;hydra;

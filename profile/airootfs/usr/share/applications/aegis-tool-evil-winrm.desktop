@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Evil-WinRM
+GenericName=WinRM shell for Windows pentesting
+Comment=WinRM shell for Windows pentesting
+Exec=xfce4-terminal --title="Evil-WinRM" --command="aegis-run --group blackarch-exploitation --desc 'WinRM shell for Windows pentesting' evil-winrm"
+Icon=aegis-cat-exploit
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Exploit;
+Keywords=security;aegis;evil-winrm;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Nikto
+GenericName=Web server vulnerability scanner
+Comment=Web server vulnerability scanner
+Exec=xfce4-terminal --title="Nikto" --command="aegis-run --group blackarch-scanner --desc 'Web server vulnerability scanner' nikto"
+Icon=aegis-cat-vuln
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Vuln;
+Keywords=security;aegis;nikto;

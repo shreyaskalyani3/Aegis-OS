@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  xfce4-desktop — Aegis wallpaper + desktop icons.
+
+  Static config on purpose: xfconfd loads this channel before xfdesktop first
+  reads it, so the Aegis wallpaper is up from the very first frame. The old
+  approach (aegis-desktop-setup polling xfconf-query after login) raced xfdesktop
+  and lost, which is why the live session showed the stock XFCE wallpaper.
+
+  xfdesktop keys the backdrop on the *monitor name*, which is not knowable ahead
+  of time (it varies by driver: virtio-gpu -> Virtual-1, vmware -> Virtual1,
+  VirtualBox -> VGA-1, laptops -> eDP-1, ...). So every common name is seeded
+  with the same values, and aegis-desktop-setup remains as a runtime fallback for
+  anything unusual (odd names, hotplugged/multi-head).
+-->
+<channel name="xfce4-desktop" version="1.0">
+
+  <property name="backdrop" type="empty">
+    <!-- Apply one backdrop to all workspaces (so workspace0 below is the only
+         path xfdesktop consults). -->
+    <property name="single-workspace-mode" type="bool" value="true"/>
+    <property name="single-workspace-number" type="int" value="0"/>
+
+    <property name="screen0" type="empty">
+      <!-- legacy / pre-monitor-name path -->
+      <property name="monitor0" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+          <property name="rgba1" type="array">
+            <value type="double" value="0.043137"/>
+            <value type="double" value="0.058824"/>
+            <value type="double" value="0.078431"/>
+            <value type="double" value="1.000000"/>
+          </property>
+        </property>
+      </property>
+
+      <!-- QEMU/KVM virtio-gpu, modesetting -->
+      <property name="monitorVirtual-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <!-- VMware svga -->
+      <property name="monitorVirtual1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <!-- VirtualBox / legacy Intel -->
+      <property name="monitorVGA-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <property name="monitorVGA1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <!-- laptop internal panels -->
+      <property name="monitoreDP-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <property name="monitoreDP1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <property name="monitorLVDS-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <!-- external outputs -->
+      <property name="monitorHDMI-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <property name="monitorHDMI-A-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+      <property name="monitorDP-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="color-style" type="int" value="0"/>
+        </property>
+      </property>
+    </property>
+  </property>
+
+  <!-- Desktop icons: style 2 = file/launcher icons, so ~/Desktop is shown and
+       the "Install Aegis OS" launcher is visible on a fresh live boot. -->
+  <property name="desktop-icons" type="empty">
+    <property name="style" type="int" value="2"/>
+    <property name="icon-size" type="uint" value="48"/>
+    <property name="show-tooltips" type="bool" value="true"/>
+    <property name="tooltip-size" type="double" value="128.000000"/>
+    <property name="single-click" type="bool" value="false"/>
+    <property name="show-thumbnails" type="bool" value="true"/>
+    <property name="file-icons" type="empty">
+      <property name="show-home" type="bool" value="true"/>
+      <property name="show-filesystem" type="bool" value="true"/>
+      <property name="show-removable" type="bool" value="true"/>
+      <property name="show-trash" type="bool" value="true"/>
+    </property>
+  </property>
+
+  <!-- Right-click desktop menus (a security workflow lives in menus). -->
+  <property name="desktop-menu" type="empty">
+    <property name="show" type="bool" value="true"/>
+    <property name="show-icons" type="bool" value="true"/>
+  </property>
+  <property name="windowlist-menu" type="empty">
+    <property name="show" type="bool" value="true"/>
+    <property name="show-icons" type="bool" value="true"/>
+    <property name="show-workspace-names" type="bool" value="true"/>
+  </property>
+
+</channel>

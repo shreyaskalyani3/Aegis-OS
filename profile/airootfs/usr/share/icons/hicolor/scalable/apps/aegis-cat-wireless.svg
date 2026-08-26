@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aegis OS — Wireless (broadcast arcs) category icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="#131a24" stroke="#2a3542" stroke-width="1.5"/>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="url(#a)" opacity="0.10"/>
+  <g fill="none" stroke="#f0f6fc" stroke-width="2.8" stroke-linecap="round">
+    <path d="M13 27 a14 14 0 0 1 22 0"/>
+    <path d="M18 32 a8.5 8.5 0 0 1 12 0"/>
+  </g>
+  <circle cx="24" cy="37" r="3.6" fill="#ff2e4d"/>
+</svg>
