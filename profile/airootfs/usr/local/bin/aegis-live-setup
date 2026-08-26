@@ -68,11 +68,20 @@ EOF
 runuser -u "${LIVE_USER}" -- xdg-user-dirs-update 2>/dev/null || true
 
 # --- VM guest integration (auto-detect) --------------------------------------
+# IMPORTANT: use --no-block (fire-and-forget). A plain `systemctl start` waits
+# for the unit's job to finish, and some guest agents block indefinitely: e.g.
+# qemu-guest-agent.service has BindsTo=/After= the virtio-serial device
+# org.qemu.guest_agent.0, so on a VM created without a guest-agent channel it
+# waits forever for a device that never appears. Because this script runs in a
+# no-timeout oneshot ordered Before=display-manager.service, that would hang the
+# entire boot (the classic "A start job is running ... / no limit" freeze).
+# These agents are never needed before the display manager, so just enqueue and
+# move on.
 case "$(systemd-detect-virt 2>/dev/null || echo none)" in
-    oracle)     systemctl start vboxservice.service 2>/dev/null || true ;;
-    vmware)     systemctl start vmtoolsd.service 2>/dev/null || true ;;
-    kvm|qemu)   systemctl start qemu-guest-agent.service spice-vdagentd.service 2>/dev/null || true ;;
-    microsoft)  systemctl start hv_fcopy_daemon.service hv_kvp_daemon.service hv_vss_daemon.service 2>/dev/null || true ;;
+    oracle)     systemctl start --no-block vboxservice.service 2>/dev/null || true ;;
+    vmware)     systemctl start --no-block vmtoolsd.service 2>/dev/null || true ;;
+    kvm|qemu)   systemctl start --no-block qemu-guest-agent.service spice-vdagentd.service 2>/dev/null || true ;;
+    microsoft)  systemctl start --no-block hv_fcopy_daemon.service hv_kvp_daemon.service hv_vss_daemon.service 2>/dev/null || true ;;
 esac
 
 echo ":: Aegis OS live setup complete"

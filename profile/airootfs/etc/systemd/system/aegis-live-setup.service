@@ -8,6 +8,10 @@ Wants=local-fs.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# oneshot disables the start timeout by default (TimeoutStartSec=infinity), which
+# means any hang inside the script blocks boot forever. Cap it so boot always
+# recovers instead of freezing on "A start job is running ... / no limit".
+TimeoutStartSec=120
 ExecStart=/usr/local/bin/aegis-live-setup
 StandardOutput=journal+console
 
