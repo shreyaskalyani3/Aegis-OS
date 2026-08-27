@@ -32,6 +32,9 @@ file_permissions=(
   ["/root"]="0:0:750"
   ["/etc/sudoers.d"]="0:0:750"
   ["/etc/sudoers.d/10-aegis"]="0:0:440"
+  # Live passwords in plaintext — root-only. Regenerated from aegis.conf by
+  # scripts/build-iso.sh and deleted by Calamares during install.
+  ["/etc/aegis/credentials.conf"]="0:0:600"
   ["/usr/local/bin/aegis-setup"]="0:0:755"
   ["/usr/local/bin/aegis-ai"]="0:0:755"
   ["/usr/local/bin/aegis-tools"]="0:0:755"
@@ -40,6 +43,8 @@ file_permissions=(
   ["/usr/local/bin/aegis-motd"]="0:0:755"
   ["/usr/local/bin/aegis-welcome"]="0:0:755"
   ["/usr/local/bin/aegis-desktop-setup"]="0:0:755"
+  ["/usr/local/bin/aegis-credentials"]="0:0:755"
   ["/usr/local/bin/aegis-live-setup"]="0:0:755"
+  ["/etc/systemd/system/aegis-credentials.service"]="0:0:644"
   ["/etc/systemd/system/aegis-live-setup.service"]="0:0:644"
 )

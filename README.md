@@ -156,13 +156,47 @@ Full details, prerequisites, and troubleshooting are in [`docs/BUILDING.md`](doc
 
 - **Try it live:** write the ISO to a USB stick ([Rufus](https://rufus.ie/),
   [balenaEtcher](https://etcher.balena.io/), or `dd`) and boot it. Autologins to the
-  `aegis` live user. Default creds: `aegis` / `aegis`.
+  `aegis` live user. **Login `aegis` / password `aegis`, and the same password for `root`** —
+  see [Live credentials](#-live-credentials) to change them or to debug a login that fails.
 - **Install to disk:** double-click **Install Aegis OS** on the desktop, or use the shield
   launcher in the panel (both run Calamares).
 - **Find the tools:** the **Aegis** menu button in the panel → **Aegis Tools** → 10 numbered
   categories. Anything not baked into this build offers to install itself when you launch it.
 - **First boot:** run `aegis-setup` (or it opens automatically) to install/authenticate
   the AI agents and pull tool groups.
+
+---
+
+## 🔑 Live credentials
+
+The live medium ships with **`aegis` / `aegis`** for both the `aegis` user and `root`.
+
+Nothing in the SquashFS contains a password — a pacstrapped `/etc/shadow` ships `root`
+**locked**, and the profile overlay deliberately carries no `shadow`, `passwd`, or PAM files.
+Every credential is created at boot by one small oneshot:
+
+| Piece | Role |
+|-------|------|
+| [`aegis-credentials`](profile/airootfs/usr/local/bin/aegis-credentials) | Creates the live user, sets both passwords, adds `wheel` + `autologin`, writes passwordless sudo. The **only** thing in the image that produces a usable password. |
+| [`aegis-credentials.service`](profile/airootfs/etc/systemd/system/aegis-credentials.service) | Ordered `Before=` the greeter, the ttys, and `aegis-live-setup`, with a hard 45 s cap. Does no network I/O, no `locale-gen`, no `systemctl start` — so it has nothing to block on. |
+| `/etc/aegis/credentials.conf` | Generated from `aegis.conf` by `scripts/build-iso.sh` (mode `0600`), sourced by the script. Calamares deletes it during install. |
+
+**To change them,** edit `AEGIS_LIVE_PASSWORD` / `AEGIS_ROOT_PASSWORD` in
+[`aegis.conf`](aegis.conf) and rebuild — the build refuses to produce an ISO whose
+credentials file does not parse back to those exact values, so a password that would have
+locked you out fails the build instead of the boot. Any characters work; the file is written
+with `printf %q`, so quotes, spaces, `$`, `&`, and backslashes all round-trip.
+
+**If a login ever fails,** switch to a VT (`Ctrl`+`Alt`+`F2`) or open a terminal and read:
+
+```bash
+journalctl -u aegis-credentials
+```
+
+Every account is verified against `/etc/shadow` after being set and the result is logged, so
+that output names the account that failed rather than leaving you guessing. Passwords on the
+**installed** system are separate — Calamares sets them, and it removes the live credentials
+file, the live sudoers drop-in, and both live oneshots on the way out.
 
 ---
 

@@ -1,9 +1,13 @@
 [Unit]
 Description=Aegis OS live environment setup (user, autologin, locale)
 Documentation=https://aegis-os.example/docs
-After=local-fs.target systemd-tmpfiles-setup.service
+After=local-fs.target systemd-tmpfiles-setup.service aegis-credentials.service
 Before=display-manager.service systemd-user-sessions.service getty.target
 Wants=local-fs.target
+# Pull credentials in explicitly. Ordering alone is not enough: if the want-link
+# for aegis-credentials.service were ever missing, this unit would otherwise run
+# first and configure a desktop that has no account to log into.
+Wants=aegis-credentials.service
 
 [Service]
 Type=oneshot
