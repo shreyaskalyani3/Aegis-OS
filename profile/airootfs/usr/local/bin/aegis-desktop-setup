@@ -1,34 +1,36 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  aegis-desktop-setup — wallpaper fallback, run once at XFCE login.
+#  aegis-desktop-setup — desktop repair pass, run once at XFCE login.
 #
-#  The Aegis wallpaper is applied statically by
-#  etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml, which is
-#  in place before xfdesktop ever reads the channel. That covers every common
-#  monitor name, so this script normally has nothing to do.
+#  The Aegis desktop is configured statically, by the xfconf XML and the GTK
+#  settings files under etc/skel/. Those are in place before xfdesktop, the
+#  panel or any GTK app first reads them, so this script normally has nothing to
+#  do. It exists for the two cases a static file cannot cover:
 #
-#  It exists for the cases the static file cannot predict: unusual output names,
-#  and multi-head or hotplugged displays that xfdesktop registers only after
-#  login. It only fills in monitors that are missing or wrong, so it never fights
-#  a user who has since chosen their own wallpaper in this session.
+#   1. Monitors the static wallpaper config could not predict — unusual output
+#      names, and multi-head or hotplugged displays that xfdesktop only
+#      registers after login. Only monitors that are missing or wrong get
+#      touched, so it never fights a user who picked their own wallpaper.
+#   2. Theme names with no package behind them. This is the nastiest failure
+#      mode in the whole profile, because nothing reports it: xfconf stores any
+#      string you give it, and XFCE quietly falls back to stock light when the
+#      directory does not exist. That is how a "dark" desktop shipped with a
+#      blue titlebar and a bright grey authentication dialog.
+#      scripts/dev/check-profile.sh catches that at author time; this catches it
+#      at runtime — if a theme package is ever dropped from the image, the
+#      desktop picks the best installed alternative and says so in the log
+#      instead of looking broken.
 # =============================================================================
 set -uo pipefail
 
-WALL="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"
-[[ -r "${WALL}" ]] || exit 0
 command -v xfconf-query >/dev/null 2>&1 || exit 0
 
-# xfdesktop registers /backdrop/.../last-image per monitor+workspace only once it
-# has started. Short wait: the static config already handles the common case, so
-# this is just to catch late-registering outputs.
-props=()
-for _ in 1 2 3 4 5; do
-    mapfile -t props < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/last-image$' || true)
-    [[ ${#props[@]} -gt 0 ]] && break
-    sleep 1
-done
+log(){ printf 'aegis-desktop-setup: %s\n' "$*" >&2; }
 
-apply() {  # $1 = last-image property path
+# --- 1. Wallpaper -------------------------------------------------------------
+WALL="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"
+
+apply_wall() {  # $1 = last-image property path
     local img_prop="$1" base="${1%/last-image}" current
     current="$(xfconf-query -c xfce4-desktop -p "${img_prop}" 2>/dev/null || true)"
     # Already Aegis (almost always, thanks to the static config) — leave it be.
@@ -40,11 +42,75 @@ apply() {  # $1 = last-image property path
         xfconf-query -c xfce4-desktop -n -t int -p "${base}/image-style" -s 5 2>/dev/null || true
 }
 
-if [[ ${#props[@]} -gt 0 ]]; then
-    for p in "${props[@]}"; do apply "${p}"; done
-else
-    # No monitors registered — seed the conventional single-monitor path.
-    apply "/backdrop/screen0/monitor0/workspace0/last-image"
+if [[ -r "${WALL}" ]]; then
+    # xfdesktop registers /backdrop/.../last-image per monitor+workspace only
+    # once it has started. Short wait: the static config already handles the
+    # common case, so this is just to catch late-registering outputs.
+    props=()
+    for _ in 1 2 3 4 5; do
+        mapfile -t props < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/last-image$' || true)
+        [[ ${#props[@]} -gt 0 ]] && break
+        sleep 1
+    done
+
+    if [[ ${#props[@]} -gt 0 ]]; then
+        for p in "${props[@]}"; do apply_wall "${p}"; done
+    else
+        # No monitors registered — seed the conventional single-monitor path.
+        apply_wall "/backdrop/screen0/monitor0/workspace0/last-image"
+    fi
 fi
+
+# --- 2. Themes ----------------------------------------------------------------
+# What "installed" means differs per toolkit, so each gets its own predicate.
+# In particular a GTK theme is NOT automatically a window-decoration theme:
+# adw-gtk3-dark has no xfwm4/ directory at all, which is exactly the mistake
+# these checks exist to catch.
+gtk_ok(){   [[ -d "/usr/share/themes/$1/gtk-3.0" ]]; }
+wm_ok(){    [[ -f "/usr/share/themes/$1/xfwm4/themerc" ]]; }
+icons_ok(){ [[ -f "/usr/share/icons/$1/index.theme" ]]; }
+
+# Echoes the name in effect after repair (empty if nothing usable was found).
+# Candidates are in preference order: what we ship first, then progressively
+# duller things that are certain to exist.
+heal() {  # $1 = channel, $2 = property, $3 = predicate, $4.. = candidates
+    local ch="$1" prop="$2" ok="$3"; shift 3
+    local cur cand
+    cur="$(xfconf-query -c "${ch}" -p "${prop}" 2>/dev/null || true)"
+    if [[ -n "${cur}" ]] && "${ok}" "${cur}"; then printf '%s' "${cur}"; return 0; fi
+    for cand in "$@"; do
+        "${ok}" "${cand}" || continue
+        xfconf-query -c "${ch}" -p "${prop}" -s "${cand}" 2>/dev/null || \
+            xfconf-query -c "${ch}" -n -t string -p "${prop}" -s "${cand}" 2>/dev/null || true
+        log "${ch}${prop}: '${cur:-unset}' is not installed — using '${cand}'"
+        printf '%s' "${cand}"
+        return 0
+    done
+    log "${ch}${prop}: '${cur:-unset}' is not installed and no fallback is either ($*)"
+}
+
+# Window decorations. Materia is the only dark xfwm4 theme in the image; the
+# rest are xfwm4's own built-ins, all light or blue, kept purely so the window
+# manager is never left pointing at nothing.
+heal xfwm4 /general/theme wm_ok \
+    Materia-dark-compact Materia-dark Default >/dev/null
+
+GTK_THEME="$(heal xsettings /Net/ThemeName gtk_ok \
+    adw-gtk3-dark Materia-dark-compact Adwaita-dark Adwaita)"
+ICON_THEME="$(heal xsettings /Net/IconThemeName icons_ok \
+    Papirus-Dark Papirus Adwaita hicolor)"
+
+# xfconf only reaches GTK apps through xfsettingsd's XSETTINGS broadcast, so a
+# repair there fixes the running session but not the next app started outside
+# it. Keep the files that GTK reads directly in agreement.
+patch_ini() {  # $1 = file, $2 = key, $3 = value
+    [[ -n "$3" && -w "$1" ]] || return 0
+    grep -q "^$2=$3\$" "$1" && return 0
+    sed -i "s|^$2=.*|$2=$3|" "$1" 2>/dev/null || true
+}
+for ini in "${HOME:-}/.config/gtk-3.0/settings.ini" "${HOME:-}/.config/gtk-4.0/settings.ini"; do
+    patch_ini "${ini}" gtk-theme-name      "${GTK_THEME}"
+    patch_ini "${ini}" gtk-icon-theme-name "${ICON_THEME}"
+done
 
 exit 0

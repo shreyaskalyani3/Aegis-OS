@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=PolicyKit Authentication Agent
-Comment=Grants graphical privilege-escalation prompts (needed by the installer)
+Comment=Graphical privilege-escalation prompts. The live session grants wheel automatically (see aegis-credentials), so this should stay silent there; it matters on an installed system.
 Exec=/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 Icon=dialog-password
 Terminal=false

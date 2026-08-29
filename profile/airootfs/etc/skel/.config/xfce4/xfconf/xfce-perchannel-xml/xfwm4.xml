@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
-    <!-- Dark window decorations to match adw-gtk3-dark from xsettings.xml.
-         "Default-hdpi"/"Default" are the stock light themes; Daloa is the dark
-         variant shipped with xfwm4 itself, so this needs no extra package. -->
-    <property name="theme" type="string" value="Daloa"/>
+    <!-- Dark window decorations.
+         Note what is NOT usable here: adw-gtk-theme (which dresses the GTK
+         side, see xsettings.xml) ships only gtk-3.0/ and gtk-4.0/ — no xfwm4/
+         directory at all, so it cannot decorate windows. And of the six themes
+         xfwm4 ships itself (Default, Default-hdpi, Default-xhdpi, Daloa,
+         Kokodi, Moheli) none is dark: Daloa, used here previously, is the BLUE
+         one, which is exactly the blue titlebar this replaces.
+         Materia-dark-compact does ship xfwm4/, so materia-gtk-theme is a hard
+         requirement in packages.x86_64 — check 7 of scripts/dev/check-profile.sh
+         enforces that link, and aegis-desktop-setup falls back at login if the
+         theme is somehow absent. -->
+    <property name="theme" type="string" value="Materia-dark-compact"/>
     <property name="title_font" type="string" value="Noto Sans Bold 10"/>
     <property name="button_layout" type="string" value="O|HMC"/>
     <property name="use_compositing" type="bool" value="true"/>

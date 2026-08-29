@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-install — launch the Calamares installer from the live session.
+#
+#  This replaces `Exec=pkexec calamares` on the Install Aegis OS launchers, for
+#  two independent reasons:
+#
+#   1. No password. pkexec asks polkit to authenticate an administrator, so the
+#      Install icon opened an "Authentication is required" dialog on a live ISO
+#      whose whole point is that you are already root-capable. The live session
+#      has passwordless sudo (aegis-credentials writes it), so escalate through
+#      that instead. aegis-credentials also drops a polkit rule so the pkexec
+#      path below stays silent, but this does not depend on it.
+#   2. pkexec cannot start X11 programs. `man pkexec` is explicit: it builds a
+#      minimal environment and therefore does not set $DISPLAY or $XAUTHORITY,
+#      so a Qt GUI like Calamares has no way to reach the display. Every path
+#      here passes both through explicitly.
+#
+#  Usage:
+#    aegis-install [CALAMARES_ARGS...]
+#
+#  Any arguments are forwarded to calamares, so `aegis-install -d` still gets
+#  you the debug window.
+# =============================================================================
+set -uo pipefail
+
+C_T=$'\e[1;37m'; C_G=$'\e[36m'; C_D=$'\e[0;90m'; C_Y=$'\e[0;33m'; C_R=$'\e[31m'; Z=$'\e[0m'
+
+have(){ command -v "$1" >/dev/null 2>&1; }
+
+if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
+cat <<EOF
+${C_T}aegis-install${Z} — launch the Aegis OS installer (Calamares)
+
+${C_T}Usage${Z}
+  aegis-install [CALAMARES_ARGS...]
+
+Escalates without a password prompt (live session has passwordless sudo) and
+forwards \$DISPLAY / \$XAUTHORITY so the installer can actually draw itself.
+Arguments are passed straight to calamares.
+EOF
+exit 0
+fi
+
+# Launched from a .desktop with Terminal=false, so there is usually no tty to
+# print an error to. Try the graphical channels first, then fall back to stderr.
+fail() {
+    printf '%s!!%s %s\n' "${C_R}" "${Z}" "$*" >&2
+    if   have zenity;      then zenity --error --title="Aegis OS installer" --text="$*" 2>/dev/null
+    elif have notify-send; then notify-send -u critical "Aegis OS installer" "$*" 2>/dev/null
+    elif have xmessage;    then xmessage -center "Aegis OS installer: $*" 2>/dev/null
+    fi
+    exit 1
+}
+
+have calamares || fail "Calamares is not installed in this image, so there is nothing to install with."
+
+# --- X11 handoff -------------------------------------------------------------
+# Calamares runs as root but must talk to the live user's X server. Root can
+# read any cookie file, so passing the path through is enough; no xhost needed
+# in the normal case.
+XAUTH="${XAUTHORITY:-}"
+if [[ -z "${XAUTH}" ]]; then
+    for cand in "${HOME:-/home/aegis}/.Xauthority" "/home/aegis/.Xauthority"; do
+        [[ -r "${cand}" ]] && { XAUTH="${cand}"; break; }
+    done
+fi
+# Belt and braces for the odd session that keeps its cookie somewhere we did not
+# guess: let root connect as a local user instead. Harmless if xhost is absent.
+# Spelled out as an if — `a || b && c` is left-associative and would run xhost
+# in exactly the case where we already found a cookie.
+if [[ -z "${XAUTH}" ]] && have xhost; then
+    xhost +si:localuser:root >/dev/null 2>&1 || true
+fi
+
+# XDG_RUNTIME_DIR is dropped deliberately: it points at the live user's
+# /run/user/1000, which root does not own, and Qt warns loudly about that.
+ENVV=(env -u XDG_RUNTIME_DIR "DISPLAY=${DISPLAY:-:0}")
+[[ -n "${XAUTH}" ]] && ENVV+=("XAUTHORITY=${XAUTH}")
+# Keep the installer dark like the rest of the desktop (see /etc/environment).
+ENVV+=("QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-gtk3}")
+
+printf '%s::%s starting the Aegis OS installer%s\n' "${C_G}" "${Z}" "${C_D}${Z}"
+
+# --- Escalate ----------------------------------------------------------------
+# Ordered by how likely each is to succeed without asking for anything.
+if [[ "$(id -u)" -eq 0 ]]; then
+    exec "${ENVV[@]}" calamares "$@"
+fi
+
+if have sudo && sudo -n true 2>/dev/null; then
+    # Deliberately NOT `sudo -E`: preserving the environment needs a SETENV tag
+    # or `Defaults setenv`, and the live rule is a plain `NOPASSWD: ALL`, so -E
+    # would abort with "not allowed to preserve the environment". The env prefix
+    # above sets what Calamares actually needs, so -E buys nothing anyway.
+    exec sudo -n -- "${ENVV[@]}" calamares "$@"
+fi
+
+# Passwordless sudo is missing, which means aegis-credentials did not finish.
+# pkexec still works (and the polkit rule usually makes it silent), so try it
+# rather than refusing outright.
+if have pkexec; then
+    printf '%s!!%s passwordless sudo is unavailable — falling back to pkexec\n' "${C_Y}" "${Z}" >&2
+    printf '   %scheck: journalctl -u aegis-credentials%s\n' "${C_D}" "${Z}" >&2
+    exec pkexec "${ENVV[@]}" calamares "$@"
+fi
+
+fail "Cannot become root to run the installer: neither passwordless sudo nor pkexec is available. Run 'journalctl -u aegis-credentials' to see what failed."

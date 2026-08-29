@@ -39,6 +39,7 @@ file_permissions=(
   ["/usr/local/bin/aegis-ai"]="0:0:755"
   ["/usr/local/bin/aegis-tools"]="0:0:755"
   ["/usr/local/bin/aegis-run"]="0:0:755"
+  ["/usr/local/bin/aegis-install"]="0:0:755"
   ["/usr/local/bin/aegis-ai-install"]="0:0:755"
   ["/usr/local/bin/aegis-motd"]="0:0:755"
   ["/usr/local/bin/aegis-welcome"]="0:0:755"

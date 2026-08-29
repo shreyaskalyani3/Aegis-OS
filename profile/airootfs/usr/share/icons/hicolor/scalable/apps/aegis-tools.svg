@@ -11,11 +11,11 @@
     </linearGradient>
   </defs>
 
-  <g transform="translate(24 22) scale(0.115)">
+  <g transform="translate(24 20) scale(0.125)">
     <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
-          fill="url(#shield)" opacity="0.22"/>
+          fill="url(#shield)" opacity="0.92"/>
     <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
-          fill="none" stroke="url(#shield)" stroke-width="16" stroke-linejoin="round"/>
+          fill="none" stroke="url(#shield)" stroke-width="18" stroke-linejoin="round"/>
 
     <!-- crosshair reticle: target acquisition -->
     <circle cx="0" cy="10" r="62" fill="none" stroke="#f0f6fc" stroke-width="14"/>

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Aegis Desktop Polish
-Comment=Applies the Aegis wallpaper across all monitors on login
+Comment=Fills in wallpaper for monitors the static config could not predict, and repairs any theme name with no installed package behind it
 Exec=aegis-desktop-setup
 Icon=preferences-desktop-wallpaper
 Terminal=false

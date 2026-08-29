@@ -211,6 +211,10 @@ polkit-gnome
 
 # --- Theming / fonts ---------------------------------------------------------
 adw-gtk-theme
+# Required, not cosmetic: adw-gtk-theme has no xfwm4/ directory and none of the
+# six themes xfwm4 ships is dark, so this is the only source of the dark window
+# decorations xfwm4.xml asks for. It also covers GTK2, which adw-gtk3 does not.
+materia-gtk-theme
 papirus-icon-theme
 gnome-themes-extra
 librsvg

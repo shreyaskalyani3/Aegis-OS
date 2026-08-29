@@ -12,7 +12,7 @@ Live + installable ISO · BlackArch arsenal · XFCE · Claude Code · OpenCode �
 
 <img src="docs/images/desktop-preview.svg" alt="Aegis OS desktop — XFCE with the Aegis MOTD terminal and the aegis-ai agent launcher" width="92%">
 
-<sub>XFCE 4 · adw-gtk3-dark + Papirus · the <code>aegis</code> MOTD banner · the <code>aegis-ai</code> launcher · a live <code>nmap -sV</code> scan</sub>
+<sub>XFCE 4 · adw-gtk3-dark + Materia decorations + Papirus · the <code>aegis</code> MOTD banner · the <code>aegis-ai</code> launcher · a live <code>nmap -sV</code> scan</sub>
 
 </div>
 
@@ -40,7 +40,7 @@ the branding, and the build tooling that compile into a distributable `.iso`.
 |-------|---------|
 | **Base** | Arch Linux (rolling), current `linux` kernel, `mkinitcpio`-generated live image |
 | **Tools** | BlackArch (2800+ tools) — **all major categories baked in** by default, the rest on demand via `aegis-tools`. Tune with `AEGIS_TOOL_SET` (`lean`/`broad`/`full`) |
-| **Desktop** | XFCE 4, dark "Aegis" theme (adw-gtk3-dark + Papirus-Dark + Daloa decorations), Aegis wallpaper, branded top panel, a **10-category Aegis Tools menu**, an **Install Aegis OS** desktop icon, autologin live user |
+| **Desktop** | XFCE 4, dark "Aegis" theme (adw-gtk3-dark GTK + Materia-dark-compact decorations + Papirus-Dark icons), Aegis wallpaper, branded top panel, a **10-category Aegis Tools menu**, an **Install Aegis OS** desktop icon, autologin live user |
 | **AI agents** | Claude Code, OpenCode (native Arch pkg), Aider, Codex — unified `aegis-ai` launcher + `aegis-setup` wizard |
 | **Runtimes** | Node.js 22, Python + `pipx` + `uv`, Go, Rust, Git, ripgrep — so agents & tools work out of the box |
 | **Installer** | Calamares graphical installer — Aegis is **installable to disk**, not just a live CD |
@@ -76,7 +76,8 @@ with no flash of stock XFCE and no first-run "Default or Empty panel?" dialog.
 | **Top panel** | [`xfce4-panel.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml) | Whisker "Aegis" menu button, launchers for Terminal / Files / Firefox / Aegis Tools / Aegis AI / Install, window buttons, workspace pager, tray, clock, session actions |
 | **Aegis Tools menu** | [`aegis-tools.menu`](profile/airootfs/etc/xdg/menus/xfce-applications-merged/aegis-tools.menu) + 10 category files + 73 launchers | Kali-style numbered categories: Information Gathering → Anonymity & Maintenance |
 | **Wallpaper** | [`xfce4-desktop.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml) | Sentinel wallpaper, seeded across every common monitor name |
-| **Window borders** | [`xfwm4.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml) | `Daloa` dark decorations, matching adw-gtk3-dark |
+| **Window borders** | [`xfwm4.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml) | `Materia-dark-compact` dark decorations — the only dark xfwm4 theme in the image (see below) |
+| **GTK / Qt theming** | [`gtk-3.0/settings.ini`](profile/airootfs/etc/skel/.config/gtk-3.0/settings.ini), [`.gtkrc-2.0`](profile/airootfs/etc/skel/.gtkrc-2.0), [`/etc/environment`](profile/airootfs/etc/environment) | GTK 2/3/4 read the theme directly instead of waiting on `xfsettingsd`; `QT_QPA_PLATFORMTHEME=gtk3` pulls Qt apps (Calamares included) into the same dark theme |
 | **Terminal** | [`terminalrc`](profile/airootfs/etc/skel/.config/xfce4/terminal/terminalrc) | GitHub-dark palette, JetBrainsMono Nerd Font, red cursor |
 | **Install icon** | [`etc/skel/Desktop/`](profile/airootfs/etc/skel/Desktop/) | **Install Aegis OS** on the desktop, marked trusted by `aegis-live-setup` so XFCE does not warn |
 | **Brand icons** | [`hicolor/scalable/apps/`](profile/airootfs/usr/share/icons/hicolor/scalable/apps/) | 14 self-hosted SVGs — every `Icon=` in the profile resolves |
@@ -85,6 +86,31 @@ Every menu entry runs through
 [`aegis-run`](profile/airootfs/usr/local/bin/aegis-run), which holds the terminal open on exit —
 and, when the tool is not in this build's `AEGIS_TOOL_SET`, explains what it is and offers to
 install it instead of failing silently. So the menu stays useful on a `lean` image.
+
+### Why the theming is spread across four files
+
+Worth knowing before you change a theme name, because getting this wrong is invisible until you
+boot: **XFCE delivers theming over two unrelated channels.** `xfwm4`, `xfce4-panel` and
+`xfdesktop` read their xfconf channels directly. GTK does not — it gets its theme over
+**XSETTINGS**, broadcast by `xfsettingsd`, so anything starting outside a healthy XFCE session (a
+polkit agent, a root GUI, an app launched from a VT) never hears it and renders in stock light
+Adwaita. That is why the GTK settings files above are shipped as well as `xsettings.xml`.
+
+Two consequences that are easy to trip over:
+
+- **A GTK theme is not a window-decoration theme.** `adw-gtk-theme` ships `gtk-3.0/` and
+  `gtk-4.0/` and **no `xfwm4/` directory at all**, and none of the six themes xfwm4 ships itself
+  is dark (`Daloa` is the *blue* one). `materia-gtk-theme` is therefore a hard requirement, not
+  a nicety — it is the only source of dark decorations, and of GTK 2, in the image.
+- **xfconf accepts any string.** Point it at a theme no package provides and it stores the name
+  happily while XFCE falls back to stock light, with nothing logged.
+
+Both are now checked rather than trusted: **check 7** of
+[`scripts/dev/check-profile.sh`](scripts/dev/check-profile.sh) fails the lint if any theme or
+icon name — in the xfconf XML, the GTK settings files, or the greeter config — has no package
+behind it in `packages.x86_64`, or if the xfwm4 theme is one that ships no `xfwm4/` directory.
+At runtime, [`aegis-desktop-setup`](profile/airootfs/usr/local/bin/aegis-desktop-setup) re-checks
+the same names at login and falls back to the best installed alternative, logging what it did.
 
 ### Wallpapers
 
@@ -159,11 +185,43 @@ Full details, prerequisites, and troubleshooting are in [`docs/BUILDING.md`](doc
   `aegis` live user. **Login `aegis` / password `aegis`, and the same password for `root`** —
   see [Live credentials](#-live-credentials) to change them or to debug a login that fails.
 - **Install to disk:** double-click **Install Aegis OS** on the desktop, or use the shield
-  launcher in the panel (both run Calamares).
+  launcher in the panel. Both run [`aegis-install`](profile/airootfs/usr/local/bin/aegis-install),
+  which starts Calamares **with no password prompt** — see [Installing to disk](#-installing-to-disk).
 - **Find the tools:** the **Aegis** menu button in the panel → **Aegis Tools** → 10 numbered
   categories. Anything not baked into this build offers to install itself when you launch it.
 - **First boot:** run `aegis-setup` (or it opens automatically) to install/authenticate
   the AI agents and pull tool groups.
+
+---
+
+## 💿 Installing to disk
+
+Double-click **Install Aegis OS**. That is the whole procedure — **no password prompt**.
+
+It used to ask for one. The launchers ran `pkexec calamares`, which makes polkit demand an
+administrator password before a live ISO will do the one thing a live ISO exists to do. Both
+launchers now run [`aegis-install`](profile/airootfs/usr/local/bin/aegis-install) instead, which
+fixes two separate problems with that:
+
+| Problem | Fix |
+|---|---|
+| polkit demanded a password | Escalate through the passwordless `sudo` the live session already has. Belt and braces, `aegis-credentials` also drops a polkit rule granting `wheel` a silent `YES`, so the `pkexec` path — including the stock `calamares.desktop` in the applications menu — stops prompting too. |
+| **`pkexec` cannot start X11 programs at all** | `man pkexec` is explicit: it builds a minimal environment and so does not set `$DISPLAY` or `$XAUTHORITY`. A Qt GUI like Calamares has no way to reach the display. `aegis-install` passes both through on every escalation path. |
+| Calamares rendered light grey on a dark desktop | `QT_QPA_PLATFORMTHEME=gtk3` in [`/etc/environment`](profile/airootfs/etc/environment) makes Qt follow the GTK theme. |
+
+The polkit rule is **generated at boot, never shipped.** `aegis-credentials` exits at its
+`/run/archiso` guard on an installed system, so `/etc/polkit-1/rules.d/49-aegis-live.rules`
+physically cannot exist off the live medium — and Calamares deletes it during install anyway
+([`shellprocess.conf`](profile/airootfs/etc/calamares/modules/shellprocess.conf)), along with the
+live sudoers drop-in and the plaintext credentials file. **An installed Aegis OS authenticates
+normally.** If the rule ever fails to write, polkitd ignores the file and you get the prompt back
+— it fails safe, not open.
+
+If the installer does not appear, that means `aegis-credentials` did not finish:
+
+```bash
+journalctl -u aegis-credentials
+```
 
 ---
 
@@ -177,7 +235,7 @@ Every credential is created at boot by one small oneshot:
 
 | Piece | Role |
 |-------|------|
-| [`aegis-credentials`](profile/airootfs/usr/local/bin/aegis-credentials) | Creates the live user, sets both passwords, adds `wheel` + `autologin`, writes passwordless sudo. The **only** thing in the image that produces a usable password. |
+| [`aegis-credentials`](profile/airootfs/usr/local/bin/aegis-credentials) | Creates the live user, sets both passwords, adds `wheel` + `autologin`, writes passwordless sudo and the live polkit rule. The **only** thing in the image that produces a usable password. |
 | [`aegis-credentials.service`](profile/airootfs/etc/systemd/system/aegis-credentials.service) | Ordered `Before=` the greeter, the ttys, and `aegis-live-setup`, with a hard 45 s cap. Does no network I/O, no `locale-gen`, no `systemctl start` — so it has nothing to block on. |
 | `/etc/aegis/credentials.conf` | Generated from `aegis.conf` by `scripts/build-iso.sh` (mode `0600`), sourced by the script. Calamares deletes it during install. |
 
@@ -196,7 +254,7 @@ journalctl -u aegis-credentials
 Every account is verified against `/etc/shadow` after being set and the result is logged, so
 that output names the account that failed rather than leaving you guessing. Passwords on the
 **installed** system are separate — Calamares sets them, and it removes the live credentials
-file, the live sudoers drop-in, and both live oneshots on the way out.
+file, the live sudoers drop-in, the live polkit rule, and both live oneshots on the way out.
 
 ---
 
