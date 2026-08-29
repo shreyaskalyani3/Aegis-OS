@@ -113,6 +113,27 @@ cp -a "${REPO_ROOT}/${AEGIS_PROFILE_DIR}" "${STAGED_PROFILE}"
 # Boot menus (efiboot/syslinux/grub) are pulled from the upstream, known-good
 # `releng` profile and rebranded — more robust than hand-maintaining bootloader
 # configs. Ship your own dirs in profile/ to override this.
+
+TOMBSTONE_DIR="${AIROOTFS}/usr/local/share/applications"
+mkdir -p "$TOMBSTONE_DIR"
+TOMBSTONES=(
+  assistant designer linguist qdbusviewer qt5ct qt6ct kvantummanager
+  xfce4-web-browser xfce4-file-manager xfce4-terminal-emulator xfce4-mail-reader
+  org.gnome.FileRoller htop btop vim nvim
+  xfce4-about thunar-bulk-rename xfburn xfce4-dict gigolo xfdashboard
+  xfce4-screensaver xfce4-screensaver-preferences parole blueman-adapters
+  avahi-discover bssh bvnc lstopo cmake-gui qv4l2 qvidcap calamares
+)
+for t in "${TOMBSTONES[@]}"; do
+  cat > "${TOMBSTONE_DIR}/${t}.desktop" <<EOF
+    [Desktop Entry]
+    Type=Application
+    Name=${t}
+    NoDisplay=true
+    Hidden=true
+EOF
+done
+
 RELENG="/usr/share/archiso/configs/releng"
 [[ -d "${RELENG}" ]] || die "releng profile not found at ${RELENG} (is 'archiso' installed?)"
 for bootdir in efiboot syslinux grub; do

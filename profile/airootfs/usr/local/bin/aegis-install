@@ -75,7 +75,13 @@ fi
 
 # XDG_RUNTIME_DIR is dropped deliberately: it points at the live user's
 # /run/user/1000, which root does not own, and Qt warns loudly about that.
-ENVV=(env -u XDG_RUNTIME_DIR "DISPLAY=${DISPLAY:-:0}")
+ENVV=(
+  "DISPLAY=${DISPLAY:-:0}"
+  "XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}"
+  "DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-}"
+  "XDG_CURRENT_DESKTOP=XFCE"
+  "QT_QPA_PLATFORMTHEME=gtk3"
+)
 [[ -n "${XAUTH}" ]] && ENVV+=("XAUTHORITY=${XAUTH}")
 # Keep the installer dark like the rest of the desktop (see /etc/environment).
 ENVV+=("QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-gtk3}")
@@ -103,6 +109,71 @@ if have pkexec; then
     printf '%s!!%s passwordless sudo is unavailable — falling back to pkexec\n' "${C_Y}" "${Z}" >&2
     printf '   %scheck: journalctl -u aegis-credentials%s\n' "${C_D}" "${Z}" >&2
     exec pkexec "${ENVV[@]}" calamares "$@"
+fi
+
+# --- root-only prep: rewrite the two configs that cannot be static ----------
+if [[ "${1:-}" == --prepare ]]; then
+    [[ "$(id -u)" -eq 0 ]] || { echo "--prepare needs root" >&2; exit 1; }
+
+    UNPACK=/etc/calamares/modules/unpackfs.conf
+    WELCOME=/etc/calamares/modules/welcome.conf
+
+    # Where is the SquashFS *actually* mounted? With copytoram=y the image is
+    # not under bootmnt at all, so a hardcoded path makes install impossible.
+    SFS=""
+    for c in /run/archiso/bootmnt/aegis/x86_64/airootfs.sfs \
+             /run/archiso/copytoram/airootfs.sfs; do
+        [[ -f "$c" ]] && { SFS="$c"; break; }
+    done
+
+    MNT=""
+    for m in /run/archiso/sfs/airootfs /run/archiso/airootfs; do
+        [[ -d "$m" ]] && { MNT="$m"; break; }
+    done
+    [[ -z "$MNT" ]] && MNT="$(findmnt -rn -t squashfs -o TARGET | head -n1)"
+
+    if [[ -n "$SFS" ]]; then
+        sed -i -E "s|^([[:space:]]*)source:.*|\1source: \"${SFS}\"|;
+                   s|^([[:space:]]*)sourcefs:.*|\1sourcefs: \"squashfs\"|" "$UNPACK"
+        echo "[prepare] unpackfs source -> ${SFS}"
+    elif [[ -n "$MNT" ]]; then
+        # No image file reachable, but the tree is mounted: copy from the
+        # mountpoint instead. `file` means "an already-mounted directory".
+        sed -i -E "s|^([[:space:]]*)source:.*|\1source: \"${MNT}\"|;
+                   s|^([[:space:]]*)sourcefs:.*|\1sourcefs: \"file\"|" "$UNPACK"
+        echo "[prepare] unpackfs source -> ${MNT} (mounted tree)"
+    else
+        echo "[prepare] WARNING: no SquashFS found; leaving unpackfs.conf alone" >&2
+    fi
+
+    # requiredStorage must reflect the *unpacked* size of this build variant,
+    # not a guess. lean/broad/full differ by many GiB.
+    if [[ -n "$MNT" ]]; then
+        USED=$(df -B1 --output=used "$MNT" 2>/dev/null | tail -n1 | tr -d ' ')
+        if [[ "$USED" =~ ^[0-9]+$ ]] && [[ "$USED" -gt 0 ]]; then
+            NEED=$(awk -v b="$USED" 'BEGIN{printf "%.1f", (b/1073741824)*1.25 + 4}')
+            sed -i -E "s|^([[:space:]]*)requiredStorage:.*|\1requiredStorage: ${NEED}|" "$WELCOME"
+            echo "[prepare] requiredStorage -> ${NEED} GiB"
+        fi
+    fi
+    exit 0
+fi
+
+# Run prep, but never let it block the installer.
+sudo -n -- bash "$0" --prepare 2>&1 | logger -t aegis-install -s || \
+    echo "aegis-install: prep skipped (no passwordless sudo)" >&2
+
+LOG="/tmp/aegis-install-$$.log"
+if ! pkexec env "${ENVV[@]}" calamares -D6 2>&1 | tee "$LOG"; then
+    MSG="$(grep -m3 -E 'FATAL|ERROR|invalid' "$LOG" | head -c 900)"
+    [[ -z "$MSG" ]] && MSG="Calamares exited unexpectedly. Log: $LOG"
+    if command -v zenity >/dev/null; then
+        zenity --error --width=560 --title="Aegis Installer" \
+               --text="The installer could not start.\n\n${MSG}\n\nFull log: ${LOG}"
+    else
+        xmessage -center "Installer failed:\n${MSG}\n\nLog: ${LOG}" 2>/dev/null
+    fi
+    exit 1
 fi
 
 fail "Cannot become root to run the installer: neither passwordless sudo nor pkexec is available. Run 'journalctl -u aegis-credentials' to see what failed."
