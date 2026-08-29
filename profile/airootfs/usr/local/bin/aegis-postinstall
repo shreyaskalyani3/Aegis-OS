@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-postinstall — turn the freshly-cloned SquashFS into a real installed
+#  system. Run by Calamares in the target chroot (see
+#  /etc/calamares/modules/shellprocess.conf), between `users` and `initcpio`.
+#
+#  An offline installer clones the live medium byte for byte, which means the
+#  target inherits everything that only made sense on a live ISO: the installer
+#  itself, the archiso initramfs hooks, the live credentials, an "Install Aegis
+#  OS" icon on the desktop of the machine you just installed, and -- the part
+#  that actually matters for security -- the *same SSH host keys and systemd
+#  entropy seed as every other Aegis install in the world*. This strips all of
+#  it.
+#
+#  It also does the two jobs Calamares' optional Arch modules would have done
+#  (initcpiocfg for mkinitcpio HOOKS, and the crypto side of grubcfg). Those
+#  modules are not in the sequence on purpose: an unavailable module makes
+#  Calamares bail at startup, and this image cannot verify which modules Arch's
+#  package ships. A script in the overlay is checkable with `bash -n` instead.
+#
+#  Usage:
+#    aegis-postinstall [--force]
+#
+#  --force skips the live-system guard. Only useful for testing; running this on
+#  a live session without it is refused, because it would strip the session you
+#  are sitting in.
+# =============================================================================
+set -uo pipefail
+
+log(){  printf '[aegis-postinstall] %s\n' "$*"; }
+warn(){ printf '[aegis-postinstall] WARNING: %s\n' "$*" >&2; }
+have(){ command -v "$1" >/dev/null 2>&1; }
+
+FORCE=0
+[[ "${1:-}" == --force ]] && FORCE=1
+
+if [[ "$(id -u)" -ne 0 ]]; then
+    warn "must run as root"; exit 1
+fi
+
+# --- Guard: are we actually in the target, or in the live session? -----------
+# Calamares' mount module puts a fresh tmpfs on /run inside the chroot, so
+# /run/archiso does not exist there. On the live system it does. Requiring BOTH
+# "live medium present" AND "not in a chroot" before refusing means a wrong
+# assumption about /run cannot silently skip the cleanup.
+in_chroot() {
+    if have systemd-detect-virt && systemd-detect-virt --chroot --quiet; then return 0; fi
+    # Fallback: /proc/1/root resolves to the host's root. Inside a chroot that is
+    # a different inode from "/".
+    local pid1 slash
+    pid1="$(stat -Lc '%d:%i' /proc/1/root 2>/dev/null)" || return 1
+    slash="$(stat -Lc '%d:%i' / 2>/dev/null)"           || return 1
+    [[ -n "${pid1}" && "${pid1}" != "${slash}" ]]
+}
+
+if [[ -e /run/archiso ]] && ! in_chroot && [[ ${FORCE} -eq 0 ]]; then
+    warn "this looks like the live session (/run/archiso exists, not in a chroot)."
+    warn "refusing to strip it. Pass --force if you really meant to."
+    exit 0
+fi
+
+log "cleaning up the installed system"
+
+# --- 1. Live-only files ------------------------------------------------------
+# Some of these are normally absent from the SquashFS because the scripts that
+# create them guard on /run/archiso. Removed anyway: an installed system must
+# authenticate normally, and "should not be there" is not "is not there".
+for f in \
+    /etc/mkinitcpio.conf.d/archiso.conf \
+    /etc/sudoers.d/99-aegis-live \
+    /etc/lightdm/lightdm.conf.d/20-aegis-live.conf \
+    /etc/polkit-1/rules.d/49-aegis-live.rules \
+    /etc/aegis/credentials.conf \
+    /etc/systemd/system/aegis-credentials.service \
+    /etc/systemd/system/aegis-live-setup.service \
+    /etc/systemd/system/multi-user.target.wants/aegis-credentials.service \
+    /etc/systemd/system/multi-user.target.wants/aegis-live-setup.service
+do
+    [[ -e "$f" ]] && { rm -f "$f" && log "removed $f"; }
+done
+
+# --- 2. Per-machine secrets that must NOT be cloned --------------------------
+# These are the real bug in any offline installer. If they survive the clone,
+# every Aegis install shares one set of SSH host keys (so any of them can
+# impersonate any other, and MITM is undetectable) and one seeded PRNG state.
+# Deleting them makes the services regenerate on first boot.
+for f in /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub; do
+    [[ -e "$f" ]] && rm -f "$f"
+done
+log "cleared cloned SSH host keys (regenerated on first boot)"
+rm -f /var/lib/systemd/random-seed
+rm -f /var/lib/NetworkManager/secret_key /var/lib/NetworkManager/seen-bssids 2>/dev/null
+log "cleared cloned entropy seed and NetworkManager machine state"
+
+# --- 3. Live-only packages ---------------------------------------------------
+# Nothing here is useful once the system is on disk. Each removal is
+# independently tolerant: if something unexpectedly depends on one of these,
+# leaving it installed is a far better outcome than failing the install.
+LIVE_PKGS=(
+    calamares            # the installer itself
+    archinstall          # the *other* Arch installer
+    mkinitcpio-archiso   # live-medium initramfs hooks
+    mkinitcpio-nfs-utils # PXE boot support for the live medium
+    syslinux             # the ISO's BIOS bootloader; the target uses GRUB
+    edk2-shell           # UEFI shell, an ISO boot-menu entry
+    memtest86+           # ditto
+    memtest86+-efi       # ditto
+)
+if have pacman; then
+    for p in "${LIVE_PKGS[@]}"; do
+        pacman -Qq "$p" >/dev/null 2>&1 || continue
+        if pacman -Rns --noconfirm "$p" >/dev/null 2>&1; then
+            log "removed package $p"
+        else
+            warn "could not remove $p (something depends on it) — left installed"
+        fi
+    done
+else
+    warn "pacman not found in the target; live-only packages left installed"
+end_pacman=1
+fi
+
+# --- 4. mkinitcpio HOOKS ----------------------------------------------------
+# The archiso drop-in is gone (step 1), so HOOKS is back to Arch's stock line,
+# which boots a plain system fine. It does NOT cover an encrypted or LVM root,
+# though, and Calamares lets you install onto both via manual partitioning. Add
+# the hooks those need, or the installed system will not find its root device.
+MKI=/etc/mkinitcpio.conf
+
+add_hook() {  # $1 = hook to add, inserted before `filesystems`
+    local h="$1"
+    [[ -f "${MKI}" ]] || return 0
+    grep -q '^HOOKS=' "${MKI}" || { warn "no HOOKS= line in ${MKI}"; return 0; }
+    grep -qE "^HOOKS=\(.*(^|[[:space:](])${h}([[:space:])]|$)" "${MKI}" && return 0
+
+    sed -i -E "s/^(HOOKS=\(.*)\<filesystems\>/\1${h} filesystems/" "${MKI}"
+    # No `filesystems` to anchor to (non-stock config): append before the ")".
+    grep -qE "^HOOKS=\(.*[[:space:](]${h}[[:space:])]" "${MKI}" \
+        || sed -i -E "s/^(HOOKS=\(.*[^[:space:](])\)/\1 ${h})/" "${MKI}"
+
+    if grep -qE "^HOOKS=\(.*[[:space:](]${h}[[:space:])]" "${MKI}"; then
+        log "added '${h}' to mkinitcpio HOOKS"
+    else
+        warn "failed to add '${h}' to HOOKS — check ${MKI} by hand before rebooting"
+    fi
+}
+
+ENCRYPTED=0
+if [[ -s /etc/crypttab ]] && grep -qEv '^[[:space:]]*(#|$)' /etc/crypttab; then
+    ENCRYPTED=1
+    add_hook encrypt
+fi
+if have lvs && [[ -n "$(lvs --noheadings 2>/dev/null)" ]]; then
+    add_hook lvm2
+fi
+
+# --- 5. GRUB: the crypto bit grubcfg.conf cannot express ---------------------
+# grubcfg.conf handles GRUB_DISTRIBUTOR / os-prober / timeout. This one is
+# conditional, so it belongs here. grubcfg runs after this script with
+# `overwrite: false` and does not list GRUB_ENABLE_CRYPTODISK, so it survives.
+set_grub_key() {  # $1 = key, $2 = value
+    local f=/etc/default/grub k="$1" v="$2"
+    [[ -f "${f}" ]] || return 0
+    if grep -qE "^[#[:space:]]*${k}=" "${f}"; then
+        sed -i -E "s|^[#[:space:]]*${k}=.*|${k}=${v}|" "${f}"
+    else
+        printf '%s=%s\n' "${k}" "${v}" >> "${f}"
+    fi
+}
+if [[ ${ENCRYPTED} -eq 1 ]]; then
+    # GRUB tests this against the literal string "y" -- a YAML/shell `true` would
+    # not match, which is why this is not in grubcfg.conf's defaults map.
+    set_grub_key GRUB_ENABLE_CRYPTODISK y
+    log "encrypted root detected: enabled GRUB cryptodisk support"
+fi
+
+# --- 6. De-live the desktop -------------------------------------------------
+# /etc/skel is in the SquashFS, and the users module copies it into the account
+# it just created, so both need doing: an installed machine should not offer to
+# install itself.
+relive_home() {  # $1 = a home directory (or /etc/skel)
+    local h="$1" owner launcher
+    [[ -d "${h}" ]] || return 0
+    owner="$(stat -c '%u:%g' "${h}" 2>/dev/null || echo 0:0)"
+
+    if [[ -e "${h}/Desktop/aegis-install.desktop" ]]; then
+        rm -f "${h}/Desktop/aegis-install.desktop"
+        log "removed the Install launcher from ${h}/Desktop"
+    fi
+
+    # The panel keeps this launcher by FILENAME in xfce4-panel.xml's items array,
+    # so deleting the file would leave a blank button in the panel and editing
+    # the XML to drop the plugin is brittle. Rewriting the file in place turns
+    # that slot into the thing a freshly installed system actually wants there.
+    launcher="${h}/.config/xfce4/panel/launcher-8/aegis-install.desktop"
+    if [[ -f "${launcher}" ]]; then
+        cat > "${launcher}" <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Aegis Setup
+Comment=Set up the AI agents and pull additional tool groups
+Exec=xfce4-terminal --title="Aegis Setup" --command="aegis-setup"
+Icon=aegis
+Terminal=false
+StartupNotify=true
+Categories=System;
+EOF
+        chown "${owner}" "${launcher}" 2>/dev/null
+        chmod 0644 "${launcher}" 2>/dev/null
+        log "repointed the panel's install button at aegis-setup in ${h}"
+    fi
+}
+
+relive_home /etc/skel
+for home in /home/*; do relive_home "${home}"; done
+
+# --- 7. Services ------------------------------------------------------------
+# These are already enabled by symlinks in the SquashFS (scripts/build-iso.sh
+# writes them), so this is belt and braces for the case where a future change
+# moves that around. `systemctl enable` is pure filesystem work and needs no
+# running systemd, which is why it is safe in a chroot.
+if have systemctl; then
+    for unit in NetworkManager.service lightdm.service bluetooth.service systemd-timesyncd.service; do
+        systemctl enable "${unit}" >/dev/null 2>&1 || true
+    done
+    log "confirmed NetworkManager / LightDM / bluetooth / timesyncd are enabled"
+fi
+
+log "done"
+exit 0
