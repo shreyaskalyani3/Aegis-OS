@@ -1,0 +1,223 @@
+/*
+ * Aegis OS — Calamares stylesheet (QSS, applied to the whole installer UI).
+ *
+ * Palette (matches branding.desc style:, the slideshow, and the live desktop):
+ *   bg        #0d1117   panel bg    #161b22   raised     #21262d
+ *   border    #30363d   text       #c9d1d9   muted text #8b949e
+ *   accent    #ff2e4d   accent-soft #39c5cf
+ *
+ * Qt QSS reference: https://doc.qt.io/qt-5/stylesheet-reference.html
+ * Valid selectors are the object names in the C++ (see the upstream default
+ * stylesheet.qss for the canonical list: #mainApp, #sidebarApp, #logoApp, ...).
+ */
+
+/* --- Base: every page and container -------------------------------------- */
+#mainApp,
+#sidebarApp {
+    background-color: #0d1117;
+}
+
+QWidget {
+    color: #c9d1d9;
+    background-color: transparent;
+}
+
+QDialog {
+    background-color: #0d1117;
+}
+
+/* --- Text ------------------------------------------------------------------ */
+QLabel {
+    color: #c9d1d9;
+    background: transparent;
+}
+QLabel[objectName^="clickMessage"] { color: #8b949e; }
+
+/* --- Headings inside the content area ------------------------------------- */
+QTextBrowser,
+QPlainTextEdit,
+QLineEdit,
+QTextEdit {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 4px;
+    selection-background-color: #ff2e4d;
+    selection-color: #ffffff;
+}
+
+/* --- Buttons --------------------------------------------------------------- */
+QPushButton {
+    background-color: #21262d;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 500;
+}
+QPushButton:hover {
+    background-color: #30363d;
+    border-color: #8b949e;
+}
+QPushButton:pressed {
+    background-color: #0d1117;
+    border-color: #ff2e4d;
+}
+QPushButton:disabled {
+    color: #484f58;
+    background-color: #161b22;
+    border-color: #21262d;
+}
+/* Primary (Next) button gets the brand accent */
+QPushButton#view-button-back {
+    background-color: transparent;
+    border: 1px solid #30363d;
+}
+QPushButton:focus {
+    border-color: #ff2e4d;
+}
+
+/* --- Inputs & combos ------------------------------------------------------- */
+QComboBox {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+QComboBox:hover { border-color: #8b949e; }
+QComboBox::drop-down { border: none; width: 20px; }
+QComboBox QAbstractItemView {
+    background-color: #161b22;
+    color: #c9d1d9;
+    selection-background-color: #ff2e4d;
+    selection-color: #ffffff;
+    border: 1px solid #30363d;
+}
+
+QCheckBox,
+QRadioButton {
+    color: #c9d1d9;
+    background: transparent;
+    spacing: 8px;
+}
+QCheckBox::indicator,
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #30363d;
+    border-radius: 3px;
+    background-color: #0d1117;
+}
+QRadioButton::indicator { border-radius: 8px; }
+QCheckBox::indicator:checked,
+QRadioButton::indicator:checked {
+    background-color: #ff2e4d;
+    border-color: #ff2e4d;
+}
+QCheckBox::indicator:hover,
+QRadioButton::indicator:hover { border-color: #8b949e; }
+
+QSpinBox,
+QDoubleSpinBox {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 3px;
+}
+
+/* --- Lists, tables, trees (partition page!) --------------------------------- */
+QTreeWidget,
+QTreeView,
+QTableView,
+QTableWidget,
+QListWidget,
+QListView {
+    background-color: #0d1117;
+    alternate-background-color: #161b22;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+}
+QTreeWidget::item:selected,
+QTreeView::item:selected,
+QTableView::item:selected,
+QListWidget::item:selected {
+    background-color: #ff2e4d;
+    color: #ffffff;
+}
+QHeaderView::section {
+    background-color: #161b22;
+    color: #c9d1d9;
+    border: 0;
+    border-bottom: 1px solid #30363d;
+    padding: 4px 8px;
+}
+
+/* --- Scrollbars ------------------------------------------------------------- */
+QScrollArea { border: none; }
+QScrollBar:vertical {
+    background: #0d1117;
+    width: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: #30363d;
+    border-radius: 5px;
+    min-height: 24px;
+}
+QScrollBar::handle:vertical:hover { background: #484f58; }
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal {
+    background: #0d1117;
+    height: 10px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: #30363d;
+    border-radius: 5px;
+    min-width: 24px;
+}
+QScrollBar::handle:horizontal:hover { background: #484f58; }
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal { width: 0; }
+
+/* --- Progress bar (install phase) -------------------------------------------- */
+QProgressBar {
+    background-color: #161b22;
+    color: #c9d1d9;
+    border: none;
+    border-radius: 6px;
+    text-align: center;
+    height: 14px;
+}
+QProgressBar::chunk {
+    background-color: #ff2e4d;
+    border-radius: 6px;
+}
+
+/* --- Tooltips & menus -------------------------------------------------------- */
+QToolTip {
+    background-color: #21262d;
+    color: #f0f6fc;
+    border: 1px solid #30363d;
+    padding: 4px;
+}
+
+/* --- Grouping boxes ------------------------------------------------------------ */
+QGroupBox {
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin-top: 10px;
+    padding-top: 6px;
+    font-weight: 600;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+    color: #f0f6fc;
+}

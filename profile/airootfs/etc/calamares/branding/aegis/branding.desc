@@ -1,14 +1,25 @@
 # =============================================================================
-#  Aegis OS — Calamares branding
+#  Aegis OS — Calamares branding (Calamares 3.3 schema)
 # =============================================================================
----
+# Key names must match src/libcalamaresui/Branding.cpp exactly:
+#   style keys are PascalCase (SidebarBackground, SidebarText,
+#   SidebarTextCurrent, SidebarBackgroundCurrent) — the old 3.2 camelCase
+#   names (sidebarBackground, sidebarTextSelect, sidebarTextHighlight ...)
+#   are rejected by validateStyleEntries() with "Unknown branding *style*
+#   entry" and silently ignored, which reverts the installer to the stock
+#   light palette.
+# ---
 componentName: aegis
 
-welcomeStyleCalamares: true
+# false => "Welcome to the Aegis OS installer." (true would say "Welcome to
+# the Calamares installer for Aegis OS" — wrong product name).
+welcomeStyleCalamares: false
 welcomeExpandingLogo: true
 windowExpanding: normal
 windowSize: 820px,540px
 windowPlacement: center
+sidebar: widget
+navigation: widget
 
 strings:
     productName:         "Aegis OS"
@@ -17,17 +28,26 @@ strings:
     shortVersion:        "Sentinel"
     versionedName:       "Aegis OS (Sentinel)"
     shortVersionedName:  "Aegis"
-    bootloaderEntryName:  "Aegis OS"
+    bootloaderEntryName: "Aegis OS"
     productUrl:          "https://aegis-os.example"
     supportUrl:          "https://aegis-os.example/support"
     knownIssuesUrl:      "https://aegis-os.example/issues"
     releaseNotesUrl:     "https://aegis-os.example/news"
 
-slideshow: "show.qml"
-slideshowAPI: 2
+images:
+    # Relative to this directory. aegis.svg is the same shield used by the
+    # Whisker menu button (shipped in /usr/share/icons/hicolor/scalable/apps).
+    # A missing file is a FATAL branding load error, so point only at files
+    # this profile actually ships.
+    productLogo:    "aegis.svg"
+    productIcon:    "aegis.svg"
+    productWelcome: "aegis.svg"
 
 style:
-    sidebarBackground:    "#0d1117"
-    sidebarText:          "#c9d1d9"
-    sidebarTextSelect:    "#ff2e4d"
-    sidebarTextHighlight: "#ff2e4d"
+    SidebarBackground:        "#0d1117"
+    SidebarText:              "#c9d1d9"
+    SidebarTextCurrent:       "#ff2e4d"
+    SidebarBackgroundCurrent: "#161b22"
+
+slideshow: "show.qml"
+slideshowAPI: 2

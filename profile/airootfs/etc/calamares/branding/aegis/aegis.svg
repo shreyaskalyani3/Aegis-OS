@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis OS — application icon, used for the Whisker "Aegis" menu button.
+
+  Drawn for SMALL sizes on purpose. The panel renders this at icon-size=20, and
+  the previous version was a 0.22-opacity shield with a 16-unit stroke scaled by
+  0.115 (about 0.8 px of line at 20 px) wrapped around an 'A' only 11 units
+  wide. All of that vanished on downscale and the menu button looked empty.
+
+  So: one solid shield filling the canvas, and one chunky 22x25 'A' at full
+  contrast. No hairlines, no sub-pixel detail, no keyhole; nothing here relies
+  on a feature smaller than ~2 px once scaled to 20.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/>
+      <stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield body: solid, so the silhouette survives any downscale. -->
+  <path d="M24 1.25 L40 7 L40 25.5 C40 36.5 32.25 43.25 24 46.75
+           C15.75 43.25 8 36.5 8 25.5 L8 7 Z"
+        fill="url(#shield)"/>
+  <!-- Bright rim: reads as a highlight at 48, as a crisp edge at 16. -->
+  <path d="M24 1.25 L40 7 L40 25.5 C40 36.5 32.25 43.25 24 46.75
+           C15.75 43.25 8 36.5 8 25.5 L8 7 Z"
+        fill="none" stroke="#ff5c78" stroke-width="1.6" stroke-linejoin="round"/>
+
+  <!-- Chunky 'A' (22 x 25) with an even-odd counter. -->
+  <path d="M24 12 L35 37 L28.6 37 L26.4 31 L21.6 31 L19.4 37 L13 37 Z
+           M24 20.5 L22.3 26 L25.7 26 Z"
+        fill="#ffffff" fill-rule="evenodd"/>
+</svg>

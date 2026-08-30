@@ -37,6 +37,9 @@ file_permissions=(
   # Live passwords in plaintext — root-only. Regenerated from aegis.conf by
   # scripts/build-iso.sh and deleted by Calamares during install.
   ["/etc/aegis/credentials.conf"]="0:0:600"
+  # NM connection profiles are IGNORED unless root-owned mode 600.
+  ["/etc/NetworkManager/system-connections"]="0:0:700"
+  ["/etc/NetworkManager/system-connections/Wired-connection.nmconnection"]="0:0:600"
   ["/usr/local/bin/aegis-setup"]="0:0:755"
   ["/usr/local/bin/aegis-ai"]="0:0:755"
   ["/usr/local/bin/aegis-tools"]="0:0:755"

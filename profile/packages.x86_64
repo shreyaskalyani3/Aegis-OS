@@ -116,12 +116,15 @@ whois
 bind
 
 # --- Networking --------------------------------------------------------------
+# NOTE: no dhcpcd here, on purpose. Its package post-install enables
+# dhcpcd.service, which then races NetworkManager for every interface at
+# boot: two DHCP clients on one link = slow/flaky networking on the live
+# ISO. NetworkManager ships its own internal DHCP client, so nothing is lost.
 networkmanager
 network-manager-applet
 networkmanager-openvpn
 networkmanager-openconnect
 nm-connection-editor
-dhcpcd
 iwd
 wpa_supplicant
 wireless-regdb

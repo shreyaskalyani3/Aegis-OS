@@ -1,0 +1,19 @@
+[connection]
+id=Wired (auto)
+type=ethernet
+autoconnect=true
+autoconnect-priority=100
+# Match any ethernet device so it works on any hardware (USB adapters,
+# different NICs, VM virtio ports) without per-device provisioning.
+interface-name=*
+timestamp=1700000000
+
+[ethernet]
+# Any cables today are gigabit; do not downgrade the link by default.
+auto-negotiate=true
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
