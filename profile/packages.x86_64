@@ -142,10 +142,11 @@ tor
 torsocks
 proxychains-ng
 # Extra networking layers a security OS should not boot without:
-nftables             # firewall framework (iptables-nft backend also arrives via it)
-traceroute           # path diagnostics (traceroute/ping parity with Kali)
-mtr                  # combined traceroute+ping in one live view
-tcpstat              # interface activity statistics
+#   nftables  - firewall framework
+#   traceroute / mtr - path diagnostics (parity with Kali)
+nftables
+traceroute
+mtr
 
 # --- Xorg + video ------------------------------------------------------------
 xorg-server
