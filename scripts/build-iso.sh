@@ -15,7 +15,6 @@
 # =============================================================================
 
 # shellcheck source=lib/common.sh
-AEGIS_BLACKARCH_EXCLUDE="malboxes"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 BUILD_USER="${AEGIS_BUILD_USER:-builder}"
@@ -114,8 +113,17 @@ cp -a "${REPO_ROOT}/${AEGIS_PROFILE_DIR}" "${STAGED_PROFILE}"
 # `releng` profile and rebranded — more robust than hand-maintaining bootloader
 # configs. Ship your own dirs in profile/ to override this.
 
+# airootfs of the STAGED profile (not the repo copy — the repo is authored on
+# Windows and must never be mutated by a build).
+AIROOTFS="${STAGED_PROFILE}/airootfs"
+
+# Hide menu entries that are irrelevant on Aegis (upstream .desktop files we
+# cannot edit). NoDisplay alone keeps them out of Whisker; Hidden=true is also
+# set because some shells (XFCE Applications) only honour Hidden. Valid keys
+# only — NoDisplay/Hidden are booleans, so a stray Name-only stub with made-up
+# keys would itself fail desktop-file validation.
 TOMBSTONE_DIR="${AIROOTFS}/usr/local/share/applications"
-mkdir -p "$TOMBSTONE_DIR"
+mkdir -p "${TOMBSTONE_DIR}"
 TOMBSTONES=(
   assistant designer linguist qdbusviewer qt5ct qt6ct kvantummanager
   xfce4-web-browser xfce4-file-manager xfce4-terminal-emulator xfce4-mail-reader
@@ -126,11 +134,11 @@ TOMBSTONES=(
 )
 for t in "${TOMBSTONES[@]}"; do
   cat > "${TOMBSTONE_DIR}/${t}.desktop" <<EOF
-    [Desktop Entry]
-    Type=Application
-    Name=${t}
-    NoDisplay=true
-    Hidden=true
+[Desktop Entry]
+Type=Application
+Name=${t}
+NoDisplay=true
+Hidden=true
 EOF
 done
 

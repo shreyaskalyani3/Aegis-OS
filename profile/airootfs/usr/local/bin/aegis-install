@@ -73,45 +73,24 @@ if [[ -z "${XAUTH}" ]] && have xhost; then
     xhost +si:localuser:root >/dev/null 2>&1 || true
 fi
 
-# XDG_RUNTIME_DIR is dropped deliberately: it points at the live user's
-# /run/user/1000, which root does not own, and Qt warns loudly about that.
+# XDG_RUNTIME_DIR is dropped deliberately (the env -u below): it points at the
+# live user's /run/user/1000, which root does not own, and Qt warns loudly about
+# that. XAUTHORITY prefers the cookie located above, else the usual $HOME path.
+# QT_QPA_PLATFORMTHEME keeps the installer dark like the rest of the desktop.
 ENVV=(
   "DISPLAY=${DISPLAY:-:0}"
-  "XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}"
+  "XAUTHORITY=${XAUTH:-${HOME:-/home/aegis}/.Xauthority}"
   "DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-}"
   "XDG_CURRENT_DESKTOP=XFCE"
-  "QT_QPA_PLATFORMTHEME=gtk3"
+  "QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-gtk3}"
 )
-[[ -n "${XAUTH}" ]] && ENVV+=("XAUTHORITY=${XAUTH}")
-# Keep the installer dark like the rest of the desktop (see /etc/environment).
-ENVV+=("QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-gtk3}")
 
 printf '%s::%s starting the Aegis OS installer%s\n' "${C_G}" "${Z}" "${C_D}${Z}"
 
-# --- Escalate ----------------------------------------------------------------
-# Ordered by how likely each is to succeed without asking for anything.
-if [[ "$(id -u)" -eq 0 ]]; then
-    exec "${ENVV[@]}" calamares "$@"
-fi
-
-if have sudo && sudo -n true 2>/dev/null; then
-    # Deliberately NOT `sudo -E`: preserving the environment needs a SETENV tag
-    # or `Defaults setenv`, and the live rule is a plain `NOPASSWD: ALL`, so -E
-    # would abort with "not allowed to preserve the environment". The env prefix
-    # above sets what Calamares actually needs, so -E buys nothing anyway.
-    exec sudo -n -- "${ENVV[@]}" calamares "$@"
-fi
-
-# Passwordless sudo is missing, which means aegis-credentials did not finish.
-# pkexec still works (and the polkit rule usually makes it silent), so try it
-# rather than refusing outright.
-if have pkexec; then
-    printf '%s!!%s passwordless sudo is unavailable — falling back to pkexec\n' "${C_Y}" "${Z}" >&2
-    printf '   %scheck: journalctl -u aegis-credentials%s\n' "${C_D}" "${Z}" >&2
-    exec pkexec "${ENVV[@]}" calamares "$@"
-fi
-
 # --- root-only prep: rewrite the two configs that cannot be static ----------
+# Must run as root, BEFORE calamares starts. Calamares itself would run this
+# after loading its configuration, which is too late for unpackfs source
+# detection to matter — so aegis-install (below) invokes it via sudo first.
 if [[ "${1:-}" == --prepare ]]; then
     [[ "$(id -u)" -eq 0 ]] || { echo "--prepare needs root" >&2; exit 1; }
 
@@ -159,21 +138,40 @@ if [[ "${1:-}" == --prepare ]]; then
     exit 0
 fi
 
-# Run prep, but never let it block the installer.
-sudo -n -- bash "$0" --prepare 2>&1 | logger -t aegis-install -s || \
-    echo "aegis-install: prep skipped (no passwordless sudo)" >&2
-
-LOG="/tmp/aegis-install-$$.log"
-if ! pkexec env "${ENVV[@]}" calamares -D6 2>&1 | tee "$LOG"; then
-    MSG="$(grep -m3 -E 'FATAL|ERROR|invalid' "$LOG" | head -c 900)"
-    [[ -z "$MSG" ]] && MSG="Calamares exited unexpectedly. Log: $LOG"
-    if command -v zenity >/dev/null; then
-        zenity --error --width=560 --title="Aegis Installer" \
-               --text="The installer could not start.\n\n${MSG}\n\nFull log: ${LOG}"
+# --- Run prep as root now (never let it block the installer) -----------------
+# The prep block above needs root; the caller of aegis-install is usually the
+# unprivileged live user. sudo -n is silent thanks to the live sudoers rule.
+# If it is unavailable (installed system), pkexec path below handles escalation
+# for calamares itself; prep simply gets skipped with a warning.
+if [[ "$(id -u)" -ne 0 ]]; then
+    if have sudo && sudo -n true 2>/dev/null; then
+        sudo -n -- bash "$0" --prepare 2>&1 | logger -t aegis-install -s || true
     else
-        xmessage -center "Installer failed:\n${MSG}\n\nLog: ${LOG}" 2>/dev/null
+        echo "aegis-install: passwordless sudo unavailable — skipping --prepare" >&2
     fi
-    exit 1
+fi
+
+# --- Escalate ----------------------------------------------------------------
+# Ordered by how likely each is to succeed without asking for anything.
+if [[ "$(id -u)" -eq 0 ]]; then
+    exec env -u XDG_RUNTIME_DIR "${ENVV[@]}" calamares "$@"
+fi
+
+if have sudo && sudo -n true 2>/dev/null; then
+    # Deliberately NOT `sudo -E`: preserving the environment needs a SETENV tag
+    # or `Defaults setenv`, and the live rule is a plain `NOPASSWD: ALL`, so -E
+    # would abort with "not allowed to preserve the environment". The env prefix
+    # above sets what Calamares actually needs, so -E buys nothing anyway.
+    exec sudo -n -- env -u XDG_RUNTIME_DIR "${ENVV[@]}" calamares "$@"
+fi
+
+# Passwordless sudo is missing, which means aegis-credentials did not finish.
+# pkexec still works (and the polkit rule usually makes it silent), so try it
+# rather than refusing outright.
+if have pkexec; then
+    printf '%s!!%s passwordless sudo is unavailable — falling back to pkexec\n' "${C_Y}" "${Z}" >&2
+    printf '   %scheck: journalctl -u aegis-credentials%s\n' "${C_D}" "${Z}" >&2
+    exec pkexec env -u XDG_RUNTIME_DIR "${ENVV[@]}" calamares "$@"
 fi
 
 fail "Cannot become root to run the installer: neither passwordless sudo nor pkexec is available. Run 'journalctl -u aegis-credentials' to see what failed."

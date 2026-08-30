@@ -141,6 +141,11 @@ macchanger
 tor
 torsocks
 proxychains-ng
+# Extra networking layers a security OS should not boot without:
+nftables             # firewall framework (iptables-nft backend also arrives via it)
+traceroute           # path diagnostics (traceroute/ping parity with Kali)
+mtr                  # combined traceroute+ping in one live view
+tcpstat              # interface activity statistics
 
 # --- Xorg + video ------------------------------------------------------------
 xorg-server
@@ -192,8 +197,6 @@ lightdm-gtk-greeter
 lightdm-gtk-greeter-settings
 xfce4-terminal
 alacritty
-network-manager-applet
-blueman
 gvfs
 gvfs-mtp
 gvfs-smb
@@ -246,7 +249,6 @@ python-virtualenv
 uv
 go
 rustup
-ripgrep
 
 # --- AI agent (native Arch package) ------------------------------------------
 opencode
@@ -287,7 +289,6 @@ tcpreplay
 ndisc6
 iftop
 nethogs
-whois
 
 # =============================================================================
 #  BlackArch-only tools (installed only when AEGIS_ENABLE_BLACKARCH=1).
