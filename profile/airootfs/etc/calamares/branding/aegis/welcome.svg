@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis OS — installer welcome image (Calamares productWelcome).
+  Rendered at ~320x150 on the welcome page: a wide composition with the
+  shield at left and the wordmark beside it. 640x300 canvas.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="300" viewBox="0 0 640 300">
+  <defs>
+    <linearGradient id="wshield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/>
+      <stop offset="55%" stop-color="#e01e3c"/>
+      <stop offset="100%" stop-color="#a30f26"/>
+    </linearGradient>
+    <linearGradient id="wrim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff7d94"/>
+      <stop offset="100%" stop-color="#c21a35"/>
+    </linearGradient>
+    <linearGradient id="wtext" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f6fc"/>
+      <stop offset="100%" stop-color="#c9d1d9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield (scaled ~150x150, vertically centered) -->
+  <g transform="translate(40,75) scale(0.293)">
+    <path d="M256 13.3 L426.7 74.7 L426.7 272
+             C426.7 389 344 461 256 498.7
+             C168 461 85.3 389 85.3 272 L85.3 74.7 Z"
+          fill="url(#wshield)"/>
+    <path d="M256 13.3 L426.7 74.7 L426.7 272
+             C426.7 389 344 461 256 498.7
+             C168 461 85.3 389 85.3 272 L85.3 74.7 Z"
+          fill="none" stroke="url(#wrim)" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M256 128 L373.3 394.7 L305.3 394.7 L281.6 330.7 L230.4 330.7
+             L206.9 394.7 L138.7 394.7 Z
+             M256 218.7 L237.9 277.3 L274.1 277.3 Z"
+          fill="#ffffff" fill-rule="evenodd"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="220" y="152" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="64" font-weight="bold" letter-spacing="10"
+        fill="url(#wtext)">AEGIS</text>
+  <text x="222" y="188" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="19" letter-spacing="7" fill="#8b949e">OFFENSIVE &amp; DEFENSIVE</text>
+  <text x="222" y="212" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="19" letter-spacing="7" fill="#8b949e">SECURITY OS</text>
+
+  <!-- Accent rule -->
+  <rect x="222" y="226" width="180" height="3" rx="1.5" fill="#ff2e4d"/>
+</svg>

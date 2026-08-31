@@ -240,6 +240,9 @@ ttf-nerd-fonts-symbols-mono
 
 # --- Installer (install Aegis to disk) ---------------------------------------
 calamares
+# SVG rendering for the Calamares branding images (logo.svg / welcome.svg)
+# — Qt will not load SVGs without the qtsvg plugin.
+qt6-svg
 archinstall
 arch-install-scripts
 
