@@ -212,6 +212,34 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -ne 1 ]]; then
     sed -i '/# >>> AEGIS_BLACKARCH_ONLY >>>/,/# <<< AEGIS_BLACKARCH_ONLY <<</d' "${STAGED_PROFILE}/packages.x86_64"
 fi
 
+# --- Offline-install kernel cache (the EndeavourOS pattern) -------------------
+# mkarchiso DELETES /boot (and the pacman cache) from the SquashFS, so a target
+# cloned by unpackfs has no vmlinuz-linux and `mkinitcpio -P` in the installer
+# dies with "-k /boot/vmlinuz-linux must be readable". Re-copying raw files
+# only half-works (no pacman database, no preset ownership), so instead the
+# real fix — same as every Calamares-on-archiso distro (EndeavourOS does
+# exactly this): pre-download the kernel PACKAGES into a directory the
+# mkarchiso cleanup never touches (/usr/share/aegis/packages), and have the
+# installer `pacman -U` them into the target. That installs an authentic
+# kernel package: vmlinuz in /boot, the standard linux.preset, proper file
+# ownership, and an entry in the target's pacman database — everything a
+# normal install has, fully OFFLINE.
+PKG_CACHE="${STAGED_PROFILE}/airootfs/usr/share/aegis/packages"
+install -d -m 0755 "${PKG_CACHE}"
+# -Sw downloads without installing; --needed skips if the cache copy is fresh;
+# -w target via --cachedir (EOS uses the same flag set).
+KERNEL_PKGS="linux intel-ucode amd-ucode grub"
+pacman -Sw --noconfirm --needed --cachedir "${PKG_CACHE}" ${KERNEL_PKGS} \
+    || die "could not pre-download kernel packages for offline install"
+# Verify the cache holds the kernel package — the one thing the install
+# cannot proceed without.
+ls "${PKG_CACHE}"/linux-*.pkg.tar.* >/dev/null 2>&1 \
+    || die "kernel package missing from the offline cache at ${PKG_CACHE}"
+ok "offline-install kernel cache: $(ls "${PKG_CACHE}" | tr '\n' ' ')"
+# /boot/vmlinuz-linux for the LIVE medium is still produced by the linux
+# package inside the airootfs — mkarchiso moves it out of the SquashFS into
+# the ISO's boot dir itself, so live boot is unaffected by this cache.
+
 # --- Bake in the requested breadth of the BlackArch arsenal ------------------
 # AEGIS_TOOL_SET selects how much ships inside the ISO:
 #   lean  = the curated always-on set only (already in packages.x86_64)
