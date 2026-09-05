@@ -1,0 +1,66 @@
+#!/bin/bash
+# aegis-grub-mkconfig — grub-mkconfig wrapper for the installer chroot.
+#
+# WHY THIS EXISTS: the Calamares bootloader module reported only
+# "grub-mkconfig -o /boot/grub/grub.cfg returned error code 1" with no
+# output, which is impossible to debug. grub-mkconfig swallows its real
+# error (typically a grub-probe failure: "failed to get canonical path")
+# into its own stderr that the module discards. This wrapper:
+#   1. repairs the two chroot quirks that break grub-probe,
+#   2. runs the real grub-mkconfig with ALL output logged to
+#      /var/log/aegis-grub-mkconfig.log in the target,
+#   3. re-prints the last lines of that log to stderr on failure so the
+#      Calamares error dialog shows the REAL reason.
+set -o pipefail
+
+REAL=/usr/bin/grub-mkconfig
+LOG=/var/log/aegis-grub-mkconfig.log
+
+{
+    echo "=== aegis-grub-mkconfig $(date -u) ==="
+    echo "argv: $*"
+
+    # --- Repair 1: /boot/grub must exist (grub-install creates it, but a
+    # failed earlier attempt or a fresh ESP-only layout may leave it out).
+    if [ ! -d /boot/grub ]; then
+        echo "NOTE: /boot/grub was missing; creating it"
+        mkdir -p /boot/grub
+    fi
+
+    # --- Repair 2: /etc/mtab. A pacstrapped root ships it as a symlink to
+    # /proc/mounts. Inside the installer chroot /proc is the HOST's proc,
+    # so the symlink exposes the LIVE system's mount table — where / is an
+    # overlay no device backs. grub-probe reads mtab to map / and /boot to
+    # devices, so we regenerate a plain mtab with the TARGET's own root and
+    # boot lines, exactly like a native system has after boot.
+    if [ -L /etc/mtab ] || [ ! -e /etc/mtab ]; then
+        echo "NOTE: regenerating /etc/mtab (was: $(ls -ld /etc/mtab 2>&1))"
+        rm -f /etc/mtab
+        {
+            grep -E ' / | /boot ' /proc/mounts 2>/dev/null
+            grep -vE ' / | /boot |^proc|^sysfs|^devpts|^tmpfs|^cgroup|^mqueue|^shm|^overlay|^airootfs' /etc/fstab 2>/dev/null | awk '$2 && $1 !~ /^#/ {print $1" "$2" "$3" defaults 0 0"}' >/dev/null 2>&1
+        } > /etc/mtab 2>/dev/null || true
+        echo "new /etc/mtab contents:"
+        cat /etc/mtab
+    fi
+
+    echo "--- probe test: / => $(/usr/sbin/grub-probe --target=device / 2>&1)"
+    echo "--- probe test: /boot => $(/usr/sbin/grub-probe --target=device /boot 2>&1)"
+    echo "--- kernels in /boot: $(ls /boot/vmlinuz-* 2>&1)"
+    echo "--- initramfs in /boot: $(ls /boot/initramfs-* 2>&1)"
+    echo "--- modules dirs: $(ls /usr/lib/modules 2>&1)"
+    echo "--- /etc/default/grub:"
+    sed -n '1,12p' /etc/default/grub 2>&1
+} >"$LOG" 2>&1
+
+echo "=== running grub-mkconfig $* ===" >>"$LOG"
+"$REAL" "$@" >>"$LOG" 2>&1
+rc=$?
+echo "=== grub-mkconfig exited $rc ===" >>"$LOG"
+
+if [ "$rc" -ne 0 ]; then
+    # Surface the real error: last 30 lines go to stderr so the Calamares
+    # failure dialog shows the actual grub-probe/script error.
+    tail -n 30 "$LOG" >&2 2>/dev/null || true
+fi
+exit "$rc"

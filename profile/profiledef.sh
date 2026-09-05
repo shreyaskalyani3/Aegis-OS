@@ -51,6 +51,9 @@ file_permissions=(
   ["/usr/local/bin/aegis-desktop-setup"]="0:0:755"
   ["/usr/local/bin/aegis-credentials"]="0:0:755"
   ["/usr/local/bin/aegis-live-setup"]="0:0:755"
+  # grub-mkconfig wrapper used by the Calamares bootloader module (see
+  # etc/calamares/modules/bootloader.conf) — must be executable.
+  ["/usr/share/aegis/grub-mkconfig-wrapper"]="0:0:755"
   ["/etc/systemd/system/aegis-credentials.service"]="0:0:644"
   ["/etc/systemd/system/aegis-live-setup.service"]="0:0:644"
 )
