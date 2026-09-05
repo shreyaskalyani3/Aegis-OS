@@ -224,18 +224,33 @@ fi
 # kernel package: vmlinuz in /boot, the standard linux.preset, proper file
 # ownership, and an entry in the target's pacman database — everything a
 # normal install has, fully OFFLINE.
+#
+# `linux` depends on the virtual `initramfs` provider (mkinitcpio etc.), so
+# the download must run with pacman's dependency resolver (-Sw pulls the
+# provider) — the cache therefore also contains mkinitcpio + mkinitcpio-busybox.
+# The installer must install ALL of them: the target chroot has no sync
+# databases, so `pacman -U linux` alone cannot resolve `initramfs` and aborts
+# at "loading packages...". Installing every cached package together lets
+# pacman satisfy the dependency from the same -U transaction.
 PKG_CACHE="${STAGED_PROFILE}/airootfs/usr/share/aegis/packages"
 install -d -m 0755 "${PKG_CACHE}"
-# -Sw downloads without installing; --needed skips if the cache copy is fresh;
-# -w target via --cachedir (EOS uses the same flag set).
 KERNEL_PKGS="linux intel-ucode amd-ucode grub"
-pacman -Sw --noconfirm --needed --cachedir "${PKG_CACHE}" ${KERNEL_PKGS} \
+pacman -Sw --noconfirm --cachedir "${PKG_CACHE}" ${KERNEL_PKGS} \
     || die "could not pre-download kernel packages for offline install"
-# Verify the cache holds the kernel package — the one thing the install
-# cannot proceed without.
-ls "${PKG_CACHE}"/linux-*.pkg.tar.* >/dev/null 2>&1 \
-    || die "kernel package missing from the offline cache at ${PKG_CACHE}"
-ok "offline-install kernel cache: $(ls "${PKG_CACHE}" | tr '\n' ' ')"
+# Signatures are deleted on purpose: LocalFileSigLevel=Optional means the
+# target never verifies local packages, and a stray .sig would make the
+# installer's glob match non-package files ("Unrecognized archive format")
+# and force keyring checks the chroot cannot satisfy. The packages are
+# authentic core/extra downloads, trusted by construction.
+rm -f "${PKG_CACHE}"/*.sig
+# Databases might be fetched too; the installer only wants package files.
+rm -f "${PKG_CACHE}"/{core,extra,multilib,blackarch}.db*
+# Verify every must-have package is present in the cache.
+for must in linux intel-ucode amd-ucode grub; do
+    ls "${PKG_CACHE}"/${must}-*.pkg.tar.zst >/dev/null 2>&1 \
+        || die "package '${must}' missing from the offline cache at ${PKG_CACHE}"
+done
+ok "offline-install kernel cache: $(ls "${PKG_CACHE}")"
 # /boot/vmlinuz-linux for the LIVE medium is still produced by the linux
 # package inside the airootfs — mkarchiso moves it out of the SquashFS into
 # the ISO's boot dir itself, so live boot is unaffected by this cache.
