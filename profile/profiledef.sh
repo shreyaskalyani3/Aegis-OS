@@ -54,6 +54,9 @@ file_permissions=(
   # grub-mkconfig wrapper used by the Calamares bootloader module (see
   # etc/calamares/modules/bootloader.conf) — must be executable.
   ["/usr/share/aegis/grub-mkconfig-wrapper"]="0:0:755"
+  # post-bootloader verification: proves grub actually landed on the ESP/MBR
+  # and repairs it when the bootloader module silently skipped grub-install.
+  ["/usr/share/aegis/verify-bootloader"]="0:0:755"
   ["/etc/systemd/system/aegis-credentials.service"]="0:0:644"
   ["/etc/systemd/system/aegis-live-setup.service"]="0:0:644"
 )
