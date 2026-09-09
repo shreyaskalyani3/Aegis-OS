@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MAC Changer
+GenericName=Change a network interface MAC address
+Comment=Change a network interface MAC address
+Exec=xfce4-terminal --title="MAC Changer" --command="aegis-run --group blackarch-defensive --desc 'Change a network interface MAC address' macchanger"
+Icon=aegis-cat-maintenance
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Maintenance;
+Keywords=security;aegis;macchanger;

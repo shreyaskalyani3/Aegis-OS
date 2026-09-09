@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Hashcat
+GenericName=GPU-accelerated password recovery
+Comment=GPU-accelerated password recovery
+Exec=xfce4-terminal --title="Hashcat" --command="aegis-run --group blackarch-cracker --desc 'GPU-accelerated password recovery' hashcat"
+Icon=aegis-cat-passwords
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Passwords;
+Keywords=security;aegis;hashcat;

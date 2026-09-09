@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=enum4linux
+GenericName=SMB / Windows share and user enumeration
+Comment=SMB / Windows share and user enumeration
+Exec=xfce4-terminal --title="enum4linux" --command="aegis-run --group blackarch-recon --desc 'SMB / Windows share and user enumeration' enum4linux"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;enum4linux;

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace">
+  <defs>
+    <radialGradient id="wp" cx="50%" cy="40%" r="80%">
+      <stop offset="0%" stop-color="#131a24"/>
+      <stop offset="55%" stop-color="#0b0f16"/>
+      <stop offset="100%" stop-color="#05070a"/>
+    </radialGradient>
+    <linearGradient id="sh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0H0V44" fill="none" stroke="#1b2733" stroke-width="1" opacity="0.30"/>
+    </pattern>
+    <filter id="win" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <!-- ===== Wallpaper ===== -->
+  <rect width="1600" height="1000" fill="url(#wp)"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <g transform="translate(800 330) scale(0.9)" opacity="0.13">
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#sh)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M0 -66 L46 78 L20 78 L11 44 L-11 44 L-20 78 L-46 78 Z M-4 18 L4 18 L0 -6 Z" fill="#f0f6fc"/>
+    <circle cx="0" cy="104" r="12" fill="#ff2e4d"/><rect x="-4" y="104" width="8" height="26" fill="#ff2e4d"/>
+  </g>
+  <text x="800" y="470" text-anchor="middle" font-size="66" font-weight="700" letter-spacing="10"
+        fill="#f0f6fc" opacity="0.05">AEGIS&#160;OS</text>
+
+  <!-- ===== Top panel ===== -->
+  <rect x="0" y="0" width="1600" height="34" fill="#11161d"/>
+  <rect x="0" y="33" width="1600" height="1.5" fill="#ff2e4d" opacity="0.35"/>
+  <!-- whisker menu: mini shield + label -->
+  <g transform="translate(14 6) scale(0.14)">
+    <path d="M0 0 L128 46 L128 194 C128 282 66 336 0 364 C-66 336 -128 282 -128 194 L-128 46 Z"
+          transform="translate(80 0)" fill="url(#sh)"/>
+  </g>
+  <text x="40" y="22" font-size="14" fill="#dbe4ec">Applications</text>
+  <!-- active window button -->
+  <rect x="150" y="5" width="252" height="24" rx="4" fill="#232d38"/>
+  <text x="164" y="22" font-size="12.5" fill="#e6edf3">Terminal &#8212; aegis@sentinel</text>
+  <!-- right cluster: tray + user + clock -->
+  <g stroke="#aeb9c4" stroke-width="1.6" fill="none">
+    <path d="M1440 22 a10 10 0 0 1 20 0"/><path d="M1444 20 a6 6 0 0 1 12 0"/>
+  </g>
+  <path d="M1476 12 h6 l7 -6 v22 l-7 -6 h-6 z" fill="#aeb9c4"/>
+  <path d="M1508 8 l14 5 v6 c0 7 -6 11 -14 13 c-8 -2 -14 -6 -14 -13 v-6 z" fill="#aeb9c4"/>
+  <text x="1540" y="22" font-size="13" fill="#dbe4ec">aegis</text>
+  <text x="1586" y="15" text-anchor="end" font-size="12.5" fill="#ffffff">14:32</text>
+  <text x="1586" y="28" text-anchor="end" font-size="9.5" fill="#8b98a5">Sat 23 Aug</text>
+
+  <!-- ===== Desktop icon ===== -->
+  <g transform="translate(40 70)">
+    <rect x="6" y="0" width="44" height="44" rx="9" fill="#1d2732" stroke="#334153" stroke-width="1"/>
+    <path d="M28 10 v16 M21 20 l7 7 l7 -7" stroke="#ff5570" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="16" y="31" width="24" height="5" rx="2" fill="#8b98a5"/>
+    <text x="28" y="60" text-anchor="middle" font-size="11.5" fill="#e6edf3">Install</text>
+    <text x="28" y="74" text-anchor="middle" font-size="11.5" fill="#e6edf3">Aegis OS</text>
+  </g>
+
+  <!-- ===== AI launcher window (secondary) ===== -->
+  <g filter="url(#win)">
+    <rect x="978" y="120" width="560" height="316" rx="8" fill="#1b2530"/>
+    <rect x="978" y="120" width="560" height="34" rx="8" fill="#2b333e"/>
+    <rect x="978" y="146" width="560" height="8" fill="#2b333e"/>
+    <text x="998" y="142" font-size="13" fill="#e6edf3">aegis-ai &#8212; AI Agents</text>
+    <g stroke="#aeb9c4" stroke-width="1.5" fill="none" stroke-linecap="round">
+      <path d="M1472 137 h10"/>
+      <rect x="1496" y="132" width="10" height="10" rx="1.5"/>
+      <path d="M1520 132 l10 10 M1530 132 l-10 10"/>
+    </g>
+    <text x="998" y="182" font-size="12.5" fill="#8b98a5">Select an agent to launch &#8212; installs on first use.</text>
+
+    <!-- rows -->
+    <g font-size="14">
+      <rect x="996" y="198" width="524" height="40" rx="6" fill="#222d39"/>
+      <circle cx="1018" cy="218" r="7" fill="#ff8b3d"/>
+      <text x="1036" y="223" fill="#e6edf3">Claude Code</text>
+      <text x="1360" y="223" fill="#7ee787">&#9679; ready</text>
+
+      <rect x="996" y="244" width="524" height="40" rx="6" fill="#1f2934"/>
+      <circle cx="1018" cy="264" r="7" fill="#c0caf5"/>
+      <text x="1036" y="269" fill="#e6edf3">OpenCode</text>
+      <text x="1360" y="269" fill="#7ee787">&#9679; ready</text>
+
+      <rect x="996" y="290" width="524" height="40" rx="6" fill="#1f2934"/>
+      <circle cx="1018" cy="310" r="7" fill="#56d4dd"/>
+      <text x="1036" y="315" fill="#e6edf3">Aider</text>
+      <text x="1352" y="315" fill="#e3b341">&#9679; install</text>
+
+      <rect x="996" y="336" width="524" height="40" rx="6" fill="#1f2934"/>
+      <circle cx="1018" cy="356" r="7" fill="#8b98a5"/>
+      <text x="1036" y="361" fill="#e6edf3">Codex</text>
+      <text x="1352" y="361" fill="#e3b341">&#9679; install</text>
+    </g>
+    <rect x="1416" y="392" width="104" height="30" rx="6" fill="#c22740"/>
+    <text x="1468" y="412" text-anchor="middle" font-size="13" fill="#ffffff">Launch</text>
+  </g>
+
+  <!-- ===== Terminal window (hero) ===== -->
+  <g filter="url(#win)">
+    <rect x="150" y="300" width="920" height="600" rx="8" fill="#0d1117"/>
+    <rect x="150" y="300" width="920" height="34" rx="8" fill="#2b333e"/>
+    <rect x="150" y="326" width="920" height="8" fill="#2b333e"/>
+    <circle cx="172" cy="317" r="6" fill="#ff5f57"/><circle cx="192" cy="317" r="6" fill="#febc2e"/><circle cx="212" cy="317" r="6" fill="#28c840"/>
+    <text x="610" y="322" text-anchor="middle" font-size="13" fill="#cbd5e1">aegis@sentinel: ~</text>
+
+    <!-- MOTD banner -->
+    <g font-size="15" fill="#ff3355" xml:space="preserve">
+      <text x="172" y="366"> █████╗ ███████╗ ██████╗ ██╗███████╗</text>
+      <text x="172" y="388">██╔══██╗██╔════╝██╔════╝ ██║██╔════╝</text>
+      <text x="172" y="410">███████║█████╗  ██║  ███╗██║███████╗</text>
+      <text x="172" y="432">██╔══██║██╔══╝  ██║   ██║██║╚════██║</text>
+      <text x="172" y="454">██║  ██║███████╗╚██████╔╝██║███████║</text>
+      <text x="172" y="476">╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝</text>
+    </g>
+    <!-- banner side text -->
+    <g font-size="14.5">
+      <text x="516" y="366" fill="#ffffff">Aegis OS <tspan fill="#8b98a5">2026.08.23 (Sentinel)</tspan></text>
+      <text x="516" y="388" fill="#8b98a5" font-size="13">Offensive &amp; Defensive Security &#183; Agent-native</text>
+      <text x="516" y="432" fill="#56d4dd">aegis-setup <tspan fill="#8b98a5">first-run wizard</tspan></text>
+      <text x="516" y="454" fill="#56d4dd">aegis-ai <tspan fill="#8b98a5">launch Claude / OpenCode / Aider / Codex</tspan></text>
+      <text x="516" y="476" fill="#56d4dd">aegis-tools <tspan fill="#8b98a5">install BlackArch tool groups</tspan></text>
+    </g>
+    <text x="172" y="512" font-size="14.5" fill="#e3b341">&#9888;  Only test systems you own or are authorized to test.</text>
+
+    <!-- prompt + command -->
+    <g font-size="14.5">
+      <text x="172" y="548"><tspan fill="#7ee787">aegis@sentinel</tspan><tspan fill="#8b98a5">:</tspan><tspan fill="#79c0ff">~</tspan> <tspan fill="#ff7b72">&#10095;</tspan> <tspan fill="#e6edf3">nmap -sV 10.10.10.0/24</tspan></text>
+      <text x="172" y="576" fill="#8b98a5">Starting Nmap 7.95 ( https://nmap.org )</text>
+      <text x="172" y="598" fill="#c9d1d9">Nmap scan report for 10.10.10.5</text>
+      <text x="172" y="620" fill="#8b98a5">PORT     STATE SERVICE VERSION</text>
+      <text x="172" y="642" fill="#7ee787">22/tcp   open  ssh     OpenSSH 9.6p1</text>
+      <text x="172" y="664" fill="#7ee787">80/tcp   open  http    nginx 1.27.0</text>
+      <text x="172" y="686" fill="#c9d1d9">443/tcp  open  https   nginx 1.27.0</text>
+      <text x="172" y="722"><tspan fill="#7ee787">aegis@sentinel</tspan><tspan fill="#8b98a5">:</tspan><tspan fill="#79c0ff">~</tspan> <tspan fill="#ff7b72">&#10095;</tspan> </text>
+    </g>
+    <rect x="330" y="710" width="9" height="17" fill="#ff2e4d"/>
+  </g>
+</svg>

@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-run — launch a security tool from the Aegis Tools menu.
+#
+#  Every menu launcher goes through this wrapper for two reasons:
+#
+#   1. The menu is static but the arsenal is not. How much of BlackArch is baked
+#      into an image depends on AEGIS_TOOL_SET (lean/broad/full), so some menu
+#      entries always point at a tool that is not installed yet. Instead of a
+#      window that flashes "command not found" and vanishes, this offers to
+#      install it.
+#   2. CLI tools exit immediately and a terminal launched from a menu closes
+#      with them, throwing away the output. This holds the window open.
+#
+#  Usage:
+#    aegis-run [--pkg PACKAGE] [--desc TEXT] [--group GROUP] COMMAND [ARGS...]
+#
+#      --pkg    package providing COMMAND, when the names differ
+#               (e.g. --pkg perl-image-exiftool exiftool)
+#      --desc   one-line description shown in the header and install prompt
+#      --group  BlackArch group to suggest via `aegis-tools install`
+#
+#  Examples:
+#    aegis-run nmap
+#    aegis-run --pkg metasploit --desc 'Exploitation framework' msfconsole
+# =============================================================================
+set -uo pipefail
+
+C_T=$'\e[1;37m'; C_G=$'\e[36m'; C_D=$'\e[0;90m'; C_Y=$'\e[0;33m'; C_R=$'\e[31m'; Z=$'\e[0m'
+
+have(){ command -v "$1" >/dev/null 2>&1; }
+
+usage(){
+cat <<EOF
+${C_T}aegis-run${Z} — launch a tool from the Aegis Tools menu
+
+${C_T}Usage${Z}
+  aegis-run [--pkg PACKAGE] [--desc TEXT] [--group GROUP] COMMAND [ARGS...]
+
+${C_T}Options${Z}
+  --pkg PACKAGE    package that provides COMMAND, if the names differ
+  --desc TEXT      one-line description of the tool
+  --group GROUP    BlackArch group to suggest if the tool is missing
+
+${C_T}Examples${Z}
+  aegis-run nmap -sV 10.10.10.0/24
+  aegis-run --pkg exploitdb searchsploit apache
+EOF
+}
+
+PKG="" DESC="" GROUP=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --pkg)   PKG="${2:-}";   shift 2 || exit 1 ;;
+        --desc)  DESC="${2:-}";  shift 2 || exit 1 ;;
+        --group) GROUP="${2:-}"; shift 2 || exit 1 ;;
+        -h|--help|help) usage; exit 0 ;;
+        --) shift; break ;;
+        -*) break ;;   # an option for the tool itself
+        *)  break ;;
+    esac
+done
+
+CMD="${1:-}"
+[[ -n "${CMD}" ]] || { usage; exit 1; }
+shift
+: "${PKG:=${CMD}}"
+
+# Hold the window open so menu-launched output stays readable. Skipped when
+# stdin is not a terminal (piped/scripted use).
+pause(){
+    [[ -t 0 ]] || return 0
+    echo
+    printf '%s' "${C_D}── press any key to close ──${Z}"
+    read -rsn1 _ 2>/dev/null || true
+    echo
+}
+
+header(){
+    echo "${C_R}🛡${Z}  ${C_T}${CMD}${Z}${DESC:+  ${C_D}${DESC}${Z}}"
+    echo "${C_D}$(printf '─%.0s' $(seq 1 56))${Z}"
+}
+
+# --- Missing tool: explain, then offer to install ----------------------------
+if ! have "${CMD}"; then
+    header
+    echo "${C_Y}${CMD} is not installed in this image.${Z}"
+    echo "${C_D}Aegis bakes in a subset of the arsenal (AEGIS_TOOL_SET); the rest"
+    echo "installs on demand from the Arch and BlackArch repositories.${Z}"
+    echo
+    echo "  package: ${C_G}${PKG}${Z}${GROUP:+   group: ${C_G}${GROUP}${Z}}"
+    echo
+
+    if ! have pacman; then
+        echo "${C_R}pacman is unavailable — cannot install from here.${Z}"
+        pause; exit 1
+    fi
+
+    printf 'Install it now with pacman? [Y/n] '
+    read -r reply
+    case "${reply}" in
+        ''|y|Y|yes|YES)
+            echo
+            sudo pacman -Sy --needed "${PKG}"
+            rc=$?
+            if [[ ${rc} -ne 0 ]] || ! have "${CMD}"; then
+                echo
+                echo "${C_R}Could not install ${PKG}.${Z}"
+                [[ -n "${GROUP}" ]] && \
+                    echo "Try the whole category:  ${C_G}aegis-tools install ${GROUP}${Z}"
+                echo "Or search for it:          ${C_G}aegis-tools search ${CMD}${Z}"
+                pause; exit 1
+            fi
+            echo
+            echo "${C_G}Installed. Starting ${CMD}…${Z}"
+            echo
+            ;;
+        *)
+            echo
+            echo "Skipped. You can install it later with:"
+            echo "  ${C_G}sudo pacman -S ${PKG}${Z}"
+            [[ -n "${GROUP}" ]] && \
+                echo "  ${C_G}aegis-tools install ${GROUP}${Z}   ${C_D}(whole category)${Z}"
+            pause; exit 0
+            ;;
+    esac
+else
+    header
+fi
+
+# --- Run it ------------------------------------------------------------------
+# Not exec'd: the wrapper has to survive the tool in order to hold the window.
+"${CMD}" "$@"
+rc=$?
+echo
+if [[ ${rc} -eq 0 ]]; then
+    echo "${C_D}${CMD} exited 0${Z}"
+else
+    echo "${C_Y}${CMD} exited ${rc}${Z}"
+fi
+pause
+exit "${rc}"

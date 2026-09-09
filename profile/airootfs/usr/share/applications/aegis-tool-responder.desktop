@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Responder
+GenericName=LLMNR / NBT-NS / mDNS poisoner
+Comment=LLMNR / NBT-NS / mDNS poisoner
+Exec=xfce4-terminal --title="Responder" --command="aegis-run --group blackarch-sniffer --desc 'LLMNR / NBT-NS / mDNS poisoner' responder"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;responder;

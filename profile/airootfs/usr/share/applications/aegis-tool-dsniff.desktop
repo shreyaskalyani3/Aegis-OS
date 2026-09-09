@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=dsniff
+GenericName=Password and traffic sniffing suite
+Comment=Password and traffic sniffing suite
+Exec=xfce4-terminal --title="dsniff" --command="aegis-run --group blackarch-sniffer --desc 'Password and traffic sniffing suite' dsniff"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;dsniff;

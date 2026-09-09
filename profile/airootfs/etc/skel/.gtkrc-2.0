@@ -1,0 +1,25 @@
+# =============================================================================
+#  Aegis OS — GTK 2 settings.
+#
+#  A handful of tools in the BlackArch arsenal are still GTK 2, and they are the
+#  ones that stand out worst against a dark desktop because GTK 2 has no dark
+#  default at all.
+#
+#  Deliberately NOT adw-gtk3-dark: adw-gtk-theme ships only gtk-3.0/ and
+#  gtk-4.0/, so naming it here would silently fall back to stock GTK 2. Materia
+#  does ship gtk-2.0/ (with its assets), and materia-gtk-theme is already a hard
+#  requirement for the xfwm4 decorations — so this reuses it rather than pulling
+#  a fourth theme package in. Check 7 of scripts/dev/check-profile.sh enforces
+#  that the name resolves to a package we actually install.
+# =============================================================================
+gtk-theme-name="Materia-dark-compact"
+gtk-icon-theme-name="Papirus-Dark"
+gtk-font-name="Noto Sans 10"
+gtk-toolbar-style=GTK_TOOLBAR_ICONS
+gtk-button-images=1
+gtk-menu-images=1
+gtk-enable-mnemonics=1
+gtk-xft-antialias=1
+gtk-xft-hinting=1
+gtk-xft-hintstyle="hintslight"
+gtk-xft-rgba="rgb"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=objdump
+GenericName=Disassembler and object file inspector
+Comment=Disassembler and object file inspector
+Exec=xfce4-terminal --title="objdump" --command="aegis-run --pkg binutils --group blackarch-reversing --desc 'Disassembler and object file inspector' objdump"
+Icon=aegis-cat-reversing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Reversing;
+Keywords=security;aegis;objdump;

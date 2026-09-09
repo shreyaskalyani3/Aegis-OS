@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Masscan
+GenericName=Internet-scale port scanner
+Comment=Internet-scale port scanner
+Exec=xfce4-terminal --title="Masscan" --command="aegis-run --group blackarch-recon --desc 'Internet-scale port scanner' masscan"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;masscan;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=mitmproxy
+GenericName=Interactive HTTPS intercepting proxy
+Comment=Interactive HTTPS intercepting proxy
+Exec=xfce4-terminal --title="mitmproxy" --command="aegis-run --group blackarch-webapp --desc 'Interactive HTTPS intercepting proxy' mitmproxy"
+Icon=aegis-cat-web
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Web;
+Keywords=security;aegis;mitmproxy;

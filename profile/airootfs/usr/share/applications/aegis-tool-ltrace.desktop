@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ltrace
+GenericName=Trace library calls
+Comment=Trace library calls
+Exec=xfce4-terminal --title="ltrace" --command="aegis-run --group blackarch-reversing --desc 'Trace library calls' ltrace"
+Icon=aegis-cat-reversing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Reversing;
+Keywords=security;aegis;ltrace;

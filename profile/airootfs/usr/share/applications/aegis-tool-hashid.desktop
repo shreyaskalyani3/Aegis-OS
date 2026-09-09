@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=hashID
+GenericName=Identify hash types, including hashcat modes
+Comment=Identify hash types, including hashcat modes
+Exec=xfce4-terminal --title="hashID" --command="aegis-run --group blackarch-cracker --desc 'Identify hash types, including hashcat modes' hashid"
+Icon=aegis-cat-passwords
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Passwords;
+Keywords=security;aegis;hashid;

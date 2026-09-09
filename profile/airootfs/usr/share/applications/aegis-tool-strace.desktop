@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=strace
+GenericName=Trace system calls and signals
+Comment=Trace system calls and signals
+Exec=xfce4-terminal --title="strace" --command="aegis-run --group blackarch-reversing --desc 'Trace system calls and signals' strace"
+Icon=aegis-cat-reversing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Reversing;
+Keywords=security;aegis;strace;

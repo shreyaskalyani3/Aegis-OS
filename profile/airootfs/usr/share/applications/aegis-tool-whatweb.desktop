@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=WhatWeb
+GenericName=Web technology and CMS fingerprinting
+Comment=Web technology and CMS fingerprinting
+Exec=xfce4-terminal --title="WhatWeb" --command="aegis-run --group blackarch-recon --desc 'Web technology and CMS fingerprinting' whatweb"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;whatweb;

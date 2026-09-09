@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SMBMap
+GenericName=SMB share enumeration and access checks
+Comment=SMB share enumeration and access checks
+Exec=xfce4-terminal --title="SMBMap" --command="aegis-run --group blackarch-recon --desc 'SMB share enumeration and access checks' smbmap"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;smbmap;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=host
+GenericName=DNS lookup utility
+Comment=DNS lookup utility
+Exec=xfce4-terminal --title="host" --command="aegis-run --pkg bind --group blackarch-recon --desc 'DNS lookup utility' host"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;host;

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Terminal
+GenericName=Terminal Emulator
+Comment=Open an Aegis shell
+Exec=xfce4-terminal
+Icon=utilities-terminal
+Terminal=false
+StartupNotify=true
+Categories=System;TerminalEmulator;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bully
+GenericName=WPS brute-force attack
+Comment=WPS brute-force attack
+Exec=xfce4-terminal --title="Bully" --command="aegis-run --group blackarch-wireless --desc 'WPS brute-force attack' bully"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;bully;

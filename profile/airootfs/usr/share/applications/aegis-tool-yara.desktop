@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=YARA
+GenericName=Pattern-matching engine for malware IOCs
+Comment=Pattern-matching engine for malware IOCs
+Exec=xfce4-terminal --title="YARA" --command="aegis-run --group blackarch-scanner --desc 'Pattern-matching engine for malware IOCs' yara"
+Icon=aegis-cat-vuln
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Vuln;
+Keywords=security;aegis;yara;

@@ -1,0 +1,108 @@
+#!/bin/bash
+# aegis verify-bootloader — run by the installer AFTER the bootloader module.
+#
+# WHY THIS EXISTS: the Calamares bootloader module can COMPLETE while having
+# silently skipped grub-install (BIOS mode with no bootLoader installPath in
+# global storage) — the user then reboots into "No operating system found".
+# On UEFI, some firmware (VirtualBox/VMware/old boards) ignores the NVRAM
+# boot entry, so the fallback EFI path must exist too.
+#
+# This script verifies what the firmware will ACTUALLY look for, repairs it
+# by re-running grub-install when missing, and fails the install with a
+# clear AEGIS-ERROR if boot media cannot be confirmed. Fail-loud beats a
+# silently unbootable disk every time.
+set -u
+
+err()  { printf 'AEGIS-ERROR: %s\n' "$*" >&2; }
+info() { printf 'AEGIS: %s\n' "$*"; }
+die()  { err "$*"; exit 1; }
+
+# Everything below runs in the TARGET chroot.
+
+# --- 0. The essentials that must exist regardless of firmware type -----------
+[[ -r /boot/vmlinuz-linux ]]      || die "/boot/vmlinuz-linux missing - the installed system has no kernel to boot."
+[[ -r /boot/initramfs-linux.img ]] || die "/boot/initramfs-linux.img missing - the installed system has no initramfs."
+[[ -s /boot/grub/grub.cfg ]]      || die "/boot/grub/grub.cfg missing or empty - grub-mkconfig did not generate a menu."
+grep -q 'linux.*vmlinuz' /boot/grub/grub.cfg 2>/dev/null \
+    || die "grub.cfg contains no linux menu entry - the boot menu would be empty."
+info "kernel, initramfs and grub.cfg all present"
+
+# --- 1. Firmware-specific bootloader code verification + repair ---------------
+if [[ -d /sys/firmware/efi ]]; then
+    # ============ UEFI ============
+    info "UEFI install detected - verifying ESP contents"
+    [[ -d /boot/efi ]] || die "UEFI install but /boot/efi does not exist - was the ESP mounted during install?"
+
+    # The ESP must be a vfat mount, not a plain directory on the root fs.
+    grep -q ' /boot/efi ' /proc/mounts \
+        || die "/boot/efi is not a mounted ESP - grub could never have written to the real ESP."
+
+    # Primary loader: /boot/efi/EFI/AegisOS/grubx64.efi (our bootloader-id).
+    if [[ ! -f /boot/efi/EFI/AegisOS/grubx64.efi ]]; then
+        err "EFI loader missing (expected /boot/efi/EFI/AegisOS/grubx64.efi) - grub-install was skipped or failed."
+        info "repair: re-running grub-install for x86_64-efi"
+        grub-install --target=x86_64-efi --efi-directory=/boot/efi \
+                      --bootloader-id=AegisOS --force \
+            || die "grub-install (UEFI repair) failed - the ESP is not writable or has no space."
+    fi
+    [[ -f /boot/efi/EFI/AegisOS/grubx64.efi ]] \
+        || die "EFI loader still missing after repair - cannot continue."
+
+    # Fallback path: \\EFI\\boot\\bootx64.efi — the path every UEFI firmware
+    # tries when NVRAM entries are missing/ignored (VirtualBox, VMware, some
+    # laptops). Firmware VFAT is case-insensitive; find the actual dirs.
+    efi_base=""
+    for d in /boot/efi/EFI /boot/efi/Efi /boot/efi/efi; do
+        [[ -d "$d" ]] && efi_base="$d" && break
+    done
+    [[ -n "$efi_base" ]] || efi_base="/boot/efi/EFI"; mkdir -p "$efi_base"
+    fb_dir=""
+    for d in "$efi_base"/boot "$efi_base"/Boot "$efi_base"/BOOT; do
+        [[ -d "$d" ]] && fb_dir="$d" && break
+    done
+    [[ -n "$fb_dir" ]] || { fb_dir="$efi_base/boot"; mkdir -p "$fb_dir"; }
+    if [[ ! -f "$fb_dir"/bootx64.efi ]]; then
+        info "repair: copying fallback loader to $fb_dir/bootx64.efi"
+        cp /boot/efi/EFI/AegisOS/grubx64.efi "$fb_dir"/bootx64.efi \
+            || die "could not write the UEFI fallback loader."
+    fi
+    info "UEFI boot chain verified: AegisOS entry + \\EFI\\boot\\bootx64.efi fallback"
+else
+    # ============ BIOS ============
+    info "BIOS install detected - verifying MBR boot code"
+    # Which physical disk holds /? Walk the lsblk parent chain up to the disk:
+    # sda1 -> sda, nvme0n1p2 -> nvme0n1, and LUKS/LVM stacks
+    # (mapper/root -> sda2 -> sda) resolve by repeated PKNAME lookups.
+    # Whole-disk roots (e.g. a loop device in test rigs) stop immediately.
+    disk_dev="$(findmnt -rn -o SOURCE / 2>/dev/null || true)"
+    [[ -n "$disk_dev" ]] || die "cannot determine the root device (findmnt /)."
+    case "$disk_dev" in
+        /dev/*) : ;;
+        *) die "root source '$disk_dev' is not a /dev device - unsupported layout." ;;
+    esac
+    for _ in 1 2 3 4 5; do
+        parent="$(lsblk -nd -o PKNAME "$disk_dev" 2>/dev/null | head -n1 || true)"
+        [[ -z "${parent}" ]] && break
+        disk_dev="/dev/$parent"
+    done
+    [[ -b "$disk_dev" ]] || die "$disk_dev is not a block device."
+    info "boot disk: $disk_dev"
+
+    # Check the MBR actually contains GRUB stage1 boot code. grub-install
+    # writes boot.img into sector 0; boot.img contains the ASCII 'GRUB '
+    # string (part of its 'GRUB Geom Hard Disk Read Error' messages), so its
+    # presence in the first sector is a reliable signature of a completed
+    # BIOS grub-install.
+    if ! dd if="$disk_dev" bs=512 count=1 2>/dev/null | grep -aq 'GRUB'; then
+        err "no GRUB boot code in the MBR of $disk_dev - grub-install was skipped during install."
+        info "repair: re-running grub-install for i386-pc onto $disk_dev"
+        grub-install --target=i386-pc --recheck --force "$disk_dev" \
+            || die "grub-install (BIOS repair) onto $disk_dev failed."
+        dd if="$disk_dev" bs=512 count=1 2>/dev/null | grep -aq 'GRUB' \
+            || die "still no GRUB signature in the MBR after repair."
+    fi
+    info "BIOS boot code verified in the MBR of $disk_dev"
+fi
+
+info "bootloader verification PASSED - the installed system is bootable."
+exit 0

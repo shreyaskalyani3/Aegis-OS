@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=tcpdump
+GenericName=Command-line packet capture
+Comment=Command-line packet capture
+Exec=xfce4-terminal --title="tcpdump" --command="aegis-run --group blackarch-sniffer --desc 'Command-line packet capture' tcpdump"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;tcpdump;

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Aegis Desktop Polish
+Comment=Fills in wallpaper for monitors the static config could not predict, and repairs any theme name with no installed package behind it
+Exec=aegis-desktop-setup
+Icon=preferences-desktop-wallpaper
+Terminal=false
+Categories=System;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

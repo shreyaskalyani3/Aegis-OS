@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=hcxpcapngtool
+GenericName=Convert Wi-Fi captures for hashcat
+Comment=Convert Wi-Fi captures for hashcat
+Exec=xfce4-terminal --title="hcxpcapngtool" --command="aegis-run --pkg hcxtools --group blackarch-wireless --desc 'Convert Wi-Fi captures for hashcat' hcxpcapngtool"
+Icon=aegis-cat-wireless
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Wireless;
+Keywords=security;aegis;hcxpcapngtool;

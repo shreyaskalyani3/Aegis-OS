@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PhotoRec
+GenericName=File carving and data recovery
+Comment=File carving and data recovery
+Exec=xfce4-terminal --title="PhotoRec" --command="aegis-run --pkg testdisk --group blackarch-forensic --desc 'File carving and data recovery' photorec"
+Icon=aegis-cat-forensics
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Forensics;
+Keywords=security;aegis;photorec;

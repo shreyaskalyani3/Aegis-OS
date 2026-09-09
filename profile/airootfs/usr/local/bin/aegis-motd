@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-motd — Aegis OS login banner: canonical mark, system snapshot, tip.
+#  Invoked from the interactive shell rc (once per login shell).
+# =============================================================================
+set -uo pipefail
+
+# Colors (respect NO_COLOR / non-tty)
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    R=$'\e[1;31m'; W=$'\e[1;37m'; D=$'\e[0;90m'; Y=$'\e[0;33m'; C=$'\e[0;36m'; G=$'\e[0;32m'; Z=$'\e[0m'
+    COLOR=1
+else
+    R=''; W=''; D=''; Y=''; C=''; G=''; Z=''; COLOR=0
+fi
+
+ver="$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-rolling}")"
+
+# --- Canonical banner ---------------------------------------------------------
+cat <<EOF
+${R} █████╗ ███████╗ ██████╗ ██╗███████╗${Z}   ${W}Aegis OS${Z} ${D}${ver} (Sentinel)${Z}
+${R}██╔══██╗██╔════╝██╔════╝ ██║██╔════╝${Z}   ${D}Offensive & Defensive Security · Agent-native${Z}
+${R}███████║█████╗  ██║  ███╗██║███████╗${Z}
+${R}██╔══██║██╔══╝  ██║   ██║██║╚════██║${Z}   ${C}aegis-setup${Z}  ${D}first-run wizard (agents + tools)${Z}
+${R}██║  ██║███████╗╚██████╔╝██║███████║${Z}   ${C}aegis-ai${Z}     ${D}launch Claude Code / OpenCode / Aider / Codex${Z}
+${R}╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝${Z}   ${C}aegis-tools${Z}  ${D}install BlackArch tool groups${Z}
+EOF
+
+# --- System snapshot ----------------------------------------------------------
+if [[ "${COLOR}" -eq 1 ]] && command -v fastfetch >/dev/null 2>&1; then
+    fastfetch --logo-type none \
+        --structure "OS:Host:Kernel:Uptime:Packages:Shell:Terminal:CPU:GPU:Memory:Disk" \
+        2>/dev/null || true
+else
+    printf '%s\n' "${D}system${Z}  ${W}$(uname -srm)${Z} · up $(uptime -p | sed 's/up //')"
+    command -v free >/dev/null && printf '%s\n' "${D}memory${Z}  $(free -h | awk '/^Mem:/ {print $3 " / " $2}')"
+    command -v df >/dev/null && printf '%s\n' "${D}disk${Z}  $(df -h / | awk 'NR==2 {print $3 " / " $2 " (" $5 ")"}')"
+fi
+
+# --- Rotating security reminder / tip ----------------------------------------
+tips=(
+"Only test systems you own or are explicitly authorized to test."
+"List BlackArch groups:  pacman -Sg | grep '^blackarch'"
+"Install a category:     aegis-tools install blackarch-scanner"
+"Update everything:      sudo pacman -Syu"
+"Start an AI agent here: aegis-ai   (or: claude / opencode / aider / codex)"
+"Search all tools:       aegis-tools search <keyword>"
+"Wordlists live in:      /usr/share/seclists   (SecLists collection)"
+)
+idx=$(( ${RANDOM:-0} % ${#tips[@]} ))
+printf '\n%s\n' "${Y}  ⚠  ${tips[$idx]}${Z}"

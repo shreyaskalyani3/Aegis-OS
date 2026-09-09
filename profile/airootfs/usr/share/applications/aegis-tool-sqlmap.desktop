@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=sqlmap
+GenericName=Automatic SQL injection detection and exploitation
+Comment=Automatic SQL injection detection and exploitation
+Exec=xfce4-terminal --title="sqlmap" --command="aegis-run --group blackarch-webapp --desc 'Automatic SQL injection detection and exploitation' sqlmap"
+Icon=aegis-cat-web
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Web;
+Keywords=security;aegis;sqlmap;

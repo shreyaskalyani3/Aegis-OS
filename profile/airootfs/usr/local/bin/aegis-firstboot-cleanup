@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-firstboot-cleanup — one‑shot cleanup of the live installer environment
+#  on the first boot of an installed Aegis OS system.
+#
+#  This runs only once, on first boot of the installed system, after the
+#  Calamares installation. It detects and disables the live USB / installer
+#  medium by removing its boot flag and wiping its partition table signature,
+#  so the machine will not boot back into the live environment on the next
+#  restart.
+#
+#  It is safe to run on a system that was *not* installed from a USB (e.g. a
+#  VM with a virtual CD or a direct disk install) — it simply logs and exits.
+# =============================================================================
+set -uo pipefail
+
+MARKER="/var/lib/aegis/firstboot-cleanup-done"
+[[ -f "${MARKER}" ]] && exit 0
+
+log(){ printf 'aegis-firstboot-cleanup: %s\n' "$*"; }
+
+# --- Identify the boot medium that the current system was installed from.
+# On an installed system, the live medium is gone — but we can scan for
+# removable USB devices that have a bootable partition and a label/path
+# that suggests they are Aegis live media. This is necessarily heuristic;
+# if we wipe the wrong device, the user loses data. So we are extremely
+# conservative:
+#   - Only consider devices that are USB (removable) and have a partition
+#     table signature (MBR) with a bootable flag.
+#   - Only act if the device's /dev/disk/by-id/ or /dev/disk/by-path/
+#     contains "usb" or "USB".
+#   - Never touch any device that contains the currently running root
+#     filesystem (/) or /boot.
+
+# Check if this is a live/installer system.
+if [[ -d /run/archiso ]]; then
+    log "still running from live medium — skipping cleanup (install not yet complete?)"
+    exit 0
+fi
+
+# We need lsblk and sfdisk.
+for cmd in lsblk sfdisk; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        log "$cmd not found — skipping cleanup"
+        exit 0
+    fi
+done
+
+# --- Gather information about the root and boot devices.
+ROOT_DEV=$(findmnt -n -o SOURCE / 2>/dev/null | sed 's/\[.*\]//' | head -1)
+BOOT_DEV=$(findmnt -n -o SOURCE /boot 2>/dev/null | sed 's/\[.*\]//' | head -1 || true)
+if [[ -z "$ROOT_DEV" ]]; then
+    log "could not determine root device — skipping cleanup"
+    exit 0
+fi
+
+# Normalize device paths (resolve symlinks).
+ROOT_DEV=$(readlink -f "$ROOT_DEV" 2>/dev/null || echo "$ROOT_DEV")
+if [[ -n "$BOOT_DEV" ]]; then
+    BOOT_DEV=$(readlink -f "$BOOT_DEV" 2>/dev/null || echo "$BOOT_DEV")
+fi
+
+# Find the disk device for root (e.g. /dev/sda or /dev/nvme0n1).
+root_disk=""
+for d in $(lsblk -ndo NAME,TYPE | grep -E 'disk$' | awk '{print $1}'); do
+    if [[ "$ROOT_DEV" == /dev/"$d"* ]]; then
+        root_disk="/dev/$d"
+        break
+    fi
+done
+if [[ -z "$root_disk" ]]; then
+    log "could not identify root disk — skipping cleanup"
+    exit 0
+fi
+
+# --- Find all removable USB disks.
+declare -a usb_disks
+while read -r name type rm; do
+    [[ "$type" != "disk" ]] && continue
+    [[ "$rm" != "1" ]] && continue
+    [[ "$name" == loop* ]] && continue
+    # Also check by-id for USB identifiers.
+    if [[ -e "/dev/disk/by-id/usb-$name" ]] || \
+       [[ -e "/dev/disk/by-path/pci-*-usb-*-$name" ]]; then
+        usb_disks+=("/dev/$name")
+    fi
+done < <(lsblk -ndo NAME,TYPE,RM 2>/dev/null)
+
+if [[ ${#usb_disks[@]} -eq 0 ]]; then
+    log "no removable USB disks found — nothing to clean up"
+    mkdir -p "$(dirname "$MARKER")" && touch "$MARKER"
+    exit 0
+fi
+
+# --- For each USB disk, check if it looks like an Aegis live medium.
+# We look for:
+#   - A partition with a boot flag (0x80 in MBR)
+#   - The partition contains a file system label or UUID that matches the
+#     Aegis live image pattern (e.g. "AEGIS_*").
+#   - We do NOT wipe if the disk is the root disk or contains /boot.
+WIPED=0
+for disk in "${usb_disks[@]}"; do
+    # Never wipe the root disk.
+    if [[ "$disk" == "$root_disk" ]] || [[ "$disk" == "$BOOT_DEV" ]]; then
+        log "skipping $disk — is the root/boot disk"
+        continue
+    fi
+
+    # Check if this disk contains the current root or boot partition.
+    skip=0
+    for part in $(lsblk -no NAME "$disk" 2>/dev/null | grep -v "^$(basename "$disk")$"); do
+        dev="/dev/$part"
+        if [[ "$dev" == "$ROOT_DEV" ]] || [[ "$dev" == "$BOOT_DEV" ]]; then
+            log "skipping $disk — contains root or boot partition ($dev)"
+            skip=1
+            break
+        fi
+    done
+    [[ $skip -eq 1 ]] && continue
+
+    # Look for a bootable partition using sfdisk.
+    bootable=0
+    label=0
+    while read -r line; do
+        if echo "$line" | grep -qE '\*|0x80|bootable'; then
+            bootable=1
+        fi
+        if echo "$line" | grep -qi 'AEGIS'; then
+            label=1
+        fi
+    done < <(sfdisk -l "$disk" 2>/dev/null || true)
+
+    if [[ $bootable -eq 1 ]] && [[ $label -eq 1 ]]; then
+        log "found Aegis live USB: $disk (bootable + AEGIS label) — wiping partition table"
+        # Wipe the partition table signature. This renders the disk unbootable
+        # but keeps the data recoverable with testdisk if needed.
+        dd if=/dev/zero of="$disk" bs=512 count=1 2>/dev/null || {
+            log "WARNING: failed to wipe partition table on $disk — continuing"
+            continue
+        }
+        # Also clear any filesystem signatures at the start of the disk.
+        dd if=/dev/zero of="$disk" bs=1M count=1 2>/dev/null || true
+        log "wiped partition table and signature on $disk"
+        WIPED=1
+    else
+        log "skipping $disk — not identified as Aegis live medium (bootable=$bootable label=$label)"
+    fi
+done
+
+# --- Mark completion even if nothing was wiped; we don't want to run again.
+mkdir -p "$(dirname "$MARKER")"
+date > "$MARKER"
+log "first-boot cleanup complete (wiped $WIPED device(s))"
+exit 0

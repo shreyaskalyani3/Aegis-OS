@@ -1,0 +1,19 @@
+# =============================================================================
+#  Aegis OS — system-wide environment.
+#
+#  Read by pam_env, so it applies to every login: LightDM's autologin session,
+#  a VT login, and su/sudo -i. Plain KEY=value only — no expansion, no quoting
+#  tricks; pam_env is not a shell.
+# =============================================================================
+
+# Make Qt applications follow the GTK theme instead of rendering in stock light
+# Fusion. This is what keeps Calamares — the one Qt app every user of this ISO
+# opens — dark like the rest of the desktop, along with the Qt security tools
+# (Cutter, Wireshark, Ghidra's Qt bits). The plugin lives in qt6-base and uses
+# gtk3, both of which are already installed.
+#
+# Qt 5 apps ignore this on Arch (the Qt5 gtk3 platform theme is not packaged);
+# they print one warning and fall back to the previous look, so this is strictly
+# an improvement rather than a swap. qt5ct is installed if you want to style
+# those by hand.
+QT_QPA_PLATFORMTHEME=gtk3

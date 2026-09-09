@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Crunch
+GenericName=Wordlist generator from a character set and pattern
+Comment=Wordlist generator from a character set and pattern
+Exec=xfce4-terminal --title="Crunch" --command="aegis-run --group blackarch-cracker --desc 'Wordlist generator from a character set and pattern' crunch"
+Icon=aegis-cat-passwords
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Passwords;
+Keywords=security;aegis;crunch;

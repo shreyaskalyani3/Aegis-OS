@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="78%">
+      <stop offset="0%" stop-color="#0c1a10"/>
+      <stop offset="55%" stop-color="#060f09"/>
+      <stop offset="100%" stop-color="#030705"/>
+    </radialGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4dff77"/>
+      <stop offset="100%" stop-color="#0f9d3a"/>
+    </linearGradient>
+    <linearGradient id="wordmark" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e8ffe8"/>
+      <stop offset="100%" stop-color="#7fcf94"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#123a1f" stroke-width="1" opacity="0.35"/>
+    </pattern>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+
+  <!-- faint falling-code columns -->
+  <g font-family="'JetBrains Mono',monospace" font-size="22" fill="#39ff14">
+    <text x="150"  y="120" opacity="0.06" writing-mode="tb">01001010110100101100</text>
+    <text x="430"  y="60"  opacity="0.05" writing-mode="tb">1101001011010010110</text>
+    <text x="1520" y="90"  opacity="0.06" writing-mode="tb">0110100101101001011</text>
+    <text x="1760" y="150" opacity="0.05" writing-mode="tb">101101001011010010</text>
+  </g>
+
+  <g transform="translate(960 392)" filter="url(#glow)">
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="url(#shield)" opacity="0.16"/>
+    <path d="M0 -150 L128 -104 L128 44 C128 132 66 186 0 214 C-66 186 -128 132 -128 44 L-128 -104 Z"
+          fill="none" stroke="url(#shield)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M0 -110 L92 -76 L92 40 C92 106 46 148 0 168 C-46 148 -92 106 -92 40 L-92 -76 Z"
+          fill="none" stroke="#7dffa0" stroke-width="2.5" opacity="0.5"/>
+    <path d="M0 -66 L46 78 L20 78 L11 44 L-11 44 L-20 78 L-46 78 Z M-4 18 L4 18 L0 -6 Z"
+          fill="#eafff0"/>
+    <circle cx="0" cy="104" r="12" fill="#39ff14"/>
+    <rect x="-4" y="104" width="8" height="26" fill="#39ff14"/>
+  </g>
+
+  <text x="960" y="712" text-anchor="middle" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="120" font-weight="700" letter-spacing="14" fill="url(#wordmark)">AEGIS&#160;OS</text>
+  <text x="960" y="770" text-anchor="middle" font-family="'JetBrains Mono','DejaVu Sans Mono',monospace"
+        font-size="30" letter-spacing="10" fill="#39ff14">&#8212;&#160;&#160;S&#160;E&#160;N&#160;T&#160;I&#160;N&#160;E&#160;L&#160;&#160;&#8212;</text>
+  <text x="960" y="828" text-anchor="middle" font-family="'Noto Sans','DejaVu Sans',sans-serif"
+        font-size="26" letter-spacing="4" fill="#5e8f6e">Offensive &amp; Defensive Security &#183; Agent-Native</text>
+  <text x="960" y="1028" text-anchor="middle" font-family="'Noto Sans','DejaVu Sans',sans-serif"
+        font-size="18" letter-spacing="2" fill="#2f4a38">For authorized security testing only.</text>
+</svg>

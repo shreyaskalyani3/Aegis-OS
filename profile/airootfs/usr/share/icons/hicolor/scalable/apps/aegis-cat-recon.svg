@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aegis OS — Information Gathering (magnifier over a scanned grid) category icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="#131a24" stroke="#2a3542" stroke-width="1.5"/>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="url(#a)" opacity="0.10"/>
+  <g fill="none" stroke="#8b98a5" stroke-width="1.2" opacity="0.55">
+    <path d="M12 14h24M12 20h24M12 26h24M12 32h24"/>
+  </g>
+  <circle cx="21" cy="21" r="8.5" fill="#0d1117" fill-opacity="0.85" stroke="#f0f6fc" stroke-width="2.6"/>
+  <path d="M27.5 27.5 L36 36" stroke="#ff2e4d" stroke-width="3.6" stroke-linecap="round"/>
+</svg>

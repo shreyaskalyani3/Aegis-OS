@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Fierce
+GenericName=DNS reconnaissance and IP-space scanner
+Comment=DNS reconnaissance and IP-space scanner
+Exec=xfce4-terminal --title="Fierce" --command="aegis-run --group blackarch-recon --desc 'DNS reconnaissance and IP-space scanner' fierce"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;fierce;

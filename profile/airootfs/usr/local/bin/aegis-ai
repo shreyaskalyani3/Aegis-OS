@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-ai — unified launcher for the bundled AI coding agents.
+#  Usage:
+#    aegis-ai                 interactive picker
+#    aegis-ai <agent> [args]  run an agent (claude|opencode|aider|codex)
+#    aegis-ai list            show install/auth status
+#    aegis-ai install [agent] install agent(s) via aegis-ai-install
+# =============================================================================
+set -uo pipefail
+
+order=(claude opencode aider codex)
+declare -A CMD=(  [claude]="claude" [opencode]="opencode" [aider]="aider" [codex]="codex" )
+declare -A DESC=( [claude]="Claude Code — Anthropic's agent (login or ANTHROPIC_API_KEY)"
+                  [opencode]="OpenCode — open-source, multi-model"
+                  [aider]="Aider — AI pair programmer (OPENAI/ANTHROPIC/etc. key)"
+                  [codex]="Codex CLI — OpenAI (ChatGPT sign-in or OPENAI_API_KEY)" )
+
+have(){ command -v "$1" >/dev/null 2>&1; }
+
+list(){
+    printf '\e[1;37mAI agents\e[0m\n'
+    for a in "${order[@]}"; do
+        if have "${CMD[$a]}"; then st=$'\e[32m● installed   \e[0m'; else st=$'\e[31m○ not installed\e[0m'; fi
+        printf '  \e[36m%-9s\e[0m %b %s\n' "$a" "$st" "${DESC[$a]}"
+    done
+    printf '\nRun:  \e[36maegis-ai <agent>\e[0m   Install:  \e[36maegis-ai install <agent|all>\e[0m   Setup:  \e[36maegis-setup\e[0m\n'
+}
+
+agent="${1:-}"
+if [[ -n "${agent}" ]]; then
+    case "${agent}" in
+        list|-l|--list) list; exit 0 ;;
+        install)        shift; exec aegis-ai-install "$@" ;;
+        -h|--help)      list; exit 0 ;;
+    esac
+    if [[ -z "${CMD[${agent}]:-}" ]]; then
+        echo "Unknown agent: ${agent}" >&2; list; exit 1
+    fi
+    shift || true
+    if ! have "${CMD[${agent}]}"; then
+        printf '%s is not installed. Install now? [Y/n] ' "${agent}"
+        read -r ans
+        [[ "${ans}" =~ ^[Nn]$ ]] && exit 1
+        aegis-ai-install "${agent}" || exit 1
+    fi
+    exec "${CMD[${agent}]}" "$@"
+fi
+
+# Interactive picker
+list
+printf '\nPick an agent (name, or Enter to cancel): '
+read -r choice
+[[ -z "${choice}" ]] && exit 0
+exec "$0" "${choice}"

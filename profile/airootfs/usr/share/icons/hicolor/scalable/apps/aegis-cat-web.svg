@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aegis OS — Web Application (globe in angle brackets) category icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="#131a24" stroke="#2a3542" stroke-width="1.5"/>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="url(#a)" opacity="0.10"/>
+  <circle cx="24" cy="24" r="11" fill="none" stroke="#f0f6fc" stroke-width="2.4"/>
+  <path d="M13 24h22M24 13c4 5 4 17 0 22M24 13c-4 5-4 17 0 22" fill="none" stroke="#8b98a5" stroke-width="1.6"/>
+  <path d="M11 15 L6 24 L11 33 M37 15 L42 24 L37 33" fill="none" stroke="#ff2e4d" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

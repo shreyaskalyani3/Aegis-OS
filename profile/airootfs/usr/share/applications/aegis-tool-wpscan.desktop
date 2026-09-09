@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=WPScan
+GenericName=WordPress vulnerability scanner
+Comment=WordPress vulnerability scanner
+Exec=xfce4-terminal --title="WPScan" --command="aegis-run --group blackarch-webapp --desc 'WordPress vulnerability scanner' wpscan"
+Icon=aegis-cat-web
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Web;
+Keywords=security;aegis;wpscan;

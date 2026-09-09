@@ -1,0 +1,93 @@
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+ "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
+<!--
+  Aegis Tools — the categorised security menu.
+
+  This is a MERGE FRAGMENT, not a replacement for garcon's
+  /etc/xdg/menus/xfce-applications.menu. The stock file ends with
+  <DefaultMergeDirs/>, which expands to $XDG_CONFIG_DIRS/menus/
+  xfce-applications-merged/ — so dropping a fragment here *adds* the Aegis
+  branch while leaving every stock category (Settings, Development, Network,
+  System, Accessories, ...) untouched. Overwriting the stock file instead would
+  risk silently deleting those categories on any XFCE version whose menu differs
+  from the one we authored against.
+
+  <Name>Xfce</Name> below must match the root menu name of the file being merged
+  into; for xfce-applications.menu that is "Xfce".
+
+  Three pieces have to agree for a tool to show up:
+    1. usr/share/applications/aegis-tool-<cmd>.desktop  -> Categories=X-Aegis-<Cat>;
+    2. usr/share/desktop-directories/aegis-NN-<slug>.directory  -> the label + icon
+    3. the <Include><Category> branch below
+  If a tool is missing from the image, its launcher still appears; aegis-run
+  offers to install it rather than failing.
+-->
+<Menu>
+  <Name>Xfce</Name>
+
+  <Menu>
+    <Name>Aegis Tools</Name>
+    <Directory>aegis-00-tools.directory</Directory>
+
+    <Menu>
+      <Name>01 Information Gathering</Name>
+      <Directory>aegis-01-recon.directory</Directory>
+      <Include><Category>X-Aegis-Recon</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>02 Vulnerability Analysis</Name>
+      <Directory>aegis-02-vuln.directory</Directory>
+      <Include><Category>X-Aegis-Vuln</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>03 Web Application</Name>
+      <Directory>aegis-03-web.directory</Directory>
+      <Include><Category>X-Aegis-Web</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>04 Password Attacks</Name>
+      <Directory>aegis-04-passwords.directory</Directory>
+      <Include><Category>X-Aegis-Passwords</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>05 Wireless</Name>
+      <Directory>aegis-05-wireless.directory</Directory>
+      <Include><Category>X-Aegis-Wireless</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>06 Exploitation</Name>
+      <Directory>aegis-06-exploit.directory</Directory>
+      <Include><Category>X-Aegis-Exploit</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>07 Sniffing and MITM</Name>
+      <Directory>aegis-07-sniffing.directory</Directory>
+      <Include><Category>X-Aegis-Sniffing</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>08 Forensics</Name>
+      <Directory>aegis-08-forensics.directory</Directory>
+      <Include><Category>X-Aegis-Forensics</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>09 Reverse Engineering</Name>
+      <Directory>aegis-09-reversing.directory</Directory>
+      <Include><Category>X-Aegis-Reversing</Category></Include>
+    </Menu>
+
+    <Menu>
+      <Name>10 Anonymity and Maintenance</Name>
+      <Directory>aegis-10-maintenance.directory</Directory>
+      <Include><Category>X-Aegis-Maintenance</Category></Include>
+    </Menu>
+
+  </Menu>
+</Menu>

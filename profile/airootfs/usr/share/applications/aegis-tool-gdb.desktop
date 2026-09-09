@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GDB
+GenericName=GNU debugger
+Comment=GNU debugger
+Exec=xfce4-terminal --title="GDB" --command="aegis-run --group blackarch-reversing --desc 'GNU debugger' gdb"
+Icon=aegis-cat-reversing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Reversing;
+Keywords=security;aegis;gdb;

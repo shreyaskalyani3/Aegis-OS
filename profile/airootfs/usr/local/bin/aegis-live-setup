@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-live-setup — prepares the LIVE session (runs once at boot as root).
+#  No-op on installed systems (guarded by the presence of /run/archiso).
+#
+#  Everything authentication-critical (live user, passwords, wheel membership,
+#  passwordless sudo) has moved to aegis-credentials, which runs first in its own
+#  unit. That split is deliberate: this script does slow, failure-prone things —
+#  locale-gen, hardware group probing, gio metadata, VM guest agents — and it
+#  used to run `set -euo pipefail` under a 120s kill timer *before* it ever set a
+#  password. Any stall or hiccup in the first 46 lines therefore produced an
+#  image with no working credentials at all and no way in.
+#
+#  So: no `set -e` here either. Every step below is optional and independently
+#  guarded; a failure logs and continues instead of silently skipping the rest.
+# =============================================================================
+set -uo pipefail
+
+# Only run inside the live ISO environment.
+[[ -d /run/archiso ]] || exit 0
+
+LIVE_USER="aegis"
+if [[ -r /etc/aegis/credentials.conf ]]; then
+    # shellcheck source=/dev/null
+    source /etc/aegis/credentials.conf 2>/dev/null
+    LIVE_USER="${AEGIS_LIVE_USER:-${LIVE_USER}}"
+fi
+
+echo ":: Aegis OS live setup starting"
+
+# --- Safety net --------------------------------------------------------------
+# aegis-credentials.service is ordered before this unit and creates the user. If
+# it was masked, failed outright, or somebody ran this script by hand, do the
+# credential work now rather than configure a desktop nobody can log into.
+if ! id -u "${LIVE_USER}" >/dev/null 2>&1; then
+    echo "!! ${LIVE_USER} does not exist — running aegis-credentials now" >&2
+    [[ -x /usr/local/bin/aegis-credentials ]] && /usr/local/bin/aegis-credentials
+fi
+
+# --- Locale ------------------------------------------------------------------
+# Bounded: on a fresh archiso locale-gen can run for minutes, and this unit has
+# a start timeout. Unbounded, it was able to consume the entire budget and get
+# the script SIGTERMed partway through.
+if ! locale -a 2>/dev/null | grep -qiE 'en_US\.utf'; then
+    grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen 2>/dev/null || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+    timeout 60 locale-gen || echo "!! locale-gen did not finish in 60s; continuing" >&2
+fi
+
+# --- Hardware / convenience groups -------------------------------------------
+# wheel and autologin are handled by aegis-credentials because logging in and
+# pkexec depend on them. These are the nice-to-haves: losing one costs a device
+# permission, not access to the system.
+want_groups=(network video audio storage optical power sys rfkill \
+             input lp scanner kvm docker wireshark uucp)
+add_groups=()
+for g in "${want_groups[@]}"; do
+    getent group "$g" >/dev/null 2>&1 && add_groups+=("$g")
+done
+if [[ ${#add_groups[@]} -gt 0 ]]; then
+    IFS=','; usermod -aG "${add_groups[*]}" "${LIVE_USER}" 2>/dev/null || \
+        echo "!! could not add ${LIVE_USER} to: ${add_groups[*]}" >&2; unset IFS
+fi
+
+# --- LightDM autologin -------------------------------------------------------
+# Live overlay only, so the installed system does not try to autologin a user
+# that Calamares never created. The 'autologin' group membership that LightDM
+# requires is granted by aegis-credentials.
+install -d -m 0755 /etc/lightdm/lightdm.conf.d
+cat > /etc/lightdm/lightdm.conf.d/20-aegis-live.conf <<EOF
+[Seat:*]
+greeter-session=lightdm-gtk-greeter
+autologin-user=${LIVE_USER}
+autologin-user-timeout=0
+autologin-session=xfce
+user-session=xfce
+EOF
+
+# --- XDG user dirs -----------------------------------------------------------
+runuser -u "${LIVE_USER}" -- xdg-user-dirs-update 2>/dev/null || true
+
+# --- Trust the desktop launchers ---------------------------------------------
+# XFCE >= 4.16 refuses to run a .desktop file on the desktop unless it is
+# executable AND carries a metadata::xfce-exe-checksum matching its contents;
+# otherwise the user gets an "Untrusted application launcher" prompt. /etc/skel
+# ships mode 0644 (the repo is authored on Windows, so nothing there has an exec
+# bit), so grant both here. gio comes from gvfs, already in packages.x86_64.
+LIVE_HOME="$(getent passwd "${LIVE_USER}" | cut -d: -f6)"
+if [[ -n "${LIVE_HOME}" && -d "${LIVE_HOME}/Desktop" ]]; then
+    for launcher in "${LIVE_HOME}"/Desktop/*.desktop; do
+        [[ -f "${launcher}" ]] || continue
+        chmod +x "${launcher}"
+        sum="$(sha256sum "${launcher}" | cut -d' ' -f1)"
+        runuser -u "${LIVE_USER}" -- \
+            gio set "${launcher}" metadata::xfce-exe-checksum "${sum}" 2>/dev/null || true
+    done
+    chown -R "${LIVE_USER}:${LIVE_USER}" "${LIVE_HOME}/Desktop" 2>/dev/null || true
+fi
+
+# --- VM guest integration (auto-detect) --------------------------------------
+# IMPORTANT: use --no-block (fire-and-forget). A plain `systemctl start` waits
+# for the unit's job to finish, and some guest agents block indefinitely: e.g.
+# qemu-guest-agent.service has BindsTo=/After= the virtio-serial device
+# org.qemu.guest_agent.0, so on a VM created without a guest-agent channel it
+# waits forever for a device that never appears. Because this script runs in a
+# oneshot ordered Before=display-manager.service, that would hang the entire
+# boot (the classic "A start job is running ... / no limit" freeze).
+# These agents are never needed before the display manager, so just enqueue and
+# move on.
+case "$(systemd-detect-virt 2>/dev/null || echo none)" in
+    oracle)     systemctl start --no-block vboxservice.service 2>/dev/null || true ;;
+    vmware)     systemctl start --no-block vmtoolsd.service 2>/dev/null || true ;;
+    kvm|qemu)   systemctl start --no-block qemu-guest-agent.service spice-vdagentd.service 2>/dev/null || true ;;
+    microsoft)  systemctl start --no-block hv_fcopy_daemon.service hv_kvp_daemon.service hv_vss_daemon.service 2>/dev/null || true ;;
+esac
+
+echo ":: Aegis OS live setup complete"
+exit 0

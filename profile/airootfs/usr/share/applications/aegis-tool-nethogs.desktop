@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=NetHogs
+GenericName=Live network usage grouped by process
+Comment=Live network usage grouped by process
+Exec=xfce4-terminal --title="NetHogs" --command="aegis-run --group blackarch-sniffer --desc 'Live network usage grouped by process' nethogs"
+Icon=aegis-cat-sniffing
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Sniffing;
+Keywords=security;aegis;nethogs;

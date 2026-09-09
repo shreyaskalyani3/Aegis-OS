@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=dnsenum
+GenericName=DNS records and subdomain enumeration
+Comment=DNS records and subdomain enumeration
+Exec=xfce4-terminal --title="dnsenum" --command="aegis-run --group blackarch-recon --desc 'DNS records and subdomain enumeration' dnsenum"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;dnsenum;

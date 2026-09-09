@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ARP Scan
+GenericName=Layer-2 host discovery on the local segment
+Comment=Layer-2 host discovery on the local segment
+Exec=xfce4-terminal --title="ARP Scan" --command="aegis-run --group blackarch-recon --desc 'Layer-2 host discovery on the local segment' arp-scan"
+Icon=aegis-cat-recon
+Terminal=false
+StartupNotify=false
+Categories=X-Aegis-Recon;
+Keywords=security;aegis;arp-scan;

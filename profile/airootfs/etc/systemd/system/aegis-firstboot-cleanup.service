@@ -1,0 +1,18 @@
+[Unit]
+Description=Aegis OS first-boot cleanup (disable live USB)
+Documentation=https://aegis-os.example/docs
+# ConditionFirstBoot is not reliable in all environments (e.g. systemd-nspawn,
+# some VM snapshots). Instead we use our own marker file; the service runs
+# once and exits early if the marker exists. The unit remains enabled.
+After=local-fs.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=60
+ExecStart=/usr/local/bin/aegis-firstboot-cleanup
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

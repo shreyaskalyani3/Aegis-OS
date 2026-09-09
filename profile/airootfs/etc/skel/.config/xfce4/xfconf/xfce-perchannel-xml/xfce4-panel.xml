@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  xfce4-panel — Aegis OS single top panel (Kali-style).
+
+  Layout mirrors docs/images/desktop-preview.svg: branded menu button on the
+  left, quick-launch icons for the things a security session actually starts
+  with, window buttons, then a right-hand status cluster.
+
+  Shipping this file also suppresses xfce4-panel's first-run
+  "Default panel / Empty panel?" dialog, which otherwise greets every live boot.
+
+  Plugin ids are referenced twice by design: once in each panel's <plugin-ids>
+  array (order on the panel) and once under <plugins> (which plugin it is).
+  The two must stay in sync. Launcher plugins additionally read their .desktop
+  items from ~/.config/xfce4/panel/launcher-<id>/, shipped alongside this file.
+-->
+<channel name="xfce4-panel" version="1.0">
+  <property name="configver" type="int" value="2"/>
+
+  <property name="panels" type="array">
+    <value type="int" value="1"/>
+
+    <property name="dark-mode" type="bool" value="true"/>
+
+    <property name="panel-1" type="empty">
+      <!-- p=6 is the canonical stock "full-width top" snap position. -->
+      <property name="position" type="string" value="p=6;x=0;y=0"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="mode" type="uint" value="0"/>
+      <property name="length" type="uint" value="100"/>
+      <property name="length-adjust" type="bool" value="true"/>
+      <property name="size" type="uint" value="32"/>
+      <property name="icon-size" type="uint" value="20"/>
+      <property name="nrows" type="uint" value="1"/>
+      <property name="enter-opacity" type="uint" value="100"/>
+      <property name="leave-opacity" type="uint" value="100"/>
+      <property name="background-style" type="uint" value="0"/>
+      <property name="autohide-behavior" type="uint" value="0"/>
+      <property name="disable-struts" type="bool" value="false"/>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="1"/>
+        <value type="int" value="2"/>
+        <value type="int" value="3"/>
+        <value type="int" value="4"/>
+        <value type="int" value="5"/>
+        <value type="int" value="6"/>
+        <value type="int" value="7"/>
+        <value type="int" value="8"/>
+        <value type="int" value="9"/>
+        <value type="int" value="10"/>
+        <value type="int" value="11"/>
+        <value type="int" value="12"/>
+        <value type="int" value="13"/>
+        <value type="int" value="14"/>
+        <value type="int" value="15"/>
+      </property>
+    </property>
+  </property>
+
+  <property name="plugins" type="empty">
+
+    <!-- 1: Aegis menu (Whisker). Whisker Menu keeps most settings in
+         ~/.config/xfce4/panel/whiskermenu-1.rc; the button props are duplicated
+         here because older/newer releases read them from either place. -->
+    <property name="plugin-1" type="string" value="whiskermenu">
+      <property name="button-icon" type="string" value="aegis"/>
+      <property name="button-title" type="string" value="Aegis"/>
+      <property name="show-button-icon" type="bool" value="true"/>
+      <property name="show-button-title" type="bool" value="true"/>
+    </property>
+
+    <!-- 2: gap between menu and quick launchers -->
+    <property name="plugin-2" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+      <property name="expand" type="bool" value="false"/>
+    </property>
+
+    <!-- 3-8: quick launch — what a security session actually opens first -->
+    <property name="plugin-3" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="aegis-terminal.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-4" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="aegis-files.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-5" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="aegis-browser.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-6" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="aegis-tools.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-7" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="aegis-ai.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-8" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="aegis-install.desktop"/>
+      </property>
+    </property>
+
+    <!-- 9: rule between launchers and window buttons -->
+    <property name="plugin-9" type="string" value="separator">
+      <property name="style" type="uint" value="1"/>
+      <property name="expand" type="bool" value="false"/>
+    </property>
+
+    <!-- 10: window buttons -->
+    <property name="plugin-10" type="string" value="tasklist">
+      <property name="grouping" type="bool" value="false"/>
+      <property name="show-labels" type="bool" value="true"/>
+      <property name="show-handle" type="bool" value="false"/>
+      <property name="flat-buttons" type="bool" value="false"/>
+      <property name="middle-click" type="uint" value="1"/>
+      <property name="window-scrolling" type="bool" value="false"/>
+      <property name="include-all-workspaces" type="bool" value="false"/>
+    </property>
+
+    <!-- 11: expanding spacer — pushes the status cluster to the right edge -->
+    <property name="plugin-11" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+      <property name="expand" type="bool" value="true"/>
+    </property>
+
+    <!-- 12: workspaces (xfwm4.xml ships 2) -->
+    <property name="plugin-12" type="string" value="pager">
+      <property name="rows" type="uint" value="1"/>
+      <property name="miniature-view" type="bool" value="true"/>
+      <property name="numbering" type="bool" value="false"/>
+      <property name="workspace-scrolling" type="bool" value="true"/>
+    </property>
+
+    <!-- 13: system tray (NetworkManager, Bluetooth, volume, notifications) -->
+    <property name="plugin-13" type="string" value="systray">
+      <property name="square-icons" type="bool" value="true"/>
+      <property name="symbolic-icons" type="bool" value="true"/>
+      <property name="menu-is-primary" type="bool" value="false"/>
+      <property name="known-legacy-items" type="array">
+        <value type="string" value="networkmanager applet"/>
+        <value type="string" value="blueman-applet"/>
+      </property>
+    </property>
+
+    <!-- 14: clock — time over date, as in the desktop preview.
+         Both the legacy `digital-format` and the 4.16+ layout/format keys are
+         set so this renders correctly on either panel generation. -->
+    <property name="plugin-14" type="string" value="clock">
+      <property name="mode" type="uint" value="2"/>
+      <property name="digital-format" type="string" value="%R%n%a %d %b"/>
+      <property name="digital-layout" type="uint" value="4"/>
+      <property name="digital-time-format" type="string" value="%R"/>
+      <property name="digital-date-format" type="string" value="%a %d %b"/>
+      <property name="digital-time-font" type="string" value="JetBrainsMono Nerd Font Bold 9"/>
+      <property name="digital-date-font" type="string" value="Noto Sans 7"/>
+      <property name="tooltip-format" type="string" value="%A %d %B %Y — %H:%M:%S %Z"/>
+      <property name="command" type="string" value="orage"/>
+    </property>
+
+    <!-- 15: log out / lock / shut down -->
+    <property name="plugin-15" type="string" value="actions">
+      <property name="appearance" type="int" value="0"/>
+      <property name="ask-confirmation" type="bool" value="true"/>
+      <property name="items" type="array">
+        <value type="string" value="+lock-screen"/>
+        <value type="string" value="+logout-dialog"/>
+        <value type="string" value="+restart"/>
+        <value type="string" value="+shutdown"/>
+        <value type="string" value="-separator"/>
+        <value type="string" value="-switch-user"/>
+        <value type="string" value="-suspend"/>
+        <value type="string" value="-hibernate"/>
+        <value type="string" value="-logout"/>
+      </property>
+    </property>
+
+  </property>
+</channel>

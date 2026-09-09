@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-setup — Aegis OS first-run wizard.
+#  Installs & authenticates the AI agents and optionally pulls tool groups.
+#  Safe to re-run anytime. Stores keys in ~/.config/aegis/env (mode 600).
+# =============================================================================
+set -uo pipefail
+
+C_T=$'\e[1;37m'; C_R=$'\e[1;31m'; C_G=$'\e[36m'; C_Y=$'\e[0;33m'; C_D=$'\e[0;90m'; GRN=$'\e[32m'; Z=$'\e[0m'
+CFG_DIR="${HOME}/.config/aegis"
+ENV_FILE="${CFG_DIR}/env"
+MARKER="${CFG_DIR}/setup-done"
+mkdir -p "${CFG_DIR}"; chmod 700 "${CFG_DIR}"
+
+hr(){ printf '%s\n' "${C_D}────────────────────────────────────────────────────────────────────────${Z}"; }
+ask(){ local p="$1" d="${2:-}"; local a; printf '%s' "$p"; read -r a; echo "${a:-$d}"; }
+yes_no(){ local p="$1" d="${2:-Y}" a; printf '%s [%s] ' "$p" "$([[ $d == Y ]] && echo 'Y/n' || echo 'y/N')"; read -r a; a="${a:-$d}"; [[ "$a" =~ ^[Yy]$ ]]; }
+
+clear 2>/dev/null || true
+cat <<EOF
+${C_R} █████╗ ███████╗ ██████╗ ██╗███████╗${Z}   ${C_T}Aegis OS — first-run setup${Z}
+${C_R}██╔══██╗██╔════╝██╔════╝ ██║██╔════╝${Z}
+${C_R}███████║█████╗  ██║  ███╗██║███████╗${Z}   Agents · Auth · Tools
+${C_R}██╔══██║██╔══╝  ██║   ██║██║╚════██║${Z}
+${C_R}██║  ██║███████╗╚██████╔╝██║███████║${Z}
+${C_R}╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝${Z}
+EOF
+hr
+cat <<EOF
+${C_Y}Authorized use only.${Z} Aegis OS bundles powerful offensive tools. Use them
+only against systems you own or are explicitly authorized in writing to test.
+You are solely responsible for your actions and for complying with the law.
+EOF
+hr
+yes_no "Do you understand and agree?" "N" || { echo "Setup cancelled."; exit 1; }
+
+# --- Network check -----------------------------------------------------------
+echo; echo "${C_G}::${Z} Checking network connectivity..."
+if curl -fsS --max-time 6 https://example.com >/dev/null 2>&1; then
+    GRN_OK=1; echo "  ${GRN}✓${Z} online"
+else
+    GRN_OK=0; echo "  ${C_Y}!${Z} no internet detected — agent installs & auth need a connection."
+fi
+
+# --- AI agents ---------------------------------------------------------------
+hr; echo "${C_T}1) AI coding agents${Z}"
+echo "   Claude Code · OpenCode · Aider · Codex CLI"
+if [[ "${GRN_OK}" -eq 1 ]] && yes_no "Install/refresh the AI agents now?" "Y"; then
+    echo "   a) all   b) pick individually"
+    if [[ "$(ask '   choose [a/b]: ' a)" == "b" ]]; then
+        picks=()
+        for a in claude opencode aider codex; do yes_no "   include ${a}?" "Y" && picks+=("$a"); done
+        [[ ${#picks[@]} -gt 0 ]] && aegis-ai-install "${picks[@]}"
+    else
+        aegis-ai-install all
+    fi
+else
+    echo "   ${C_D}skipped — run 'aegis-ai-install all' later${Z}"
+fi
+
+# --- Authentication / API keys ----------------------------------------------
+hr; echo "${C_T}2) Authentication${Z}"
+cat <<EOF
+   ${C_G}Claude Code${Z}  : run '${C_G}claude${Z}' and log in via browser (Pro/Max/Team/Console),
+                 or set ANTHROPIC_API_KEY below.
+   ${C_G}Codex CLI${Z}    : run '${C_G}codex${Z}' and "Sign in with ChatGPT", or set OPENAI_API_KEY.
+   ${C_G}Aider${Z}        : uses an API key (OPENAI_API_KEY / ANTHROPIC_API_KEY / ...).
+   ${C_G}OpenCode${Z}     : run '${C_G}opencode auth login${Z}', or set a provider key.
+EOF
+if yes_no "Store API keys now (optional; saved to ${ENV_FILE}, mode 600)?" "N"; then
+    touch "${ENV_FILE}"; chmod 600 "${ENV_FILE}"
+    save_key(){
+        local name="$1" val
+        printf '   %s (blank to skip): ' "$name"; read -rs val; echo
+        [[ -z "$val" ]] && return 0
+        grep -v "^export ${name}=" "${ENV_FILE}" > "${ENV_FILE}.tmp" 2>/dev/null || true
+        mv "${ENV_FILE}.tmp" "${ENV_FILE}" 2>/dev/null || true
+        printf 'export %s=%q\n' "$name" "$val" >> "${ENV_FILE}"
+        echo "   ${GRN}✓${Z} ${name} saved"
+    }
+    save_key ANTHROPIC_API_KEY
+    save_key OPENAI_API_KEY
+    save_key OPENROUTER_API_KEY
+    save_key GEMINI_API_KEY
+    echo "   ${C_D}keys load automatically in new shells (via ~/.zshrc)${Z}"
+fi
+if yes_no "Log in to Claude Code interactively now?" "N" && command -v claude >/dev/null; then
+    claude || true
+fi
+
+# --- Security tool groups ----------------------------------------------------
+hr; echo "${C_T}3) Security tool groups (BlackArch)${Z}"
+if yes_no "Browse & install tool categories now?" "N"; then
+    aegis-tools categories
+    groups="$(ask '   groups to install (space separated, blank to skip): ')"
+    [[ -n "${groups}" ]] && aegis-tools install ${groups}
+else
+    echo "   ${C_D}skipped — run 'aegis-tools categories' anytime${Z}"
+fi
+
+# --- Done --------------------------------------------------------------------
+date > "${MARKER}"
+hr
+echo "${GRN}Setup complete.${Z}  Launch agents with ${C_G}aegis-ai${Z}, manage tools with ${C_G}aegis-tools${Z}."
+echo "Re-run this wizard anytime with ${C_G}aegis-setup${Z}."

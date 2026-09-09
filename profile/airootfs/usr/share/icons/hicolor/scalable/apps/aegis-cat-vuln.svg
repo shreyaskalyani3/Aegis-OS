@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aegis OS — Vulnerability Analysis (breached shield) category icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3355"/><stop offset="100%" stop-color="#b3122e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="#131a24" stroke="#2a3542" stroke-width="1.5"/>
+  <rect x="3" y="3" width="42" height="42" rx="10" fill="url(#a)" opacity="0.10"/>
+  <path d="M24 8 L37 13 V25 C37 33 31 38 24 41 C17 38 11 33 11 25 V13 Z"
+        fill="none" stroke="#f0f6fc" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M24 8 V19 L19 23 L27 27 L22 41" fill="none" stroke="#ff2e4d" stroke-width="2.8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

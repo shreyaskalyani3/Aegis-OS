@@ -1,0 +1,22 @@
+# mkinitcpio preset file for the 'linux' package
+#
+# This is the STANDARD preset an installed Arch system uses (same as the one
+# the 'linux' package ships in /etc/mkinitcpio.d/ on every normal install).
+# Do not confuse with the archiso LIVE preset that releng uses — that one has
+# PRESETS=('archiso') and points mkinitcpio at the live HOOKS; it only works
+# inside the live medium and breaks `mkinitcpio -P` on an installed system
+# (invalid -k /boot/vmlinuz-linux) because the installed target gets its
+# kernel via the normal package, not the ISO boot files.
+#
+# build-iso.sh imports releng's live preset for the LIVE image; the Calamares
+# shellprocess step replaces it with this file on the target before initcpio
+# runs, so the installed system builds a normal initramfs.
+PRESETS=('default' 'fallback')
+
+ALL_kver='/boot/vmlinuz-linux'
+
+default_config="/etc/mkinitcpio.conf"
+default_image="/boot/initramfs-linux.img"
+
+fallback_config="/etc/mkinitcpio.conf"
+fallback_image="/boot/initramfs-linux-fallback.img"
