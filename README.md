@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <div align="center">
 
 # 🛡️ Aegis OS
@@ -306,3 +307,6 @@ responsibility for your actions and agree to comply with all applicable laws.
 
 Build tooling and Aegis-authored components: **GPL-3.0** (see [`LICENSE`](LICENSE)).
 Bundled third-party tools and AI agents retain their own respective licenses.
+=======
+# TESTING-AegisOS
+>>>>>>> a288919cd76b43c2bcc3688b22c3ab7db4c79b0d
