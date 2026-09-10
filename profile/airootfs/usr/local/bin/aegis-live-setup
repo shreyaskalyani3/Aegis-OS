@@ -46,6 +46,18 @@ if ! locale -a 2>/dev/null | grep -qiE 'en_US\.utf'; then
     timeout 60 locale-gen || echo "!! locale-gen did not finish in 60s; continuing" >&2
 fi
 
+# --- hicolor icon cache -------------------------------------------------------
+# The Aegis SVGs ship in the overlay, which archiso copies in after pacstrap has
+# already generated hicolor's icon-theme.cache — so a cache that does not know
+# about them renders our panel and menu icons as blank squares. scripts/build-iso.sh
+# rebuilds the cache at build time; this is the runtime backstop for when the
+# build host lacked gtk-update-icon-cache. Root-only and idempotent, so it is
+# safe to run every boot on the live medium.
+if command -v gtk-update-icon-cache >/dev/null 2>&1 && [[ -d /usr/share/icons/hicolor ]]; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null \
+        || echo "!! could not rebuild the hicolor icon cache" >&2
+fi
+
 # --- Hardware / convenience groups -------------------------------------------
 # wheel and autologin are handled by aegis-credentials because logging in and
 # pkexec depend on them. These are the nice-to-haves: losing one costs a device

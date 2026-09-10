@@ -196,6 +196,12 @@ xfce4-goodies
 # xfce4-goodies group; pinned explicitly so the panel can never reference a
 # plugin the image lacks.
 xfce4-whiskermenu-plugin
+# The lock screen. It already arrives via the xfce4-goodies group, but
+# /usr/local/bin/aegis-lock prefers this locker over the LightDM-greeter
+# fallback, so the lock would quietly degrade to the fallback if the group ever
+# changed. Pinned for the same reason Whisker is. (Its menu entries are hidden
+# by build-iso.sh; the binaries are what matter.)
+xfce4-screensaver
 lightdm
 lightdm-gtk-greeter
 lightdm-gtk-greeter-settings

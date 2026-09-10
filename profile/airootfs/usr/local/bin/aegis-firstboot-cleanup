@@ -5,12 +5,15 @@
 #
 #  This runs only once, on first boot of the installed system, after the
 #  Calamares installation. It detects and disables the live USB / installer
-#  medium by removing its boot flag and wiping its partition table signature,
-#  so the machine will not boot back into the live environment on the next
-#  restart.
+#  medium by wiping its partition table signature, so the machine will not boot
+#  back into the live environment on the next restart.
 #
 #  It is safe to run on a system that was *not* installed from a USB (e.g. a
 #  VM with a virtual CD or a direct disk install) — it simply logs and exits.
+#
+#  WARNING: this script destroys data by design. Every guard below exists to
+#  keep it from destroying the WRONG data. Do not loosen one without replacing
+#  it with something stronger.
 # =============================================================================
 set -uo pipefail
 
@@ -19,136 +22,121 @@ MARKER="/var/lib/aegis/firstboot-cleanup-done"
 
 log(){ printf 'aegis-firstboot-cleanup: %s\n' "$*"; }
 
-# --- Identify the boot medium that the current system was installed from.
-# On an installed system, the live medium is gone — but we can scan for
-# removable USB devices that have a bootable partition and a label/path
-# that suggests they are Aegis live media. This is necessarily heuristic;
-# if we wipe the wrong device, the user loses data. So we are extremely
-# conservative:
-#   - Only consider devices that are USB (removable) and have a partition
-#     table signature (MBR) with a bootable flag.
-#   - Only act if the device's /dev/disk/by-id/ or /dev/disk/by-path/
-#     contains "usb" or "USB".
-#   - Never touch any device that contains the currently running root
-#     filesystem (/) or /boot.
-
 # Check if this is a live/installer system.
 if [[ -d /run/archiso ]]; then
     log "still running from live medium — skipping cleanup (install not yet complete?)"
     exit 0
 fi
 
-# We need lsblk and sfdisk.
-for cmd in lsblk sfdisk; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        log "$cmd not found — skipping cleanup"
-        exit 0
-    fi
-done
+# We need lsblk (util-linux, always present on an Arch system).
+if ! command -v lsblk >/dev/null 2>&1; then
+    log "lsblk not found — skipping cleanup"
+    exit 0
+fi
 
-# --- Gather information about the root and boot devices.
+# --- Identify the disk that carries the running system ------------------------
+# Everything below refuses to touch it. Resolution through the block device is
+# what makes the guard robust: findmnt can report /dev/disk/by-uuid/... or an
+# LVM/dm path, and comparing that string to /dev/sda would silently fail open.
 ROOT_DEV=$(findmnt -n -o SOURCE / 2>/dev/null | sed 's/\[.*\]//' | head -1)
 BOOT_DEV=$(findmnt -n -o SOURCE /boot 2>/dev/null | sed 's/\[.*\]//' | head -1 || true)
-if [[ -z "$ROOT_DEV" ]]; then
+if [[ -z "${ROOT_DEV}" ]]; then
     log "could not determine root device — skipping cleanup"
     exit 0
 fi
-
-# Normalize device paths (resolve symlinks).
-ROOT_DEV=$(readlink -f "$ROOT_DEV" 2>/dev/null || echo "$ROOT_DEV")
-if [[ -n "$BOOT_DEV" ]]; then
-    BOOT_DEV=$(readlink -f "$BOOT_DEV" 2>/dev/null || echo "$BOOT_DEV")
+ROOT_DEV=$(readlink -f "${ROOT_DEV}" 2>/dev/null || echo "${ROOT_DEV}")
+if [[ -n "${BOOT_DEV}" ]]; then
+    BOOT_DEV=$(readlink -f "${BOOT_DEV}" 2>/dev/null || echo "${BOOT_DEV}")
 fi
 
-# Find the disk device for root (e.g. /dev/sda or /dev/nvme0n1).
-root_disk=""
-for d in $(lsblk -ndo NAME,TYPE | grep -E 'disk$' | awk '{print $1}'); do
-    if [[ "$ROOT_DEV" == /dev/"$d"* ]]; then
-        root_disk="/dev/$d"
-        break
-    fi
-done
-if [[ -z "$root_disk" ]]; then
-    log "could not identify root disk — skipping cleanup"
-    exit 0
+# The parent disk of a partition, straight from lsblk (e.g. /dev/sda2 -> /dev/sda,
+# /dev/nvme0n1p2 -> /dev/nvme0n1). Derived rather than re-parsed by string
+# surgery, which is what got the previous version into trouble.
+root_disk="$(lsblk -no PKNAME "${ROOT_DEV}" 2>/dev/null | head -1 || true)"
+if [[ -n "${root_disk}" ]]; then
+    root_disk="/dev/${root_disk}"
+else
+    # Root is on a bare disk, or on something lsblk cannot name a parent for
+    # (dm/md). Either way the mounted-filesystem guard below still protects it.
+    root_disk="${ROOT_DEV}"
 fi
 
-# --- Find all removable USB disks.
-declare -a usb_disks
-while read -r name type rm; do
-    [[ "$type" != "disk" ]] && continue
-    [[ "$rm" != "1" ]] && continue
-    [[ "$name" == loop* ]] && continue
-    # Also check by-id for USB identifiers.
-    if [[ -e "/dev/disk/by-id/usb-$name" ]] || \
-       [[ -e "/dev/disk/by-path/pci-*-usb-*-$name" ]]; then
-        usb_disks+=("/dev/$name")
-    fi
-done < <(lsblk -ndo NAME,TYPE,RM 2>/dev/null)
+# --- Find removable USB disks -------------------------------------------------
+# NOTE on what this replaced: the old test was
+#     [[ -e "/dev/disk/by-id/usb-$name" ]] || [[ -e "/dev/disk/by-path/pci-*-usb-*-$name" ]]
+# which could never match anything. `-e` takes a literal path and does not
+# expand globs; /dev/disk/by-id symlinks are named usb-<Vendor>_<Model>_<serial>-<n:n>,
+# never usb-<kernel-name>; and by-path names embed a PCI address, not the kernel
+# name. So usb_disks was always empty and this script reported "no removable USB
+# disks found" forever, on every machine, while never cleaning up anything.
+#
+# lsblk answers the question directly and authoritatively:
+#   RM=1 (removable) or TRAN=usb  -> it really is a removable USB device.
+usb_disks=()
+while read -r name rm tran; do
+    [[ -n "${name}" ]] || continue
+    [[ "${name}" == loop* ]] && continue        # snap/squashfs loops
+    [[ "${name}" == sr* ]]   && continue        # optical drive
+    [[ "${name}" == zram* ]] && continue        # zram has no TRAN and no RM
+    [[ "${rm}" == "1" || "${tran}" == "usb" ]] || continue
+    usb_disks+=("/dev/${name}")
+done < <(lsblk -ndo NAME,RM,TRAN 2>/dev/null)
 
 if [[ ${#usb_disks[@]} -eq 0 ]]; then
     log "no removable USB disks found — nothing to clean up"
-    mkdir -p "$(dirname "$MARKER")" && touch "$MARKER"
+    mkdir -p "$(dirname "${MARKER}")" && touch "${MARKER}"
     exit 0
 fi
 
-# --- For each USB disk, check if it looks like an Aegis live medium.
-# We look for:
-#   - A partition with a boot flag (0x80 in MBR)
-#   - The partition contains a file system label or UUID that matches the
-#     Aegis live image pattern (e.g. "AEGIS_*").
-#   - We do NOT wipe if the disk is the root disk or contains /boot.
+# --- For each candidate USB disk, decide whether it is the Aegis live medium ---
+# Three independent guards, all of which must pass before anything is written:
+#   1. it is not the disk carrying / or /boot
+#   2. it has no mounted filesystem at all (the live medium is unmounted after
+#      an install; anything mounted is either the running system or a device we
+#      have no business erasing)
+#   3. one of its filesystems carries an AEGIS_* volume label — the label
+#      profiledef.sh gives the ISO (iso_label="AEGIS_$(date +%Y%m)") and thus
+#      the single most specific signal that this medium is ours
 WIPED=0
 for disk in "${usb_disks[@]}"; do
-    # Never wipe the root disk.
-    if [[ "$disk" == "$root_disk" ]] || [[ "$disk" == "$BOOT_DEV" ]]; then
-        log "skipping $disk — is the root/boot disk"
+    if [[ "${ROOT_DEV}" == "${disk}"* || "${root_disk}" == "${disk}" ]]; then
+        log "skipping ${disk} — it carries the running root (${ROOT_DEV})"
+        continue
+    fi
+    if [[ -n "${BOOT_DEV}" && ( "${BOOT_DEV}" == "${disk}"* ) ]]; then
+        log "skipping ${disk} — it carries /boot (${BOOT_DEV})"
         continue
     fi
 
-    # Check if this disk contains the current root or boot partition.
-    skip=0
-    for part in $(lsblk -no NAME "$disk" 2>/dev/null | grep -v "^$(basename "$disk")$"); do
-        dev="/dev/$part"
-        if [[ "$dev" == "$ROOT_DEV" ]] || [[ "$dev" == "$BOOT_DEV" ]]; then
-            log "skipping $disk — contains root or boot partition ($dev)"
-            skip=1
-            break
-        fi
-    done
-    [[ $skip -eq 1 ]] && continue
-
-    # Look for a bootable partition using sfdisk.
-    bootable=0
-    label=0
-    while read -r line; do
-        if echo "$line" | grep -qE '\*|0x80|bootable'; then
-            bootable=1
-        fi
-        if echo "$line" | grep -qi 'AEGIS'; then
-            label=1
-        fi
-    done < <(sfdisk -l "$disk" 2>/dev/null || true)
-
-    if [[ $bootable -eq 1 ]] && [[ $label -eq 1 ]]; then
-        log "found Aegis live USB: $disk (bootable + AEGIS label) — wiping partition table"
-        # Wipe the partition table signature. This renders the disk unbootable
-        # but keeps the data recoverable with testdisk if needed.
-        dd if=/dev/zero of="$disk" bs=512 count=1 2>/dev/null || {
-            log "WARNING: failed to wipe partition table on $disk — continuing"
-            continue
-        }
-        # Also clear any filesystem signatures at the start of the disk.
-        dd if=/dev/zero of="$disk" bs=1M count=1 2>/dev/null || true
-        log "wiped partition table and signature on $disk"
-        WIPED=1
-    else
-        log "skipping $disk — not identified as Aegis live medium (bootable=$bootable label=$label)"
+    if [[ -n "$(lsblk -nro MOUNTPOINT "${disk}" 2>/dev/null | tr -d '[:space:]')" ]]; then
+        log "skipping ${disk} — it has a mounted filesystem"
+        continue
     fi
+
+    label="$(lsblk -nro LABEL "${disk}" 2>/dev/null | grep -iE '^AEGIS' | head -1 || true)"
+    if [[ -z "${label}" ]]; then
+        log "skipping ${disk} — no AEGIS_* volume label (not Aegis live media)"
+        continue
+    fi
+
+    log "found Aegis live USB: ${disk} (label '${label}') — wiping partition table"
+    # Wipe the partition table signature. This renders the disk unbootable but
+    # leaves the bulk of the data recoverable with testdisk if needed.
+    if ! dd if=/dev/zero of="${disk}" bs=512 count=1 conv=notrunc 2>/dev/null; then
+        log "WARNING: failed to wipe partition table on ${disk} — continuing"
+        continue
+    fi
+    # Clear the rest of the first megabyte too: the isohybrid boot code and the
+    # ISO9660 primary volume descriptor both live there, so clearing only the
+    # MBR can leave a still-identifiable (and confusing) hybrid image behind.
+    dd if=/dev/zero of="${disk}" bs=1M count=1 conv=notrunc 2>/dev/null || true
+    sync
+    log "wiped partition table and ISO signature on ${disk}"
+    WIPED=1
 done
 
 # --- Mark completion even if nothing was wiped; we don't want to run again.
-mkdir -p "$(dirname "$MARKER")"
-date > "$MARKER"
-log "first-boot cleanup complete (wiped $WIPED device(s))"
+mkdir -p "$(dirname "${MARKER}")"
+date > "${MARKER}"
+log "first-boot cleanup complete (wiped ${WIPED} device(s))"
 exit 0

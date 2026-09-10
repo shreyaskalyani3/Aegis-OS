@@ -161,7 +161,11 @@
       <property name="digital-time-font" type="string" value="JetBrainsMono Nerd Font Bold 9"/>
       <property name="digital-date-font" type="string" value="Noto Sans 7"/>
       <property name="tooltip-format" type="string" value="%A %d %B %Y — %H:%M:%S %Z"/>
-      <property name="command" type="string" value="orage"/>
+      <!-- No `command` on purpose. Leaving it unset keeps the clock plugin's
+           own calendar popup on click, which is what the preview shows. The
+           previous value, `orage`, named an application that appears nowhere
+           in packages.x86_64, so whether clicking the clock did anything at
+           all depended on some group happening to pull it in. -->
     </property>
 
     <!-- 15: log out / lock / shut down -->

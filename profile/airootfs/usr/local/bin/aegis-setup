@@ -14,7 +14,10 @@ mkdir -p "${CFG_DIR}"; chmod 700 "${CFG_DIR}"
 
 hr(){ printf '%s\n' "${C_D}────────────────────────────────────────────────────────────────────────${Z}"; }
 ask(){ local p="$1" d="${2:-}"; local a; printf '%s' "$p"; read -r a; echo "${a:-$d}"; }
-yes_no(){ local p="$1" d="${2:-Y}" a; printf '%s [%s] ' "$p" "$([[ $d == Y ]] && echo 'Y/n' || echo 'y/N')"; read -r a; a="${a:-$d}"; [[ "$a" =~ ^[Yy]$ ]]; }
+# Accepts y / Y / yes / YES (and n / N / no / NO). Matching only a single letter
+# meant that typing the obvious "yes" at the "Do you understand and agree?"
+# prompt — which defaults to N — was read as a refusal and cancelled setup.
+yes_no(){ local p="$1" d="${2:-Y}" a; printf '%s [%s] ' "$p" "$([[ $d == Y ]] && echo 'Y/n' || echo 'y/N')"; read -r a; a="${a:-$d}"; [[ "$a" =~ ^[Yy]([Ee][Ss])?$ ]]; }
 
 clear 2>/dev/null || true
 cat <<EOF

@@ -33,7 +33,11 @@ recent-items-max=10
 favorites-in-recent=true
 display-recent-default=false
 
-favorites=xfce4-terminal-emulator.desktop,aegis-tools.desktop,aegis-ai.desktop,aegis-setup.desktop,aegis-install.desktop,firefox.desktop,thunar.desktop
+# The first favorite is aegis-terminal.desktop, not the upstream
+# xfce4-terminal-emulator.desktop: build-iso.sh tombstones that entry
+# (Hidden=true) because it is a generic alias, and a Whisker favorite pointing
+# at a hidden entry resolves to nothing.
+favorites=aegis-terminal.desktop,aegis-tools.desktop,aegis-ai.desktop,aegis-setup.desktop,aegis-install.desktop,firefox.desktop,thunar.desktop
 
 show-command-settings=true
 show-command-lockscreen=true
@@ -42,5 +46,5 @@ show-command-logout=true
 show-command-menueditor=false
 show-command-profile=false
 command-settings=xfce4-settings-manager
-command-lockscreen=xflock4
+command-lockscreen=aegis-lock
 command-logout=xfce4-session-logout

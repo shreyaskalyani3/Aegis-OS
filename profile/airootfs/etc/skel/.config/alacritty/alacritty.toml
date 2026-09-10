@@ -1,5 +1,8 @@
 # ~/.config/alacritty/alacritty.toml — Aegis OS dark terminal theme
 # Alacritty >= 0.13 TOML format.
+#
+# This palette is duplicated in ~/.config/xfce4/terminal/terminalrc. The two
+# terminals are expected to look identical; edit both, or neither.
 
 [window]
 opacity = 0.96
@@ -18,32 +21,38 @@ italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
 
 # --- Aegis palette: near-black background with a red security accent ---------
 [colors.primary]
-background = "#0a0e14"
-foreground = "#c9d1d9"
+background = "#0b0f17"
+foreground = "#cdd5df"
+
+# Selected text must contrast with the block behind it; a single colour for
+# both renders the selection invisible.
+[colors.selection]
+text = "#eef3f8"
+background = "#2f3c52"
 
 [colors.cursor]
 cursor = "#ff2e4d"
-text   = "#0d1117"
+text   = "#0b0f17"
 
 [colors.normal]
-black   = "#161b22"
-red     = "#ff2e4d"
-green   = "#3fb950"
-yellow  = "#d29922"
-blue    = "#58a6ff"
-magenta = "#bc8cff"
-cyan    = "#39c5cf"
-white   = "#b1bac4"
+black   = "#151a24"
+red     = "#ff3556"
+green   = "#2fca7e"
+yellow  = "#e5a94a"
+blue    = "#4fa7ff"
+magenta = "#b98cff"
+cyan    = "#3fc6d6"
+white   = "#b6bfcb"
 
 [colors.bright]
-black   = "#484f58"
-red     = "#ff6a7f"
-green   = "#56d364"
-yellow  = "#e3b341"
-blue    = "#79c0ff"
-magenta = "#d2a8ff"
-cyan    = "#56d4dd"
-white   = "#f0f6fc"
+black   = "#4a5263"
+red     = "#ff6477"
+green   = "#5ee0a0"
+yellow  = "#f0c06e"
+blue    = "#78c0ff"
+magenta = "#d0a8ff"
+cyan    = "#6fd6e4"
+white   = "#eef3f8"
 
 [cursor]
 style = { shape = "Block", blinking = "On" }

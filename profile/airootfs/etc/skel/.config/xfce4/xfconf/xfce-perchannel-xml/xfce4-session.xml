@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis OS — session defaults.
+
+  /general/LockCommand is xfce4-session's own "run this to lock" setting — it is
+  what the panel's session-actions button (which runs xflock4) and xflock4
+  itself consult before searching for a locker of their own. Pointing it at
+  aegis-lock makes every lock control on the desktop converge on the same
+  locker as the Whisker menu entry.
+
+  If a future xfce4-session stops honouring the setting, the fallback is
+  precisely the old behaviour — xflock4 finding a locker unaided — so this can
+  only make the lock path more consistent, never less.
+
+  Only this one key is preset on purpose: xfce4-session adds the rest of the
+  channel itself the first time the user changes a session setting.
+-->
+<channel name="xfce4-session" version="1.0">
+  <property name="general" type="empty">
+    <property name="LockCommand" type="string" value="/usr/local/bin/aegis-lock"/>
+  </property>
+</channel>

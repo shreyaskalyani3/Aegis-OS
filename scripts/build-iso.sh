@@ -90,9 +90,16 @@ for pkgdir in "${REPO_ROOT}/${AEGIS_PACKAGES_DIR}"/*/; do
     [[ -f "${pkgdir}/PKGBUILD" ]] || continue
     name="$(basename "${pkgdir}")"
     log "makepkg: ${name}"
-    ( cd "${pkgdir}" && sudo -u "${BUILD_USER}" env AEGIS_VERSION="${VERSION}" \
-        makepkg -f --noconfirm --nodeps --skipinteg )
-    cp "${pkgdir}"/*.pkg.tar.* "${LOCALREPO}/"
+    # Fail here, with the package name, rather than letting a broken PKGBUILD
+    # fall through: previously the failure was ignored, built_any was still set,
+    # and the build died much later inside mkarchiso with a misleading
+    # "target not found: aegis-meta" that named the symptom, not the cause.
+    if ! ( cd "${pkgdir}" && sudo -u "${BUILD_USER}" env AEGIS_VERSION="${VERSION}" \
+        makepkg -f --noconfirm --nodeps --skipinteg ); then
+        die "makepkg failed for '${name}' — fix the PKGBUILD before building the ISO"
+    fi
+    cp "${pkgdir}"/*.pkg.tar.* "${LOCALREPO}/" \
+        || die "makepkg for '${name}' reported success but produced no package file"
     built_any=1
 done
 
@@ -340,6 +347,24 @@ ln -sf "/etc/systemd/system/aegis-live-setup.service" \
 ln -sf "/etc/systemd/system/aegis-firstboot-cleanup.service" \
        "${SYSD}/multi-user.target.wants/aegis-firstboot-cleanup.service"
 ok "systemd services enabled in staged airootfs"
+
+# --- Rebuild the hicolor icon cache -------------------------------------------
+# The 14 Aegis SVGs in usr/share/icons/hicolor/scalable/apps/ arrive via the
+# overlay, which archiso copies in AFTER pacstrap has installed the hicolor
+# package and generated icon-theme.cache. The shipped cache therefore does not
+# know about them, and on a real boot the panel/Whisker icons render as blank
+# squares until a root user runs gtk-update-icon-cache by hand. Rebuild the
+# cache against the staged airootfs so the overlay ships one that contains the
+# Aegis icons. Best-effort: if the build host lacks the tool (e.g. a minimal
+# archiso image), warn instead of failing the build.
+HICOLOR="${AIROOTFS}/usr/share/icons/hicolor"
+if [[ -d "${HICOLOR}" ]] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "${HICOLOR}" && \
+        ok "rebuilt ${HICOLOR}/icon-theme.cache (Aegis SVG icons included)" || \
+        warn "gtk-update-icon-cache failed — Aegis icons may render blank until the cache is rebuilt at runtime"
+else
+    warn "gtk-update-icon-cache not found on build host — Aegis icons may render blank until the cache is rebuilt at runtime"
+fi
 
 ok "profile staged at ${STAGED_PROFILE}"
 

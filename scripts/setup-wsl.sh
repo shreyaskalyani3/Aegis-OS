@@ -47,11 +47,12 @@ ${C_GREEN}${C_BOLD}WSL Arch is ready.${C_RESET} Now build the ISO inside it:
   2. Initialize pacman keys (first time):
         ${C_CYAN}sudo pacman-key --init && sudo pacman-key --populate archlinux${C_RESET}
         ${C_CYAN}sudo pacman -Syu --noconfirm${C_RESET}
-  3. Go to this repo (your F: drive is at /mnt/f):
-        ${C_CYAN}cd "/mnt/f/build OWN OS"${C_RESET}
+  3. Go to this repo (your F: drive is at /mnt/f, so this repo is at
+     /mnt/f/AegisOS — adjust if you moved it):
+        ${C_CYAN}cd "/mnt/f/AegisOS"${C_RESET}
      ${C_YELLOW}NOTE:${C_RESET} building on /mnt (DrvFs) can be slow and may reject some
      permissions. For a reliable build, copy the repo into the Linux filesystem first:
-        ${C_CYAN}cp -a "/mnt/f/build OWN OS" ~/aegis-os && cd ~/aegis-os${C_RESET}
+        ${C_CYAN}cp -a "/mnt/f/AegisOS" ~/aegis-os && cd ~/aegis-os${C_RESET}
   4. Build:
         ${C_CYAN}sudo bash scripts/build-iso.sh${C_RESET}
 
