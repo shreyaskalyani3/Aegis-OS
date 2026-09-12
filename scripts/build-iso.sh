@@ -136,7 +136,13 @@ TOMBSTONES=(
   xfce4-web-browser xfce4-file-manager xfce4-terminal-emulator xfce4-mail-reader
   org.gnome.FileRoller htop btop vim nvim
   xfce4-about thunar-bulk-rename xfburn xfce4-dict gigolo xfdashboard
-  xfce4-screensaver xfce4-screensaver-preferences parole blueman-adapters
+  # xfce4-screensaver IS hidden: the bare launcher only starts the daemon, which
+  # is autostarted at login anyway, so the menu entry does nothing a user wants.
+  # xfce4-screensaver-preferences is deliberately NOT hidden — that dialog is the
+  # only UI for the idle blank/lock timer, i.e. the one setting on this image
+  # that is a real security control, and README.md points users straight at it.
+  # Hiding it left the documented path with no menu entry to click.
+  xfce4-screensaver parole blueman-adapters
   avahi-discover bssh bvnc lstopo cmake-gui qv4l2 qvidcap calamares
 )
 for t in "${TOMBSTONES[@]}"; do
@@ -198,11 +204,13 @@ chmod 0600 "${STAGED_PROFILE}/airootfs/etc/aegis/credentials.conf"
 # Prove it parses back to the configured values before shipping it, rather than
 # discovering at boot that the only account in the image has no usable password.
 # The vars are unset inside the subshell first, so inheriting them from aegis.conf
-# cannot make a file that failed to write look correct.
-_cred_want="$(printf '%s\n%s\n%s' "${AEGIS_LIVE_USER}" "${AEGIS_LIVE_PASSWORD}" "${AEGIS_ROOT_PASSWORD}")"
-_cred_got="$( unset AEGIS_LIVE_USER AEGIS_LIVE_PASSWORD AEGIS_ROOT_PASSWORD
+# cannot make a file that failed to write look correct. AEGIS_DEFAULT_SHELL is
+# included because a mangled shell path silently degrades every login to bash
+# (see the backstop in aegis-credentials) instead of failing loudly here.
+_cred_want="$(printf '%s\n%s\n%s\n%s' "${AEGIS_LIVE_USER}" "${AEGIS_LIVE_PASSWORD}" "${AEGIS_ROOT_PASSWORD}" "${AEGIS_DEFAULT_SHELL}")"
+_cred_got="$( unset AEGIS_LIVE_USER AEGIS_LIVE_PASSWORD AEGIS_ROOT_PASSWORD AEGIS_DEFAULT_SHELL
               source "${STAGED_PROFILE}/airootfs/etc/aegis/credentials.conf" 2>/dev/null
-              printf '%s\n%s\n%s' "${AEGIS_LIVE_USER-}" "${AEGIS_LIVE_PASSWORD-}" "${AEGIS_ROOT_PASSWORD-}" )"
+              printf '%s\n%s\n%s\n%s' "${AEGIS_LIVE_USER-}" "${AEGIS_LIVE_PASSWORD-}" "${AEGIS_ROOT_PASSWORD-}" "${AEGIS_DEFAULT_SHELL-}" )"
 [[ "${_cred_got}" == "${_cred_want}" ]] \
     || die "generated credentials.conf does not round-trip — refusing to build an unloggable ISO"
 ok "live credentials generated from aegis.conf (user: ${AEGIS_LIVE_USER})"

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk '{printf \"%d\\\\t%s\\\\n\", NR+99, substr\\($0, index\\($0,$2\\)\\)}')",
+      "Bash(awk 'NR>=100 && NR<=270 {printf \"%d\\\\t%s\\\\n\", NR, $0}' scripts/build-iso.sh)"
+    ]
+  }
+}
