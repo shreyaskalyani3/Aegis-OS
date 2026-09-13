@@ -93,7 +93,7 @@ strace
 ltrace
 unzip
 zip
-p7zip
+7zip
 unrar
 tar
 jq
