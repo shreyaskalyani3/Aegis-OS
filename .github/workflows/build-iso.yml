@@ -63,9 +63,12 @@ jobs:
           CURRENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
+          [[ "${CURRENT_RUN_ID}" =~ ^[0-9]+$ ]] || {
+            echo "CURRENT_RUN_ID is not numeric: ${CURRENT_RUN_ID}" >&2
+            exit 1
+          }
           old_ids="$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
-            --arg current "${CURRENT_RUN_ID}" \
-            --jq '.artifacts[] | select(.workflow_run.id != $current) | .id')"
+            --jq ".artifacts[] | select(.workflow_run.id != ${CURRENT_RUN_ID}) | .id")"
           if [[ -z "${old_ids}" ]]; then
             echo "No previous artifacts to delete."
             exit 0
