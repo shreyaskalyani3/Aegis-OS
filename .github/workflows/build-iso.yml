@@ -52,6 +52,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Delete previous workflow artifacts
+        # Artifact storage is account/repo-wide. Large ISO artifacts can
+        # exhaust it, after which the next upload fails with
+        # "Artifact storage quota has been hit". Delete artifacts from
+        # previous runs before the long build, so the current run has room.
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          old_ids="$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --arg current "${CURRENT_RUN_ID}" \
+            --jq '.artifacts[] | select(.workflow_run.id != $current) | .id')"
+          if [[ -z "${old_ids}" ]]; then
+            echo "No previous artifacts to delete."
+            exit 0
+          fi
+          echo "Deleting previous artifacts:"
+          echo "${old_ids}"
+          while IFS= read -r artifact_id; do
+            [[ -n "${artifact_id}" ]] || continue
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/${artifact_id}"
+          done <<< "${old_ids}"
+
       - name: Free up runner disk space
         # `broad` needs ~8-16 GB; the runner's root fs only has ~14 GB free by
         # default. Dropping the preinstalled toolchains we don't use buys ~25 GB.
@@ -115,13 +140,17 @@ jobs:
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
+        env:
+          # Node 24's punycode deprecation warning is noise from the action,
+          # not a build failure. Keep deprecation output out of the ISO logs.
+          NODE_OPTIONS: --no-deprecation
         with:
           name: aegis-os-iso
           path: |
             out/*.iso
             out/*.sha256
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
       - name: Publish Release (version tags only)
         if: startsWith(github.ref, 'refs/tags/v')
