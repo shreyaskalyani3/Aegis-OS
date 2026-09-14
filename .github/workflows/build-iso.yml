@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: write        # needed to attach the ISO to a Release on tags
+  actions: write         # needed to delete previous artifacts when quota is full
 
 concurrency:
   group: build-iso-${{ github.ref }}
@@ -86,6 +87,31 @@ jobs:
       - name: List build output
         if: always()
         run: ls -lh out/ 2>/dev/null || echo "no out/ directory (build failed before producing an ISO)"
+
+      - name: Delete previous workflow artifacts
+        # Artifact storage quota is account/repo-wide. Keeping a 14-day ISO
+        # artifact from every run can exhaust it, after which the next upload
+        # fails with "Artifact storage quota has been hit". Delete artifacts
+        # from previous runs before creating the new one. Tag builds also
+        # publish a Release, so the current artifact is the only one needed.
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="${{ github.run_id }}"
+          old_ids="$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.workflow_run.id != \"$current\") | .id")"
+          if [[ -z "${old_ids}" ]]; then
+            echo "No previous artifacts to delete."
+            exit 0
+          fi
+          echo "Deleting previous artifacts:"
+          echo "${old_ids}"
+          while IFS= read -r artifact_id; do
+            [[ -n "${artifact_id}" ]] || continue
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/${artifact_id}"
+          done <<< "${old_ids}"
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
