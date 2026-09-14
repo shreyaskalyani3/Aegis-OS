@@ -108,14 +108,9 @@ patch_ini() {  # $1 = file, $2 = key, $3 = value
     grep -q "^$2=$3\$" "$1" && return 0
     sed -i "s|^$2=.*|$2=$3|" "$1" 2>/dev/null || true
 }
-# Guard on HOME rather than defaulting it: "${HOME:-}" expands to the empty
-# string, so the loop would silently inspect /.config/... — a path that does not
-# exist and that -w rejects anyway.
-if [[ -n "${HOME:-}" ]]; then
-    for ini in "${HOME}/.config/gtk-3.0/settings.ini" "${HOME}/.config/gtk-4.0/settings.ini"; do
-        patch_ini "${ini}" gtk-theme-name      "${GTK_THEME}"
-        patch_ini "${ini}" gtk-icon-theme-name "${ICON_THEME}"
-    done
-fi
+for ini in "${HOME:-}/.config/gtk-3.0/settings.ini" "${HOME:-}/.config/gtk-4.0/settings.ini"; do
+    patch_ini "${ini}" gtk-theme-name      "${GTK_THEME}"
+    patch_ini "${ini}" gtk-icon-theme-name "${ICON_THEME}"
+done
 
 exit 0

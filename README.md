@@ -63,13 +63,6 @@ for how the agents are integrated.
 
 </div>
 
-The greeter is also the **lock screen**. Every "Lock" control on the desktop — the panel's session
-button and the Whisker menu command — runs `aegis-lock`, which locks through `xfce4-screensaver`
-(PAM-backed, auto-started at login) and falls back to `dm-tool lock`, which re-shows this same
-greeter in lock mode. Unlocking uses the live password on the ISO or the user's password on an
-installed system — PAM verified either way. The idle blanking/lock timer is configured from
-**Screensaver Preferences** (tune it to a security-conscious setting there).
-
 ### The desktop
 
 The XFCE session is configured **statically**, via xfconf XML shipped in
@@ -85,9 +78,9 @@ with no flash of stock XFCE and no first-run "Default or Empty panel?" dialog.
 | **Wallpaper** | [`xfce4-desktop.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml) | Sentinel wallpaper, seeded across every common monitor name |
 | **Window borders** | [`xfwm4.xml`](profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml) | `Materia-dark-compact` dark decorations — the only dark xfwm4 theme in the image (see below) |
 | **GTK / Qt theming** | [`gtk-3.0/settings.ini`](profile/airootfs/etc/skel/.config/gtk-3.0/settings.ini), [`.gtkrc-2.0`](profile/airootfs/etc/skel/.gtkrc-2.0), [`/etc/environment`](profile/airootfs/etc/environment) | GTK 2/3/4 read the theme directly instead of waiting on `xfsettingsd`; `QT_QPA_PLATFORMTHEME=gtk3` pulls Qt apps (Calamares included) into the same dark theme |
-| **Terminal** | [`terminalrc`](profile/airootfs/etc/skel/.config/xfce4/terminal/terminalrc) + [`alacritty.toml`](profile/airootfs/etc/skel/.config/alacritty/alacritty.toml) | Sentinel palette (deep blue-black background, Aegis-red cursor, teal/green/blue accents), JetBrainsMono Nerd Font — both terminals share the same palette |
+| **Terminal** | [`terminalrc`](profile/airootfs/etc/skel/.config/xfce4/terminal/terminalrc) | GitHub-dark palette, JetBrainsMono Nerd Font, red cursor |
 | **Install icon** | [`etc/skel/Desktop/`](profile/airootfs/etc/skel/Desktop/) | **Install Aegis OS** on the desktop, marked trusted by `aegis-live-setup` so XFCE does not warn |
-| **Brand icons** | [`hicolor/scalable/apps/`](profile/airootfs/usr/share/icons/hicolor/scalable/apps/) | 14 self-hosted SVGs — every `Icon=` in the profile resolves; the hicolor icon cache is rebuilt during the build so they are visible on the first frame |
+| **Brand icons** | [`hicolor/scalable/apps/`](profile/airootfs/usr/share/icons/hicolor/scalable/apps/) | 14 self-hosted SVGs — every `Icon=` in the profile resolves |
 
 Every menu entry runs through
 [`aegis-run`](profile/airootfs/usr/local/bin/aegis-run), which holds the terminal open on exit —
@@ -280,7 +273,7 @@ profile/                   # the archiso profile
   ├─ packages.x86_64       # everything installed into the image
   └─ airootfs/             # the live filesystem overlay (branding, services, scripts)
 packages/                  # custom aegis-* packages (PKGBUILDs → local repo)
-branding/                  # the ASCII "AEGIS" wordmark (logo.txt)
+branding/                  # logos, wallpaper, plymouth splash
 docs/                      # BUILDING, AI-AGENTS, TOOLS, ETHICS
 ```
 

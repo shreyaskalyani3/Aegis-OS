@@ -2,9 +2,6 @@
 # xfce4-terminal — Aegis OS palette. Matches the MOTD banner / zsh prompt
 # colours in .zshrc and aegis-motd so the terminal reads as one piece with the
 # rest of the branding.
-#
-# This palette is duplicated in ~/.config/alacritty/alacritty.toml. The two
-# terminals are expected to look identical; edit both, or neither.
 FontName=JetBrainsMono Nerd Font 11
 FontUseSystem=FALSE
 MiscAlwaysShowTabs=FALSE
@@ -15,10 +12,7 @@ MiscCursorBlinks=TRUE
 MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
 MiscDefaultGeometry=100x30
 MiscInheritGeometry=FALSE
-# Hidden by default: the menu bar only costs vertical space in a terminal whose
-# toolbar is already off. Ctrl+Shift+M (or right-click -> Show Menubar) brings
-# it back for the session.
-MiscMenubarDefault=FALSE
+MiscMenubarDefault=TRUE
 MiscMouseAutohide=FALSE
 MiscMouseWheelZoom=TRUE
 MiscToolbarDefault=FALSE
@@ -43,21 +37,16 @@ ScrollingOnOutput=FALSE
 ScrollingOnKeystroke=TRUE
 BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
 BackgroundDarkness=0.960000
-ColorForeground=#cdd5df
-ColorBackground=#0b0f17
+ColorForeground=#c9d1d9
+ColorBackground=#0d1117
 ColorCursor=#ff2e4d
-ColorCursorForeground=#0b0f17
+ColorCursorForeground=#0d1117
 ColorCursorUseDefault=FALSE
-# Selection: ColorSelection is the text, ColorSelectionBackground is the block
-# behind it. Both were #264f78, which painted dark blue on dark blue — selected
-# text was invisible. They must differ.
-ColorSelection=#eef3f8
-ColorSelectionBackground=#2f3c52
+ColorSelection=#264f78
+ColorSelectionBackground=#264f78
 ColorSelectionUseDefault=FALSE
-# Bold keeps its own colour and is brightened by the palette below; pinning
-# ColorBold to a single value would paint every bold run (the whole MOTD
-# banner) in that one colour.
-ColorBoldUseDefault=TRUE
+ColorBold=#f0f6fc
+ColorBoldUseDefault=FALSE
 ColorBoldIsBright=TRUE
-ColorPalette=#151a24;#ff3556;#2fca7e;#e5a94a;#4fa7ff;#b98cff;#3fc6d6;#b6bfcb;#4a5263;#ff6477;#5ee0a0;#f0c06e;#78c0ff;#d0a8ff;#6fd6e4;#eef3f8
+ColorPalette=#484f58;#ff7b72;#7ee787;#e3b341;#79c0ff;#d2a8ff;#56d4dd;#b1bac4;#6e7681;#ffa198;#56d364;#f2cc60;#a5d6ff;#e2c5ff;#b3f0ff;#f0f6fc
 TitleMode=TERMINAL_TITLE_REPLACE

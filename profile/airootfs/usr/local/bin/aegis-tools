@@ -82,9 +82,6 @@ case "${cmd}" in
         ;;
     info|show)
         [[ $# -ge 1 ]] || { echo "usage: aegis-tools info <group>"; exit 1; }
-        # A group listing is meaningless without the repo, and without this the
-        # command printed a raw pacman error on a system where BlackArch is off.
-        require_blackarch || exit 1
         pacman -Sg "$1" 2>/dev/null | awk '{print $2}' | sort
         ;;
     search|find)

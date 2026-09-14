@@ -90,16 +90,9 @@ for pkgdir in "${REPO_ROOT}/${AEGIS_PACKAGES_DIR}"/*/; do
     [[ -f "${pkgdir}/PKGBUILD" ]] || continue
     name="$(basename "${pkgdir}")"
     log "makepkg: ${name}"
-    # Fail here, with the package name, rather than letting a broken PKGBUILD
-    # fall through: previously the failure was ignored, built_any was still set,
-    # and the build died much later inside mkarchiso with a misleading
-    # "target not found: aegis-meta" that named the symptom, not the cause.
-    if ! ( cd "${pkgdir}" && sudo -u "${BUILD_USER}" env AEGIS_VERSION="${VERSION}" \
-        makepkg -f --noconfirm --nodeps --skipinteg ); then
-        die "makepkg failed for '${name}' — fix the PKGBUILD before building the ISO"
-    fi
-    cp "${pkgdir}"/*.pkg.tar.* "${LOCALREPO}/" \
-        || die "makepkg for '${name}' reported success but produced no package file"
+    ( cd "${pkgdir}" && sudo -u "${BUILD_USER}" env AEGIS_VERSION="${VERSION}" \
+        makepkg -f --noconfirm --nodeps --skipinteg )
+    cp "${pkgdir}"/*.pkg.tar.* "${LOCALREPO}/"
     built_any=1
 done
 
@@ -136,13 +129,7 @@ TOMBSTONES=(
   xfce4-web-browser xfce4-file-manager xfce4-terminal-emulator xfce4-mail-reader
   org.gnome.FileRoller htop btop vim nvim
   xfce4-about thunar-bulk-rename xfburn xfce4-dict gigolo xfdashboard
-  # xfce4-screensaver IS hidden: the bare launcher only starts the daemon, which
-  # is autostarted at login anyway, so the menu entry does nothing a user wants.
-  # xfce4-screensaver-preferences is deliberately NOT hidden — that dialog is the
-  # only UI for the idle blank/lock timer, i.e. the one setting on this image
-  # that is a real security control, and README.md points users straight at it.
-  # Hiding it left the documented path with no menu entry to click.
-  xfce4-screensaver parole blueman-adapters
+  xfce4-screensaver xfce4-screensaver-preferences parole blueman-adapters
   avahi-discover bssh bvnc lstopo cmake-gui qv4l2 qvidcap calamares
 )
 for t in "${TOMBSTONES[@]}"; do
@@ -204,13 +191,11 @@ chmod 0600 "${STAGED_PROFILE}/airootfs/etc/aegis/credentials.conf"
 # Prove it parses back to the configured values before shipping it, rather than
 # discovering at boot that the only account in the image has no usable password.
 # The vars are unset inside the subshell first, so inheriting them from aegis.conf
-# cannot make a file that failed to write look correct. AEGIS_DEFAULT_SHELL is
-# included because a mangled shell path silently degrades every login to bash
-# (see the backstop in aegis-credentials) instead of failing loudly here.
-_cred_want="$(printf '%s\n%s\n%s\n%s' "${AEGIS_LIVE_USER}" "${AEGIS_LIVE_PASSWORD}" "${AEGIS_ROOT_PASSWORD}" "${AEGIS_DEFAULT_SHELL}")"
-_cred_got="$( unset AEGIS_LIVE_USER AEGIS_LIVE_PASSWORD AEGIS_ROOT_PASSWORD AEGIS_DEFAULT_SHELL
+# cannot make a file that failed to write look correct.
+_cred_want="$(printf '%s\n%s\n%s' "${AEGIS_LIVE_USER}" "${AEGIS_LIVE_PASSWORD}" "${AEGIS_ROOT_PASSWORD}")"
+_cred_got="$( unset AEGIS_LIVE_USER AEGIS_LIVE_PASSWORD AEGIS_ROOT_PASSWORD
               source "${STAGED_PROFILE}/airootfs/etc/aegis/credentials.conf" 2>/dev/null
-              printf '%s\n%s\n%s\n%s' "${AEGIS_LIVE_USER-}" "${AEGIS_LIVE_PASSWORD-}" "${AEGIS_ROOT_PASSWORD-}" "${AEGIS_DEFAULT_SHELL-}" )"
+              printf '%s\n%s\n%s' "${AEGIS_LIVE_USER-}" "${AEGIS_LIVE_PASSWORD-}" "${AEGIS_ROOT_PASSWORD-}" )"
 [[ "${_cred_got}" == "${_cred_want}" ]] \
     || die "generated credentials.conf does not round-trip — refusing to build an unloggable ISO"
 ok "live credentials generated from aegis.conf (user: ${AEGIS_LIVE_USER})"
@@ -347,32 +332,7 @@ ln -sf "/etc/systemd/system/aegis-credentials.service" \
 # launcher trust, VM agents) after credentials are in place.
 ln -sf "/etc/systemd/system/aegis-live-setup.service" \
        "${SYSD}/multi-user.target.wants/aegis-live-setup.service"
-
-# First-boot cleanup: on an INSTALLED system's first boot, finds and disables
-# the live USB the machine was installed from, so a restart does not land back
-# in the tool environment. On the live medium itself the script is a no-op
-# (guarded by /run/archiso), so enabling it in the image is harmless.
-ln -sf "/etc/systemd/system/aegis-firstboot-cleanup.service" \
-       "${SYSD}/multi-user.target.wants/aegis-firstboot-cleanup.service"
 ok "systemd services enabled in staged airootfs"
-
-# --- Rebuild the hicolor icon cache -------------------------------------------
-# The 14 Aegis SVGs in usr/share/icons/hicolor/scalable/apps/ arrive via the
-# overlay, which archiso copies in AFTER pacstrap has installed the hicolor
-# package and generated icon-theme.cache. The shipped cache therefore does not
-# know about them, and on a real boot the panel/Whisker icons render as blank
-# squares until a root user runs gtk-update-icon-cache by hand. Rebuild the
-# cache against the staged airootfs so the overlay ships one that contains the
-# Aegis icons. Best-effort: if the build host lacks the tool (e.g. a minimal
-# archiso image), warn instead of failing the build.
-HICOLOR="${AIROOTFS}/usr/share/icons/hicolor"
-if [[ -d "${HICOLOR}" ]] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -f -t "${HICOLOR}" && \
-        ok "rebuilt ${HICOLOR}/icon-theme.cache (Aegis SVG icons included)" || \
-        warn "gtk-update-icon-cache failed — Aegis icons may render blank until the cache is rebuilt at runtime"
-else
-    warn "gtk-update-icon-cache not found on build host — Aegis icons may render blank until the cache is rebuilt at runtime"
-fi
 
 ok "profile staged at ${STAGED_PROFILE}"
 

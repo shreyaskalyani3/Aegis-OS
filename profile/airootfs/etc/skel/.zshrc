@@ -28,27 +28,22 @@ zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
 [[ -r /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
     source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh 2>/dev/null
 
-# --- Prompt: framed, git-aware, exit-aware --------------------------------
+# --- Prompt (git-aware, security red) ---------------------------------------
 autoload -Uz vcs_info
-zstyle ':vcs_info:git:*' check-for-changes true
-zstyle ':vcs_info:git:*' stagedstr ' %F{green}+%f'
-zstyle ':vcs_info:git:*' unstagedstr ' %F{yellow}~%f'
-zstyle ':vcs_info:git:*' formats ' %F{cyan}⎇ %b%f%c%u'
-zstyle ':vcs_info:git:*' actionformats ' %F{cyan}⎇ %b%f %F{red}(%a)%f%c%u'
+zstyle ':vcs_info:git:*' formats ' %F{244}(%b)%f'
 precmd() { vcs_info }
 setopt PROMPT_SUBST
-#  ╭─ aegis@host  ~/path  ⎇ branch +staged ~unstaged
-#  ╰─➜  (green on success / red on failure, error shown right)
-PROMPT='%F{red}╭─%f %F{197}%n%f%F{240}@%f%F{39}%m%f %F{250}%~%f${vcs_info_msg_0_}
-%F{red}╰─%f %(?.%F{green}➜.%F{red}➜)%f '
-RPROMPT='%(?..%F{red}✘ %? %f)%F{240}%D{%H:%M}%f'
+# 🛡 user@host  path (branch)  ➜
+PROMPT='%F{red}%B🛡%b%f %F{197}%n%f%F{240}@%f%F{31}%m%f %F{247}%~%f${vcs_info_msg_0_}
+%F{red}➜%f '
+RPROMPT='%(?..%F{red}✘ %?%f)'
 
 # --- Aliases: modern replacements when available ----------------------------
 if command -v eza >/dev/null; then
-    alias ls='eza --group-directories-first --icons=auto'
-    alias ll='eza -lah --group-directories-first --git --icons=auto'
-    alias la='eza -a --icons=auto'
-    alias lt='eza --tree --level=2 --icons=auto'
+    alias ls='eza --group-directories-first'
+    alias ll='eza -lah --group-directories-first --git'
+    alias la='eza -a'
+    alias lt='eza --tree --level=2'
 else
     alias ll='ls -lah --color=auto'; alias la='ls -A'; alias ls='ls --color=auto'
 fi
