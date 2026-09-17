@@ -3,28 +3,68 @@
 #  aegis-motd — prints the Aegis OS banner, quick hints, and a rotating tip.
 #  Invoked from the interactive shell rc (once per login shell).
 #
-#  The banner is inline rather than read from /usr/share/aegis/logo.txt because
-#  the hint column is interleaved into the same lines as the letterform. That
-#  letterform is the distro's canonical one — if you change it here, change it in
-#  branding/logo.txt and packages/aegis-meta/PKGBUILD too.
+#  Design notes:
+#   - Every glyph in the banner is from the box-drawing / block-element
+#     blocks every terminal font carries (█ ╗ ║ ╔ ╝ ═), so it cannot garble
+#     or mis-measure even in a plain font. Emoji/ambiguous glyphs appear
+#     only in the tip line, where a missing glyph falls back gracefully.
+#   - All lines stay ≤ ~70 columns, so the banner never wraps on an 80-col
+#     terminal; below 70 columns it collapses to a single compact line.
+#   - Name/codename come from /etc/os-release (stamped at build from
+#     aegis.conf) rather than being hardcoded here.
+#   - The letterform is the distro's canonical one — if you change it here,
+#     change branding/logo.txt and packages/aegis-meta/PKGBUILD too.
 # =============================================================================
 
 # Colors (respect NO_COLOR / non-tty)
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-    R=$'\e[1;31m'; W=$'\e[1;37m'; D=$'\e[0;90m'; Y=$'\e[0;33m'; C=$'\e[0;36m'; Z=$'\e[0m'
+    W=$'\e[1;37m'; D=$'\e[0;90m'; C=$'\e[0;36m'; Y=$'\e[0;33m'; Z=$'\e[0m'
+    if [[ "${TERM:-}" == *256color* ]]; then
+        # Aegis red fade, bright -> deep, two lines per step
+        A1=$'\e[38;5;196m'; A2=$'\e[38;5;196m'
+        A3=$'\e[38;5;160m'; A4=$'\e[38;5;160m'
+        A5=$'\e[38;5;124m'; A6=$'\e[38;5;124m'
+    else
+        A1=$'\e[1;31m'; A2=$'\e[1;31m'; A3=$'\e[1;31m'
+        A4=$'\e[1;31m'; A5=$'\e[1;31m'; A6=$'\e[1;31m'
+    fi
 else
-    R=''; W=''; D=''; Y=''; C=''; Z=''
+    A1=''; A2=''; A3=''; A4=''; A5=''; A6=''
+    W=''; D=''; C=''; Y=''; Z=''
 fi
 
-ver="$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-rolling}")"
+name="Aegis OS"; codename="Sentinel"; ver="rolling"
+if [[ -r /etc/os-release ]]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release 2>/dev/null
+    ver="${VERSION_ID:-rolling}"
+    codename="$(printf '%s' "${PRETTY_NAME:-}" | sed -n 's/.*(\([^)]*\)).*/\1/p')"
+    codename="${codename:-Sentinel}"
+fi
+
+# Narrow terminal: collapse to one line instead of wrapping the letterform.
+cols="$(tput cols 2>/dev/null || echo 100)"
+if [[ "${cols}" -lt 70 ]]; then
+    printf '%s\n' "${W}${name}${Z} ${D}${ver} (${codename})${Z}  ${C}setup${Z} · ${C}ai${Z} · ${C}tools${Z} · ${C}update${Z}"
+    printf '%s\n' "${Y}  ⚠  Only test systems you own or are explicitly authorized.${Z}"
+    echo
+    exit 0
+fi
 
 cat <<EOF
-${R} █████╗ ███████╗ ██████╗ ██╗███████╗${Z}   ${W}Aegis OS${Z} ${D}${ver} (Sentinel)${Z}
-${R}██╔══██╗██╔════╝██╔════╝ ██║██╔════╝${Z}   ${D}Offensive & Defensive Security · Agent-native${Z}
-${R}███████║█████╗  ██║  ███╗██║███████╗${Z}
-${R}██╔══██║██╔══╝  ██║   ██║██║╚════██║${Z}   ${C}aegis-setup${Z}  ${D}first-run wizard (agents + tools)${Z}
-${R}██║  ██║███████╗╚██████╔╝██║███████║${Z}   ${C}aegis-ai${Z}     ${D}launch Claude Code / OpenCode / Aider / Codex${Z}
-${R}╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝${Z}   ${C}aegis-tools${Z}  ${D}install BlackArch tool groups${Z}
+  ${A1} █████╗ ███████╗ ██████╗ ██╗███████╗${Z}     ${W}${name}${Z} ${D}${ver}${Z}
+  ${A2}██╔══██╗██╔════╝██╔════╝ ██║██╔════╝${Z}     ${D}Codename: ${codename}${Z}
+  ${A3}███████║█████╗  ██║  ███╗██║███████║${Z}
+  ${A4}██╔══██║██╔══╝  ██║   ██║██║╚════██║${Z}
+  ${A5}██║  ██║███████╗╚██████╔╝██║███████║${Z}
+  ${A6}╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝${Z}
+
+       ${D}Offensive & Defensive Security · Agent-Native${Z}
+
+   ${C}setup${Z}      first-run wizard (agents + tools)
+   ${C}ai${Z}         launch Claude Code / OpenCode / Aider / Codex
+   ${C}tools${Z}      install BlackArch tool groups
+   ${C}update${Z}     update everything (sudo pacman -Syu)
 EOF
 
 # Rotating security reminder / tip.

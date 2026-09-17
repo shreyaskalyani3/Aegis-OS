@@ -17,6 +17,7 @@ alias grep='grep --color=auto'
 alias update='sudo pacman -Syu'
 alias ai='aegis-ai'
 alias tools='aegis-tools'
+alias setup='aegis-setup'
 alias run='aegis-run'
 command -v bat >/dev/null && alias cat='bat --paging=never --style=plain'
 

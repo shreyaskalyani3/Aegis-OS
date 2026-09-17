@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  locale-ensure — compile the locales /etc/locale.conf asks for.
+#  Runs inside the Calamares target chroot (shellprocess@bootprep), AFTER the
+#  locale/localecfg modules have written /etc/locale.conf and /etc/locale.gen.
+#
+#  Why this exists: the installer's locale page lets the user pick any variant
+#  (en_IN, en_GB, ...). Whatever the selection, the installed system must end
+#  up with that locale COMPILED — otherwise every shell it ever starts prints
+#  "warning: setlocale: cannot change locale (en_IN)" and, worse, a terminal
+#  whose encoding falls back garbles every multi-byte glyph in the Aegis
+#  banner and prompt (the ASCII still renders, the Unicode does not).
+#
+#  Usually a no-op: when localecfg did its job, `locale -a` already lists the
+#  locale and this script exits without touching anything. It only runs
+#  locale-gen when something requested is actually missing.
+#
+#  Written to be called as a bare command string from shellprocess.conf, so
+#  Calamares' $variable scan never sees this file's contents.
+# =============================================================================
+set -u
+
+CONF=/etc/locale.conf
+GEN=/etc/locale.gen
+
+[[ -r "$CONF" ]] || { echo "AEGIS-ERROR: $CONF not readable"; exit 1; }
+
+# --- Collect the locales the system asks for ---------------------------------
+# LANG plus any explicit LC_* override. Skip C/POSIX (always available).
+locales=()
+while IFS='=' read -r key val; do
+    key="${key//\"/}"
+    val="${val//\"/}"
+    [[ "$key" == "LANG" || "$key" == LC_* ]] || continue
+    [[ -n "$val" && "$val" != "C" && "$val" != "POSIX" ]] || continue
+    locales+=("$val")
+done < "$CONF"
+
+[[ ${#locales[@]} -gt 0 ]] || { echo "AEGIS: no locale requested in $CONF — nothing to ensure"; exit 0; }
+
+# --- Is a requested locale compiled? ------------------------------------------
+# $1 = the requested locale ("en_IN.UTF-8" or bare "en_IN"). An encoded
+# request always compiles to a dotted name ("en_IN.utf8"); a bare request
+# compiles to whatever localedef was given ("en_IN" or "en_IN.UTF-8"), so
+# accept either. Without the bare acceptance, a locale requested bare —
+# exactly what a greeter or localectl can write, and what produced the
+# "cannot change locale (en_IN)" spam in the wild — would never verify.
+compiled() {
+    local base="${1%%.*}"
+    if [[ "$1" == *.* ]]; then
+        locale -a 2>/dev/null | grep -qiE "^${base}\."
+    else
+        locale -a 2>/dev/null | grep -qiE "^${base}(\.|$)"
+    fi
+}
+
+# --- Make sure each requested locale is compiled ------------------------------
+# Keyed on the COMPILED locale being missing — not on whether a locale.gen
+# line gets added. A line can exist while the locale is still uncompiled
+# (a failed or partial localecfg is exactly the state this script exists to
+# repair), and that case must still trigger a regeneration.
+missing=0
+for loc in "${locales[@]}"; do
+    if compiled "$loc"; then
+        continue
+    fi
+    missing=1
+    # Ensure an uncommented locale.gen line for it. A locale with an encoding
+    # ("en_IN.UTF-8") needs "en_IN.UTF-8 UTF-8"; a bare one ("en_IN") needs
+    # "en_IN UTF-8" — localedef derives the same compiled locale from both.
+    if grep -qE "^${loc%%.*}[. ]" "$GEN" 2>/dev/null; then
+        : # a line for this locale is already present
+    else
+        if [[ "$loc" == *.* ]]; then
+            printf '%s %s\n' "$loc" "${loc#*.}" >> "$GEN"
+        else
+            printf '%s UTF-8\n' "$loc" >> "$GEN"
+        fi
+    fi
+done
+
+# --- Regenerate only when something was missing -------------------------------
+if [[ "$missing" -eq 1 ]]; then
+    echo "AEGIS: generating missing locale(s): ${locales[*]}"
+    locale-gen || { echo "AEGIS-ERROR: locale-gen failed"; exit 1; }
+fi
+
+# --- Prove the job is done before the install reports success ----------------
+for loc in "${locales[@]}"; do
+    if ! compiled "$loc"; then
+        echo "AEGIS-ERROR: locale '$loc' still not compiled after locale-gen"
+        exit 1
+    fi
+done
+
+echo "AEGIS: locale(s) OK: ${locales[*]}"
+exit 0

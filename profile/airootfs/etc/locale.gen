@@ -1,2 +1,7 @@
 en_US.UTF-8 UTF-8
 en_US ISO-8859-1
+# The installer's locale page lets users pick any variant (e.g. en_IN for
+# India); localecfg adds the selection, but generate the common one here too
+# so a bare LANG=en_IN can never resolve to nothing and spam every shell
+# with "cannot change locale" warnings.
+en_IN.UTF-8 UTF-8
