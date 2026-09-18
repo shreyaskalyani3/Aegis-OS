@@ -1,0 +1,12 @@
+# Aegis OS — plymouth boot splash theme (animated shield + sweeping bar).
+#
+# ModuleName=script: the animation lives in aegis.script, which only uses the
+# core script API (Sprite, SetOpacity, Math.Cos) — no label/font plugin, since
+# the wordmark is baked into shield.png at build time (scripts/dev/gen-boot-images.py).
+[Plymouth Theme]
+Name=Aegis OS
+Description=Aegis OS — pulsing shield boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/aegis

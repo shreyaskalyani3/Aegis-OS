@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  drop-install-launcher — remove the live-only installer launchers from the
+#  installed target's skeleton, so the user created from it never sees an
+#  "Install Aegis OS" icon on the desktop or in the panel.
+#
+#  Runs inside the Calamares target chroot (shellprocess@deskclean), BEFORE the
+#  users module copies /etc/skel to the new user's home. The live medium keeps
+#  its own copy of everything — this only touches the installed target.
+#
+#  The panel launcher is wired into xfce4-panel.xml twice (the plugin-8
+#  property and its id in the plugin-ids array); both must go, or the panel
+#  would show an empty launcher pointing at a deleted .desktop file.
+# =============================================================================
+set -u
+
+log(){ printf 'drop-install-launcher: %s\n' "$*" >&2; }
+
+DESKTOP=/etc/skel/Desktop/aegis-install.desktop
+LAUNCHER=/etc/skel/.config/xfce4/panel/launcher-8
+PANEL_XML=/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+
+rm -f "$DESKTOP" && log "removed $DESKTOP"
+rm -rf "$LAUNCHER" && log "removed $LAUNCHER"
+
+if [[ -f "$PANEL_XML" ]]; then
+    python3 - "$PANEL_XML" <<'PYEOF'
+import re, sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+
+orig = text
+
+# The plugin-8 launcher block: known shape — opening line, items array, and
+# BOTH closing tags after the aegis-install.desktop item line (unique in this
+# file, so the non-greedy match cannot stop at the wrong closing).
+text = re.sub(
+    r'\n[ ]*<property name="plugin-8".*?'
+    r'<value type="string" value="aegis-install\.desktop"/>\n'
+    r'[ ]*</property>\n[ ]*</property>',
+    '',
+    text, flags=re.S)
+
+# Its id in the panel's plugin-ids array (the only value-8 int line).
+text = re.sub(r'\n[ ]*<value type="int" value="8"/>', '', text)
+
+if text != orig:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    print("drop-install-launcher: panel xml cleaned (plugin-8 removed)")
+else:
+    print("drop-install-launcher: panel xml already clean")
+PYEOF
+fi
+
+# --- Prove the job is done ----------------------------------------------------
+if [[ ! -e "$DESKTOP" && ! -e "$LAUNCHER" ]] \
+   && ! grep -q '"plugin-8"' "$PANEL_XML" 2>/dev/null; then
+    log "install launchers dropped from the installed target"
+    exit 0
+fi
+log "WARNING: some install launcher remnants remain"
+exit 0

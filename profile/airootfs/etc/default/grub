@@ -1,0 +1,13 @@
+# Aegis OS — GRUB defaults (applied by grub-mkconfig on the installed system).
+#
+# Shipped in the airootfs so it lands in the installed target: the Calamares
+# bootloader module runs the aegis grub-mkconfig wrapper, which reads this file.
+# The theme files ship at /usr/share/grub/themes/aegis/ and grub-mkconfig
+# installs them to /boot/grub/themes/.
+#
+# splash: the animated plymouth splash (aegis theme) covers the boot console.
+GRUB_TIMEOUT=5
+GRUB_TIMEOUT_STYLE=hidden
+GRUB_DISTRIBUTOR="Aegis OS"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_THEME=/usr/share/grub/themes/aegis/theme.txt

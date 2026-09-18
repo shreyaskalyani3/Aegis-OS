@@ -53,6 +53,14 @@ fail() {
     exit 1
 }
 
+# An installed system has no live SquashFS to install from and the installer
+# has nothing left to do — say so instead of failing deep inside calamares.
+# (The launchers are removed from the desktop/panel on installed systems; this
+# covers someone running it by hand.)
+if [[ ! -d /run/archiso ]]; then
+    fail "Aegis OS is already installed on this machine — the installer only runs from the live medium."
+fi
+
 have calamares || fail "Calamares is not installed in this image, so there is nothing to install with."
 
 # --- X11 handoff -------------------------------------------------------------

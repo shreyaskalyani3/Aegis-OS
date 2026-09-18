@@ -11,8 +11,14 @@ HISTSIZE=50000
 HISTFILESIZE=50000
 shopt -s histappend checkwinsize
 
-alias ls='ls --color=auto'
-alias ll='ls -lah --color=auto'
+# --icons=auto: file/folder glyphs (Nerd Font), only on a terminal — piped output stays clean
+if command -v eza >/dev/null 2>&1; then
+    alias ls='eza --group-directories-first --icons=auto'
+    alias ll='eza -lah --group-directories-first --git --icons=auto'
+else
+    alias ls='ls --color=auto'
+    alias ll='ls -lah --color=auto'
+fi
 alias grep='grep --color=auto'
 alias update='sudo pacman -Syu'
 alias ai='aegis-ai'

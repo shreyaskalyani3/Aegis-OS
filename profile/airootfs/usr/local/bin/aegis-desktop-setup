@@ -113,4 +113,37 @@ for ini in "${HOME:-}/.config/gtk-3.0/settings.ini" "${HOME:-}/.config/gtk-4.0/s
     patch_ini "${ini}" gtk-icon-theme-name "${ICON_THEME}"
 done
 
+# --- 3. Installed system: hide the installer ----------------------------------
+# The "Install Aegis OS" launcher is a live-medium artifact. On an installed
+# system it is worse than useless — it invites a reinstall aegis-install
+# refuses anyway — so drop it from the desktop and the panel. shellprocess@
+# deskclean already removed these from /etc/skel at install time; this catches
+# homes that predate that fix. Skipped on the live medium, where the launcher
+# is the whole point.
+if [[ ! -d /run/archiso ]]; then
+    rm -f "${HOME:-}/Desktop/aegis-install.desktop"
+    rm -rf "${HOME:-}/.config/xfce4/panel/launcher-8"
+
+    # The panel launcher is wired into xfconf twice: the plugin-8 property and
+    # its id in the plugin-ids array. xfconf-query cannot delete one element of
+    # an array, so read the ids, filter 8 out, and rewrite the whole property
+    # (reset, then recreate with the remaining ids).
+    if xfconf-query -c xfce4-panel -p /plugins/plugin-8 >/dev/null 2>&1; then
+        ids=()
+        while IFS= read -r id; do
+            [[ "${id}" == 8 ]] || ids+=("${id}")
+        done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null || true)
+        if [[ ${#ids[@]} -gt 0 ]]; then
+            args=()
+            for id in "${ids[@]}"; do
+                args+=(-t int -s "${id}")
+            done
+            xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids -r 2>/dev/null || true
+            xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids "${args[@]}" -a --create 2>/dev/null || true
+        fi
+        xfconf-query -c xfce4-panel -p /plugins/plugin-8 -r 2>/dev/null || true
+        log "installed system: removed the Install Aegis OS launcher"
+    fi
+fi
+
 exit 0

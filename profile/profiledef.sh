@@ -62,6 +62,9 @@ file_permissions=(
   # compiles the locales /etc/locale.conf asks for in the installed target
   # (called by shellprocess@bootprep) — must be executable in the image.
   ["/usr/share/aegis/locale-ensure"]="0:0:755"
+  # removes the live-only "Install Aegis OS" launchers from the installed
+  # target's /etc/skel (called by shellprocess@deskclean) — must be executable.
+  ["/usr/share/aegis/drop-install-launcher"]="0:0:755"
   ["/etc/systemd/system/aegis-credentials.service"]="0:0:644"
   ["/etc/systemd/system/aegis-live-setup.service"]="0:0:644"
 )

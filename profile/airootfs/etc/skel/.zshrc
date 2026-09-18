@@ -31,7 +31,7 @@ zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
 # --- Prompt (git-aware, security red) ---------------------------------------
 autoload -Uz vcs_info
 zstyle ':vcs_info:git:*' formats ' %F{244}(%b)%f'
-precmd() { vcs_info }
+precmd() { vcs_info; }
 setopt PROMPT_SUBST
 # 🛡 user@host  path (branch)  ➜
 PROMPT='%F{red}%B🛡%b%f %F{197}%n%f%F{240}@%f%F{31}%m%f %F{247}%~%f${vcs_info_msg_0_}
@@ -39,11 +39,13 @@ PROMPT='%F{red}%B🛡%b%f %F{197}%n%f%F{240}@%f%F{31}%m%f %F{247}%~%f${vcs_info_
 RPROMPT='%(?..%F{red}✘ %?%f)'
 
 # --- Aliases: modern replacements when available ----------------------------
+# --icons=auto: folder/file glyphs from the Nerd Font (JetBrainsMono Nerd is
+# the terminal font), and only when stdout is a terminal — piped ls stays clean.
 if command -v eza >/dev/null; then
-    alias ls='eza --group-directories-first'
-    alias ll='eza -lah --group-directories-first --git'
-    alias la='eza -a'
-    alias lt='eza --tree --level=2'
+    alias ls='eza --group-directories-first --icons=auto'
+    alias ll='eza -lah --group-directories-first --git --icons=auto'
+    alias la='eza -a --icons=auto'
+    alias lt='eza --tree --level=2 --icons=auto'
 else
     alias ll='ls -lah --color=auto'; alias la='ls -A'; alias ls='ls --color=auto'
 fi
