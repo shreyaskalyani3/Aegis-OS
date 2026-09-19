@@ -4,7 +4,7 @@ Version=1.0
 Name=Aegis Tools
 GenericName=Security Tool Manager
 Comment=Browse and install BlackArch security tool groups
-Exec=xfce4-terminal --title=Aegis\ Tools --command="bash -lc aegis-tools"
+Exec=xfce4-terminal --title="Aegis Tools" --command="aegis-run --desc 'Security tool manager' aegis-tools"
 Icon=aegis-tools
 Terminal=false
 StartupNotify=true

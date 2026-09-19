@@ -29,6 +29,7 @@ bar.y = shield.y + shield.height + 36;
 bar.sprite = Sprite(bar.image);
 bar.sprite.SetPosition(bar.x, bar.y, 10);
 bar.t = 0;
+shield.t = 0;    # init before refresh_callback's += — NULL arithmetic is not zero
 
 # --- per-frame refresh: pulse the shield, sweep the bar ------------------------
 # 0.6 Hz sine pulse, floor at 0.55 so the logo never dims to near-invisible;

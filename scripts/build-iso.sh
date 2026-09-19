@@ -172,13 +172,17 @@ fi
 # `splash` turns on the animated plymouth splash (aegis theme, in the
 # initramfs via the plymouth hook); the serial ignore keeps it sane on
 # machines with serial consoles. Live kernel params live in the releng boot
-# cfgs — add to both the syslinux APPEND lines and the grub.cfg linux lines.
+# cfgs — add to the syslinux APPEND lines, the grub.cfg linux lines, AND the
+# systemd-boot options lines (efiboot loader entries — without them a UEFI boot
+# never hands `splash` to the kernel and plymouth never engages).
 for f in "${STAGED_PROFILE}/syslinux/"archiso_sys-linux.cfg \
          "${STAGED_PROFILE}/syslinux/"archiso_pxe-linux.cfg \
-         "${STAGED_PROFILE}/grub/"grub.cfg; do
+         "${STAGED_PROFILE}/grub/"grub.cfg \
+         "${STAGED_PROFILE}/efiboot/loader/entries/"0*.conf; do
     [[ -f "${f}" ]] || continue
     sed -i 's/^APPEND /APPEND quiet splash plymouth.ignore-serial-consoles /;
-            s/^\([[:space:]]*linux[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/' "${f}"
+            s/^\([[:space:]]*linux[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/;
+            s/^\([[:space:]]*options[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/' "${f}"
 done
 # plymouth must be in the LIVE initramfs HOOKS too: the conf.d/archiso.conf
 # drop-in reassigns HOOKS wholesale and sources after our aegis.conf drop-in,

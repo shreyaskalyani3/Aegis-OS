@@ -7,17 +7,19 @@
 #  consults before searching for a locker of its own (so the panel session
 #  button takes this same path too).
 #
-#  Aegis ships no standalone locker and keeps it that way on purpose: the
-#  branded lock screen is the LightDM greeter shown in lock mode by
-#  `dm-tool lock`. But the greeter path cannot be verified to engage under
-#  the live ISO's autologin, and a lock that silently never engages is worse
-#  than none on a security platform — so a real PAM locker is preferred when
-#  one is actually running, and the greeter is the fallback that never fails.
+#  The lock screen is the branded LightDM greeter: `dm-tool lock` switches the
+#  seat to the greeter in lock mode — same aegis wallpaper and layout as the
+#  first-boot login. It is tried FIRST, because that branded screen is what a
+#  lock on Aegis OS is supposed to look like, and it is guaranteed to exist
+#  (lightdm is the display manager of this image).
+#
+#  PAM lockers remain as fallbacks in case the greeter path ever fails — a
+#  lock that silently never engages is worse than none on a security platform.
 #
 #  Order:
-#    1. xfce4-screensaver-command --lock   (ships with xfce4-goodies; autostarts)
-#    2. light-locker-command --lock        (if ever installed)
-#    3. dm-tool lock                       (the branded greeter, always works)
+#    1. dm-tool lock                       (the branded greeter, tried first)
+#    2. xfce4-screensaver-command --lock   (ships with xfce4-goodies)
+#    3. light-locker-command --lock        (if ever installed)
 #    4. xset s activate                    (plain blank, absolute last resort)
 #
 #  Unlocking any of these uses the live password (aegis / aegis) or the
@@ -27,31 +29,32 @@ set -uo pipefail
 
 log(){ printf 'aegis-lock: %s\n' "$*" >&2; }
 
-# 1. XFCE-native locker. Only counts if the daemon is actually up, otherwise
-#    the command exits non-zero and we move on.
+# 1. The branded greeter via LightDM — the lock screen of this image. Works
+#    whenever the session runs under lightdm (X11); from a bare TTY it fails
+#    non-zero and we fall through to a PAM locker.
+if command -v dm-tool >/dev/null 2>&1 && dm-tool lock 2>/dev/null; then
+    exit 0
+fi
+
+# 2. XFCE-native locker (ships with xfce4-goodies). Only counts if the daemon
+#    is actually up, otherwise the command exits non-zero and we move on.
 if command -v xfce4-screensaver-command >/dev/null 2>&1 \
    && xfce4-screensaver-command --lock 2>/dev/null; then
     exit 0
 fi
 
-# 2. light-locker (not shipped, present only if added later).
+# 3. light-locker (not shipped, present only if added later).
 if command -v light-locker-command >/dev/null 2>&1 \
    && light-locker-command --lock 2>/dev/null; then
     exit 0
 fi
 
-# 3. The branded greeter via LightDM. This is the one that is guaranteed to
-#    exist: lightdm is the display manager of this image.
-if command -v dm-tool >/dev/null 2>&1 && dm-tool lock 2>/dev/null; then
-    exit 0
-fi
-
-# 4. Nothing PAM-backed available — blank the screen rather than do nothing.
+# 4. Nothing else available — blank the screen rather than do nothing.
 if command -v xset >/dev/null 2>&1; then
     xset s activate 2>/dev/null || true
     log "no locker found; blanked the screen via xset (this is NOT locked)"
     exit 0
 fi
 
-log "no locker, no dm-tool, no xset — nothing I can do to lock"
+log "no dm-tool, no locker, no xset — nothing I can do to lock"
 exit 1

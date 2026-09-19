@@ -33,7 +33,7 @@ recent-items-max=10
 favorites-in-recent=true
 display-recent-default=false
 
-favorites=xfce4-terminal-emulator.desktop,aegis-tools.desktop,aegis-ai.desktop,aegis-setup.desktop,aegis-install.desktop,firefox.desktop,thunar.desktop
+favorites=aegis-terminal.desktop,aegis-tools.desktop,aegis-ai.desktop,aegis-setup.desktop,firefox.desktop,thunar.desktop
 
 show-command-settings=true
 show-command-lockscreen=true

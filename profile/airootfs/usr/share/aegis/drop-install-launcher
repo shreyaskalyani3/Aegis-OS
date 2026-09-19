@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  drop-install-launcher — remove the live-only installer launchers from the
-#  installed target's skeleton, so the user created from it never sees an
-#  "Install Aegis OS" icon on the desktop or in the panel.
+#  installed target, so the user created from it never sees an "Install Aegis
+#  OS" icon on the desktop, in the panel, or in the menu's application list.
 #
 #  Runs inside the Calamares target chroot (shellprocess@deskclean), BEFORE the
 #  users module copies /etc/skel to the new user's home. The live medium keeps
@@ -19,9 +19,11 @@ log(){ printf 'drop-install-launcher: %s\n' "$*" >&2; }
 DESKTOP=/etc/skel/Desktop/aegis-install.desktop
 LAUNCHER=/etc/skel/.config/xfce4/panel/launcher-8
 PANEL_XML=/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+APPENTRY=/usr/share/applications/aegis-install.desktop
 
 rm -f "$DESKTOP" && log "removed $DESKTOP"
 rm -rf "$LAUNCHER" && log "removed $LAUNCHER"
+rm -f "$APPENTRY" && log "removed $APPENTRY (menu application entry)"
 
 if [[ -f "$PANEL_XML" ]]; then
     python3 - "$PANEL_XML" <<'PYEOF'
@@ -56,7 +58,7 @@ PYEOF
 fi
 
 # --- Prove the job is done ----------------------------------------------------
-if [[ ! -e "$DESKTOP" && ! -e "$LAUNCHER" ]] \
+if [[ ! -e "$DESKTOP" && ! -e "$LAUNCHER" && ! -e "$APPENTRY" ]] \
    && ! grep -q '"plugin-8"' "$PANEL_XML" 2>/dev/null; then
     log "install launchers dropped from the installed target"
     exit 0
