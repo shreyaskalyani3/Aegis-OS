@@ -109,6 +109,29 @@ step "4/6 Staging profile"
 rm -rf "${STAGED_PROFILE}"
 cp -a "${REPO_ROOT}/${AEGIS_PROFILE_DIR}" "${STAGED_PROFILE}"
 
+# --- Oh My Zsh: vendor the zsh framework into the image ----------------------
+# Cloned at build time so every Aegis user gets the full terminal — the custom
+# aegis theme + AI-agent plugin live in oh-my-zsh-custom (also in the image).
+# Shipped immutable: .git stripped, update prompts disabled in .zshrc. On a
+# failed clone .zshrc falls back to the plain Aegis prompt, so this never
+# breaks the build.
+OHMYZSH="${STAGED_PROFILE}/airootfs/usr/share/oh-my-zsh"
+if [[ ! -d "${OHMYZSH}" ]]; then
+    if git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "${OHMYZSH}"; then
+        rm -rf "${OHMYZSH}/.git" "${OHMYZSH}/.github"
+        # compaudit-safe perms: oh-my-zsh refuses completions from world-writable
+        # dirs, and the staged airootfs inherits whatever the build host gives it.
+        chmod -R go-w "${OHMYZSH}" \
+            "${STAGED_PROFILE}/airootfs/usr/share/oh-my-zsh-custom" 2>/dev/null || true
+        log "vendored oh-my-zsh into the image (aegis theme + agent plugin)"
+    else
+        warn "oh-my-zsh clone failed — .zshrc falls back to the plain Aegis prompt"
+        rm -rf "${OHMYZSH}"
+    fi
+else
+    log "oh-my-zsh already vendored"
+fi
+
 # Boot menus (efiboot/syslinux/grub) are pulled from the upstream, known-good
 # `releng` profile and rebranded — more robust than hand-maintaining bootloader
 # configs. Ship your own dirs in profile/ to override this.
