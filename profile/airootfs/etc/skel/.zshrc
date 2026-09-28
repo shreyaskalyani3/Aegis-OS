@@ -87,9 +87,16 @@ command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 [[ -r /usr/share/fzf/completion.zsh ]] && source /usr/share/fzf/completion.zsh
 
 # --- Greeting (interactive shells) -------------------------------------------
+# fastfetch first — the ANSI-colored Aegis shield beside the system spec sheet
+# (custom config ships in ~/.config/fastfetch); aegis-motd is the fallback
+# when fastfetch or its config is absent (e.g. an offline rebuild).
 if [[ -o interactive && -z "$AEGIS_MOTD_SHOWN" ]]; then
     export AEGIS_MOTD_SHOWN=1
-    command -v aegis-motd >/dev/null && aegis-motd
+    if command -v fastfetch >/dev/null 2>&1 && [[ -r "$HOME/.config/fastfetch/config.jsonc" ]]; then
+        fastfetch
+    elif command -v aegis-motd >/dev/null; then
+        aegis-motd
+    fi
 fi
 
 # syntax highlighting last (if installed)

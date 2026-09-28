@@ -132,6 +132,18 @@ else
     log "oh-my-zsh already vendored"
 fi
 
+# --- fastfetch: ship the config system-wide too ------------------------------
+# /etc/fastfetch/config.jsonc is on fastfetch's config search path, so root's
+# terminal gets the branded screen as well; per-user configs (from /etc/skel)
+# take precedence. Single source: copied from the skel config at build time.
+FF_SKEL="${STAGED_PROFILE}/airootfs/etc/skel/.config/fastfetch/config.jsonc"
+FF_ETC="${STAGED_PROFILE}/airootfs/etc/fastfetch/config.jsonc"
+if [[ -f "${FF_SKEL}" ]]; then
+    mkdir -p "$(dirname "${FF_ETC}")"
+    cp -f "${FF_SKEL}" "${FF_ETC}"
+    log "fastfetch config shipped system-wide (/etc/fastfetch)"
+fi
+
 # Boot menus (efiboot/syslinux/grub) are pulled from the upstream, known-good
 # `releng` profile and rebranded — more robust than hand-maintaining bootloader
 # configs. Ship your own dirs in profile/ to override this.
