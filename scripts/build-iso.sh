@@ -35,7 +35,7 @@ mkdir -p "${WORK}" "${OUT}" "${LOCALREPO}"
 step "1/6 Installing build dependencies"
 pacman -Sy --needed --noconfirm archlinux-keyring
 pacman -S  --needed --noconfirm archiso base-devel git squashfs-tools libisoburn \
-    dosfstools erofs-utils grub mtools sudo curl
+    dosfstools erofs-utils grub mtools sudo curl imagemagick
 ok "build dependencies present"
 
 # Ensure an unprivileged build user exists (makepkg refuses to run as root).
@@ -142,6 +142,43 @@ if [[ -f "${FF_SKEL}" ]]; then
     mkdir -p "$(dirname "${FF_ETC}")"
     cp -f "${FF_SKEL}" "${FF_ETC}"
     log "fastfetch config shipped system-wide (/etc/fastfetch)"
+fi
+
+# --- HiTech-arch-animation: alternate plymouth boot animation ----------------
+# Cloned at build time; the upstream 2560x1440 PNG frames are ~350MB, so they
+# are downscaled to 1920x1080 and palette-quantized (~51MB, visually
+# identical — verified, no banding on the neon glow). Ships alongside the
+# aegis theme as an alternate: AEGIS_PLYMOUTH_THEME selects the boot default
+# at build time (live + installed, via plymouthd.conf), and
+# plymouth-set-default-theme -R <theme> switches it on an installed system.
+HITECH_DIR="${STAGED_PROFILE}/airootfs/usr/share/plymouth/themes/hitech-arch-animation"
+if [[ ! -d "${HITECH_DIR}" ]] && command -v magick >/dev/null 2>&1; then
+    hitech_tmp="$(mktemp -d)"
+    if git clone -q --depth=1 https://github.com/xDeFc0nx/HiTech-arch-animation.git "${hitech_tmp}"; then
+        mkdir -p "${HITECH_DIR}"
+        for frame in "${hitech_tmp}"/progress-*.png; do
+            magick "${frame}" -resize 1920x1080 -colors 256 \
+                "PNG8:${HITECH_DIR}/$(basename "${frame}")"
+        done
+        cp -f "${hitech_tmp}/animated-boot.script" \
+              "${hitech_tmp}/hitech-arch-animation.plymouth" "${HITECH_DIR}/"
+        install -Dm644 "${hitech_tmp}/LICENSE" \
+            "${STAGED_PROFILE}/airootfs/usr/share/licenses/hitech-arch-animation/LICENSE"
+        log "vendored hitech-arch-animation (148 frames, 1920x1080 PNG8)"
+    else
+        warn "hitech-arch-animation clone failed — shipping the aegis splash only"
+    fi
+    rm -rf "${hitech_tmp}"
+fi
+
+# plymouthd.conf: which theme the live + installed systems boot with (only
+# applied when the selected theme actually shipped — a missing theme would
+# leave plymouth with nothing to draw).
+THEME_SEL="${AEGIS_PLYMOUTH_THEME:-aegis}"
+if [[ -d "${STAGED_PROFILE}/airootfs/usr/share/plymouth/themes/${THEME_SEL}" ]]; then
+    sed -i "s/^Theme=.*/Theme=${THEME_SEL}/" \
+        "${STAGED_PROFILE}/airootfs/etc/plymouth/plymouthd.conf" 2>/dev/null || true
+    log "plymouth boot theme: ${THEME_SEL}"
 fi
 
 # Boot menus (efiboot/syslinux/grub) are pulled from the upstream, known-good
