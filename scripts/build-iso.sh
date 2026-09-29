@@ -361,8 +361,17 @@ fi
 PKG_CACHE="${STAGED_PROFILE}/airootfs/usr/share/aegis/packages"
 install -d -m 0755 "${PKG_CACHE}"
 KERNEL_PKGS="linux intel-ucode amd-ucode grub"
-pacman -Sw --noconfirm --cachedir "${PKG_CACHE}" ${KERNEL_PKGS} \
-    || die "could not pre-download kernel packages for offline install"
+# Since pacman 6.1 the actual download runs as an unprivileged user
+# (DownloadUser, default alpm) — it must be able to TRAVERSE the cache path,
+# and dies with "failed to setup a download payload ... Permission denied"
+# when the cache sits under /root (mode 0700) or a 0755 workspace. Download
+# to a /tmp dir open to everyone, then copy the finished packages in as root.
+dl_tmp="$(mktemp -d /tmp/aegis-kerneldl.XXXXXX)"
+chmod 0777 "${dl_tmp}"
+pacman -Sw --noconfirm --cachedir "${dl_tmp}" ${KERNEL_PKGS} \
+    || { rm -rf "${dl_tmp}"; die "could not pre-download kernel packages for offline install"; }
+cp -a "${dl_tmp}"/. "${PKG_CACHE}/"
+rm -rf "${dl_tmp}"
 # Signatures are deleted on purpose: LocalFileSigLevel=Optional means the
 # target never verifies local packages, and a stray .sig would make the
 # installer's glob match non-package files ("Unrecognized archive format")
@@ -371,6 +380,8 @@ pacman -Sw --noconfirm --cachedir "${PKG_CACHE}" ${KERNEL_PKGS} \
 rm -f "${PKG_CACHE}"/*.sig
 # Databases might be fetched too; the installer only wants package files.
 rm -f "${PKG_CACHE}"/{core,extra,multilib,blackarch}.db*
+# Pacman's download staging dirs (download-XXXX) must not ship in the ISO
+rm -rf "${PKG_CACHE}"/download-*
 # Verify every must-have package is present in the cache.
 for must in linux intel-ucode amd-ucode grub; do
     ls "${PKG_CACHE}"/${must}-*.pkg.tar.zst >/dev/null 2>&1 \
