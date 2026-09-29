@@ -83,18 +83,35 @@ fi
 # -----------------------------------------------------------------------------
 step "3/6 Building custom aegis-* packages"
 rm -f "${LOCALREPO}"/*.pkg.tar.* "${LOCALREPO}"/${AEGIS_LOCAL_REPO_NAME}.* 2>/dev/null || true
-chown -R "${BUILD_USER}:${BUILD_USER}" "${REPO_ROOT}/${AEGIS_PACKAGES_DIR}" "${LOCALREPO}"
+chown -R "${BUILD_USER}:${BUILD_USER}" "${LOCALREPO}"
+
+# makepkg runs as the unprivileged ${BUILD_USER}, so it must be able to reach
+# the package tree — which it can't when the repo lives somewhere like /root
+# (mode 0700; the field failure: "Failed to create the directory $BUILDDIR")
+# or on an NTFS mount. Stage the tree to /tmp (always traversable) and build
+# there. A stray inherited BUILDDIR is stripped so makepkg builds in its
+# startdir instead of trying to create one it has no rights to.
+pkg_stage="$(mktemp -d /tmp/aegis-pkgstage.XXXXXX)"
+cp -a "${REPO_ROOT}/${AEGIS_PACKAGES_DIR}" "${pkg_stage}/packages"
+# The PKGBUILDs read ../../aegis.conf (and VERSION) relative to their startdir
+# — stage those beside packages/ so the relative lookup survives the move and
+# version pinning doesn't silently fall back to the build date.
+cp -f "${REPO_ROOT}/aegis.conf" "${pkg_stage}/aegis.conf"
+[[ -f "${REPO_ROOT}/VERSION" ]] && cp -f "${REPO_ROOT}/VERSION" "${pkg_stage}/VERSION"
+chown -R "${BUILD_USER}:${BUILD_USER}" "${pkg_stage}"
 
 built_any=0
-for pkgdir in "${REPO_ROOT}/${AEGIS_PACKAGES_DIR}"/*/; do
+for pkgdir in "${pkg_stage}/packages"/*/; do
     [[ -f "${pkgdir}/PKGBUILD" ]] || continue
     name="$(basename "${pkgdir}")"
     log "makepkg: ${name}"
-    ( cd "${pkgdir}" && sudo -u "${BUILD_USER}" env AEGIS_VERSION="${VERSION}" \
+    ( cd "${pkgdir}" && sudo -u "${BUILD_USER}" env -u BUILDDIR AEGIS_VERSION="${VERSION}" \
         makepkg -f --noconfirm --nodeps --skipinteg )
     cp "${pkgdir}"/*.pkg.tar.* "${LOCALREPO}/"
     built_any=1
 done
+
+rm -rf "${pkg_stage}"
 
 if [[ "${built_any}" -eq 1 ]]; then
     ( cd "${LOCALREPO}" && repo-add "${AEGIS_LOCAL_REPO_NAME}.db.tar.zst" ./*.pkg.tar.* )
