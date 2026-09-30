@@ -126,6 +126,18 @@ step "4/6 Staging profile"
 rm -rf "${STAGED_PROFILE}"
 cp -a "${REPO_ROOT}/${AEGIS_PROFILE_DIR}" "${STAGED_PROFILE}"
 
+# Normalize CRLF out of the staged profile. The .gitattributes requests LF,
+# but a working tree edited with a Windows tool or copied from a Windows
+# checkout keeps CRLF (git compares normalized content and considers the file
+# clean, so pulls never rewrite it) — and that breaks mkarchiso's exact-match
+# boot-package validation ("The 'syslinux' package is missing from the
+# package list!") and the live system's shell scripts ("bad interpreter:
+# /bin/bash^M"). grep -I skips binaries, so theme PNGs/fonts are never touched.
+grep -rIl $'\r$' "${STAGED_PROFILE}" 2>/dev/null | while read -r f; do
+    sed -i 's/\r$//' "$f"
+    log "normalized CRLF: ${f#"${STAGED_PROFILE}/"}"
+done
+
 # --- Oh My Zsh: vendor the zsh framework into the image ----------------------
 # Cloned at build time so every Aegis user gets the full terminal — the custom
 # aegis theme + AI-agent plugin live in oh-my-zsh-custom (also in the image).
