@@ -404,6 +404,85 @@ ok "offline-install kernel cache: $(ls "${PKG_CACHE}")"
 # package inside the airootfs — mkarchiso moves it out of the SquashFS into
 # the ISO's boot dir itself, so live boot is unaffected by this cache.
 
+# Expand the appended BlackArch groups into individual package names, dropping
+# any member whose dependencies the configured repos cannot satisfy. Upstream
+# removes tools at any time (vagrant left the Arch repos, which stranded
+# malboxes inside blackarch-malware), and one unresolvable name aborts the
+# whole pacstrap: "unable to satisfy dependency 'vagrant' required by
+# malboxes ==> ERROR: Failed to install packages to new root". pacstrap
+# expands group names itself, so a dead member inside a group cannot be
+# filtered out afterwards — the groups must be expanded here, before the build.
+# pacman -Sp (print) runs the same transaction preparation pacstrap does and
+# fails identically; its stdout carries the ":: unable to satisfy dependency
+# 'X' required by Y" detail lines that name exactly what to drop.
+_append_filtered_blackarch() {
+    local pkgfile="$1"; shift
+    local group members survivors drops out attempt verbatim
+    local filter_db synced=0
+
+    filter_db="$(mktemp -d /tmp/aegis-pkgfilter.XXXXXX)"
+    # Refresh a private copy of the sync databases so the resolvability test
+    # sees exactly what pacstrap will see (same config, fresh -Sy) without
+    # touching the host's own database state.
+    if pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sy >/dev/null 2>&1; then
+        synced=1
+    else
+        warn "could not refresh the package databases — appending groups verbatim (build may fail; please report)"
+    fi
+
+    for group in "$@"; do
+        if [[ "${synced}" -eq 0 ]]; then
+            printf '%s\n' "${group}" >> "${pkgfile}"
+            continue
+        fi
+        members="$(pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sg "${group}" 2>/dev/null | awk '{print $2}')"
+        if [[ -z "${members}" ]]; then
+            warn "${group}: not found upstream — dropping the group"
+            continue
+        fi
+
+        survivors="${members}"
+        verbatim=0
+        attempt=0
+        while :; do
+            attempt=$((attempt + 1))
+            # shellcheck disable=SC2086  # intentional word-split: one member per arg
+            if out="$(pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sp --noconfirm ${survivors} 2>&1)"; then
+                break
+            fi
+            # stdout carries ":: unable to satisfy dependency 'D' required by M"
+            # (M drags the dead dependency D in); stderr carries
+            # "error: target not found: M" (M itself is gone).
+            drops="$(printf '%s\n' "${out}" | grep -oE "required by [a-z0-9@._+-]+" | awk '{print $3}' | sort -u)"
+            if [[ -z "${drops}" ]]; then
+                drops="$(printf '%s\n' "${out}" | grep -oE "target not found: [a-z0-9@._+-]+" | awk '{print $4}' | sort -u)"
+            fi
+            if [[ -z "${drops}" || "${attempt}" -ge 20 ]]; then
+                warn "${group}: could not fully verify resolvability — leaving the group as-is (build may fail; please report)"
+                survivors=""
+                verbatim=1
+                break
+            fi
+            # Whole-line fixed-string match: a drop that is a substring of
+            # another name (john vs john-jumbo) must not corrupt survivors.
+            survivors="$(printf '%s\n' ${survivors} | grep -vxF -f <(printf '%s\n' ${drops}))"
+            if [[ -z "${survivors//[[:space:]]/}" ]]; then
+                warn "${group}: every member's dependencies are unresolvable — dropping the group"
+                survivors=""
+                break
+            fi
+        done
+
+        if [[ "${verbatim}" -eq 1 ]]; then
+            printf '%s\n' "${group}" >> "${pkgfile}"
+        elif [[ -n "${survivors//[[:space:]]/}" ]]; then
+            printf '%s\n' ${survivors} >> "${pkgfile}"
+        fi
+    done
+
+    rm -rf "${filter_db}"
+}
+
 # --- Bake in the requested breadth of the BlackArch arsenal ------------------
 # AEGIS_TOOL_SET selects how much ships inside the ISO:
 #   lean  = the curated always-on set only (already in packages.x86_64)
@@ -418,15 +497,14 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
             ok "tool set: lean — curated baked-in set only"
             ;;
         broad)
-            {
-                printf '\n# --- AEGIS_TOOL_SET=broad: major BlackArch category groups ---\n'
-                # shellcheck disable=SC2086  # intentional word-split: one group per line
-                printf '%s\n' ${AEGIS_BLACKARCH_GROUPS}
-            } >> "${PKGS}"
+            printf '\n# --- AEGIS_TOOL_SET=broad: major BlackArch category groups ---\n' >> "${PKGS}"
+            # shellcheck disable=SC2086  # intentional word-split: one group per arg
+            _append_filtered_blackarch "${PKGS}" ${AEGIS_BLACKARCH_GROUPS}
             ok "tool set: broad — baking in groups: ${AEGIS_BLACKARCH_GROUPS}"
             ;;
         full)
-            printf '\n# --- AEGIS_TOOL_SET=full: the entire BlackArch arsenal ---\nblackarch\n' >> "${PKGS}"
+            printf '\n# --- AEGIS_TOOL_SET=full: the entire BlackArch arsenal ---\n' >> "${PKGS}"
+            _append_filtered_blackarch "${PKGS}" blackarch
             warn "tool set: full — baking in the ENTIRE blackarch group (~2800 pkgs)."
             warn "This needs a large-disk Linux host; GitHub Actions will likely run out of space."
             ;;
