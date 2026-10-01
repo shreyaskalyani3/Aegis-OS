@@ -10,7 +10,7 @@
 #   1. the field failure exists (pacman -Sp fails like pacstrap did)
 #   2. after the filter: boot packages untouched, no bare group lines remain,
 #      the dead member is gone, and every group's survivors resolve
-#   3. the fail-open path: an un-syncable environment appends groups verbatim
+#   3. an un-syncable environment is fatal (no silent unfiltered fallback)
 #
 # Run inside WSL as root.
 set -u
@@ -18,6 +18,10 @@ set -u
 FAILURES=0
 note() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*"; FAILURES=$((FAILURES + 1)); }
+# The replicated helper calls die (like build-iso.sh's, via common.sh) — it
+# must exist here too, or every die call is a silent command-not-found and the
+# helper "succeeds" after the failure.
+die() { printf 'FATAL: %s\n' "$*" >&2; exit 1; }
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 T="$(mktemp -d /tmp/aegis-pkglist-test.XXXXXX)"
@@ -81,13 +85,23 @@ fi
 _append_filtered_blackarch() {
     local pkgfile="$1"; shift
     local group members survivors drops out attempt verbatim
-    local filter_db synced=0
+    local filter_db synced=0 contributed=0
 
     filter_db="$(mktemp -d /tmp/aegis-pkgfilter.XXXXXX)"
-    if pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sy >/dev/null 2>&1; then
-        synced=1
-    else
-        warn "could not refresh the package databases — appending groups verbatim (build may fail; please report)"
+    synced=0
+    for _try in 1 2 3 4 5; do
+        # -Sy exits 0 even when an Include file is missing (warning only), so a
+        # bare exit code cannot be trusted — require actual .db files on disk.
+        if pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sy >/dev/null 2>&1 \
+           && ls "${filter_db}"/sync/*.db >/dev/null 2>&1; then
+            synced=1
+            break
+        fi
+        warn "database refresh failed (try ${_try}/5) — retrying in 10s"
+        sleep 10
+    done
+    if [[ "${synced}" -eq 0 ]]; then
+        die "the resolvability filter could not refresh the package databases (network?) — rerun the build on a working connection, or set AEGIS_TOOL_SET=lean to build without the BlackArch groups"
     fi
 
     for group in "$@"; do
@@ -130,10 +144,22 @@ _append_filtered_blackarch() {
 
         if [[ "${verbatim}" -eq 1 ]]; then
             printf '%s\n' "${group}" >> "${pkgfile}"
+            contributed=1
         elif [[ -n "${survivors//[[:space:]]/}" ]]; then
             printf '%s\n' ${survivors} >> "${pkgfile}"
+            contributed=1
         fi
     done
+
+    # Nothing contributed means the filter was blind (databases not covering
+    # the configured groups) or every member is genuinely gone — either way
+    # the ISO must not silently ship while claiming these tools. (The pkgfile
+    # itself is never empty in a real build — the curated list is already
+    # there — so this must check the helper's own contribution.)
+    if [[ "${contributed}" -eq 0 ]]; then
+        rm -rf "${filter_db}"
+        die "no BlackArch packages survived the resolvability filter — rerun the build on a working connection, or set AEGIS_TOOL_SET=lean to build without the BlackArch groups"
+    fi
 
     rm -rf "${filter_db}"
 }
@@ -201,16 +227,18 @@ for g in ${GROUP_LIST}; do
 done
 note "per-group survivor transactions checked"
 
-# --- 3. fail-open: an un-syncable environment falls back to verbatim groups ---
+# --- 3. no silent fallback: an un-syncable environment must be fatal ----------
+# A verbatim-group build dies at pacstrap's dependency resolution before
+# downloading anything anyway, so failing fast with a clear reason is strictly
+# better than silently appending unfiltered groups.
 STAGED_PROFILE="${T}/profile2"
 mkdir -p "${STAGED_PROFILE}"
 printf '[options]\nArchitecture = auto\n[core]\nInclude = /nonexistent/mirrorlist\n' > "${STAGED_PROFILE}/pacman.conf"
 : > "${T}/fallback.x86_64"
-_append_filtered_blackarch "${T}/fallback.x86_64" ${GROUP_LIST}
-if grep -qxF blackarch-malware "${T}/fallback.x86_64"; then
-    note "fail-open fallback OK (un-syncable env appends groups verbatim)"
+if ( _append_filtered_blackarch "${T}/fallback.x86_64" ${GROUP_LIST} ) >/dev/null 2>&1; then
+    fail "un-syncable env must be fatal — the helper returned success"
 else
-    fail "fail-open fallback broken — an un-syncable env must append groups verbatim"
+    note "un-syncable env is fatal as designed (no silent fallback)"
 fi
 
 rm -rf "${T}"

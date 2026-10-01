@@ -418,23 +418,33 @@ ok "offline-install kernel cache: $(ls "${PKG_CACHE}")"
 _append_filtered_blackarch() {
     local pkgfile="$1"; shift
     local group members survivors drops out attempt verbatim
-    local filter_db synced=0
+    local filter_db synced=0 contributed=0
 
     filter_db="$(mktemp -d /tmp/aegis-pkgfilter.XXXXXX)"
     # Refresh a private copy of the sync databases so the resolvability test
     # sees exactly what pacstrap will see (same config, fresh -Sy) without
-    # touching the host's own database state.
-    if pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sy >/dev/null 2>&1; then
-        synced=1
-    else
-        warn "could not refresh the package databases — appending groups verbatim (build may fail; please report)"
+    # touching the host's own database state. Retried, and fatal when all
+    # retries fail: without the databases the dead-member filter is blind,
+    # and silently appending unfiltered groups only moves the failure to
+    # pacstrap ("unable to satisfy dependency 'vagrant' required by
+    # malboxes") after the same network outage — with no explanation.
+    synced=0
+    for _try in 1 2 3 4 5; do
+        # -Sy exits 0 even when an Include file is missing (warning only), so a
+        # bare exit code cannot be trusted — require actual .db files on disk.
+        if pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sy >/dev/null 2>&1 \
+           && ls "${filter_db}"/sync/*.db >/dev/null 2>&1; then
+            synced=1
+            break
+        fi
+        warn "database refresh failed (try ${_try}/5) — retrying in 10s"
+        sleep 10
+    done
+    if [[ "${synced}" -eq 0 ]]; then
+        die "the resolvability filter could not refresh the package databases (network?) — rerun the build on a working connection, or set AEGIS_TOOL_SET=lean to build without the BlackArch groups"
     fi
 
     for group in "$@"; do
-        if [[ "${synced}" -eq 0 ]]; then
-            printf '%s\n' "${group}" >> "${pkgfile}"
-            continue
-        fi
         members="$(pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sg "${group}" 2>/dev/null | awk '{print $2}')"
         if [[ -z "${members}" ]]; then
             warn "${group}: not found upstream — dropping the group"
@@ -475,10 +485,22 @@ _append_filtered_blackarch() {
 
         if [[ "${verbatim}" -eq 1 ]]; then
             printf '%s\n' "${group}" >> "${pkgfile}"
+            contributed=1
         elif [[ -n "${survivors//[[:space:]]/}" ]]; then
             printf '%s\n' ${survivors} >> "${pkgfile}"
+            contributed=1
         fi
     done
+
+    # Nothing contributed means the filter was blind (databases not covering
+    # the configured groups) or every member is genuinely gone — either way
+    # the ISO must not silently ship while claiming these tools. (The pkgfile
+    # itself is never empty in a real build — the curated list is already
+    # there — so this must check the helper's own contribution.)
+    if [[ "${contributed}" -eq 0 ]]; then
+        rm -rf "${filter_db}"
+        die "no BlackArch packages survived the resolvability filter — rerun the build on a working connection, or set AEGIS_TOOL_SET=lean to build without the BlackArch groups"
+    fi
 
     rm -rf "${filter_db}"
 }

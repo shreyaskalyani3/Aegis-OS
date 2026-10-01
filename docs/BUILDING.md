@@ -91,8 +91,10 @@ packages, stages the profile, and runs `mkarchiso`.
 4. **Stage the profile** — copy `profile/`, import & rebrand the known-good
    `releng` boot configs (`efiboot`/`syslinux`/`grub`) and the critical
    `mkinitcpio` files, inject the local-repo path, stamp the version, append the
-   `AEGIS_TOOL_SET` tool groups, enable systemd services, and (if BlackArch is
-   off) strip BlackArch-only entries.
+   `AEGIS_TOOL_SET` tool groups (expanded to individual members, with any whose
+   dependencies are gone from the repos dropped — one dead member would
+   otherwise abort the whole pacstrap), enable systemd services, and (if
+   BlackArch is off) strip BlackArch-only entries.
 5. **`mkarchiso`** — assemble the SquashFS + bootloaders into a hybrid ISO.
 6. **Checksum** — write a `.sha256` next to the ISO.
 
