@@ -14,6 +14,18 @@
 #    6. checksum the result
 # =============================================================================
 
+# Pin the build's locale (exported so every child — pacman, repo-add/bsdtar,
+# makepkg, mkarchiso — inherits it):
+#   * pacman's diagnostics ("required by", "target not found") must stay in
+#     English for the resolvability filter's parser below; a localized host
+#     would translate them and blind the filter.
+#   * a host LANG pointing at an ungenerated locale (WSL commonly sets
+#     LANG=en_US.UTF-8 while only generating C) makes bsdtar/libarchive warn
+#     "Failed to set default locale" on every repo-add.
+# C.UTF-8 is built into glibc on every current Arch system — no locale-gen
+# needed, and the build no longer depends on how the host configured locales.
+export LC_ALL=C.UTF-8
+
 # shellcheck source=lib/common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
