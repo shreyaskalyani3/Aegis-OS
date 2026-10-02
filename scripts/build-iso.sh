@@ -45,8 +45,8 @@ mkdir -p "${WORK}" "${OUT}" "${LOCALREPO}"
 
 # -----------------------------------------------------------------------------
 step "1/6 Installing build dependencies"
-pacman -Sy --needed --noconfirm archlinux-keyring
-pacman -S  --needed --noconfirm archiso base-devel git squashfs-tools libisoburn \
+retry "archlinux-keyring install" pacman -Sy --needed --noconfirm archlinux-keyring
+retry "build-dependency install" pacman -S  --needed --noconfirm archiso base-devel git squashfs-tools libisoburn \
     dosfstools erofs-utils grub mtools sudo curl imagemagick
 ok "build dependencies present"
 
@@ -64,23 +64,23 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
     if ! grep -q '^\[blackarch\]' /etc/pacman.conf; then
         log "bootstrapping BlackArch via strap.sh"
         tmp_strap="$(mktemp)"
-        curl -fsSL "${AEGIS_BLACKARCH_STRAP_URL}" -o "${tmp_strap}"
+        retry "BlackArch strap.sh download" curl -fsSL "${AEGIS_BLACKARCH_STRAP_URL}" -o "${tmp_strap}"
         chmod +x "${tmp_strap}"
         # strap.sh adds [blackarch], installs blackarch-keyring & blackarch-mirrorlist
-        "${tmp_strap}"
+        retry "BlackArch keyring bootstrap" "${tmp_strap}"
         rm -f "${tmp_strap}"
         ok "BlackArch enabled in build environment"
     else
         ok "BlackArch already configured"
     fi
-    pacman -Sy --noconfirm
+    retry "sync database refresh" pacman -Sy --noconfirm
 else
     warn "BlackArch disabled (AEGIS_ENABLE_BLACKARCH=0) — blackarch-only tools will be stripped"
 fi
 
 if [[ "${AEGIS_ENABLE_CHAOTIC}" -eq 1 ]] && ! grep -q '^\[chaotic-aur\]' /etc/pacman.conf; then
     log "enabling Chaotic-AUR"
-    pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
+    retry "Chaotic-AUR key fetch" pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
     pacman-key --lsign-key 3056513887B78AEB
     pacman -U --noconfirm \
         'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' \
@@ -392,8 +392,7 @@ KERNEL_PKGS="linux intel-ucode amd-ucode grub"
 # to a /tmp dir open to everyone, then copy the finished packages in as root.
 dl_tmp="$(mktemp -d /tmp/aegis-kerneldl.XXXXXX)"
 chmod 0777 "${dl_tmp}"
-pacman -Sw --noconfirm --cachedir "${dl_tmp}" ${KERNEL_PKGS} \
-    || { rm -rf "${dl_tmp}"; die "could not pre-download kernel packages for offline install"; }
+retry "kernel pre-download" pacman -Sw --noconfirm --cachedir "${dl_tmp}" ${KERNEL_PKGS}
 cp -a "${dl_tmp}"/. "${PKG_CACHE}/"
 rm -rf "${dl_tmp}"
 # Signatures are deleted on purpose: LocalFileSigLevel=Optional means the

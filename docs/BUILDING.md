@@ -115,6 +115,7 @@ Output: `out/aegis-*.iso` and `out/aegis-*.iso.sha256`.
 | `AEGIS_LIVE_USER` / `_PASSWORD` | live-session credentials (default `aegis`/`aegis`) |
 | `AEGIS_DESKTOP` | desktop environment (wired for `xfce`) |
 | `AEGIS_PLYMOUTH_THEME` | plymouth boot animation: `aegis` (default) or `hitech-arch-animation` (neon Arch boot animation, vendored at build time) |
+| `AEGIS_NET_RETRIES` | attempts each network call gets before the build gives up (default 5) |
 
 Set them in `aegis.conf`, or override per-build via the environment, e.g.:
 

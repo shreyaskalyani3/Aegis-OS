@@ -32,6 +32,24 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || die "required command not fou
 require_root() { [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "this must run as root (use sudo)"; }
 is_arch() { [[ -f /etc/arch-release ]]; }
 
+# --- Network retries ----------------------------------------------------------
+# Field failures were all one-shot network calls that died on a transient blip
+# (the deps install, the BlackArch sync, the kernel pre-download) — a retry
+# window turns most of those into a successful build. Die with a clear remedy
+# only when every attempt fails.
+retry() {
+    local tries="${AEGIS_NET_RETRIES:-5}" wait_secs=10 i=0
+    local label="$1"; shift
+    until "$@"; do
+        i=$((i + 1))
+        if [[ "${i}" -ge "${tries}" ]]; then
+            die "${label}: failed after ${tries} attempts (network?) — rerun the build on a working connection"
+        fi
+        warn "${label}: attempt ${i}/${tries} failed — retrying in ${wait_secs}s"
+        sleep "${wait_secs}"
+    done
+}
+
 # --- Resolved values ----------------------------------------------------------
 resolve_version() {
     if [[ -n "${AEGIS_VERSION}" ]]; then
