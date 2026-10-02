@@ -95,7 +95,10 @@ packages, stages the profile, and runs `mkarchiso`.
    dependencies are gone from the repos dropped — one dead member would
    otherwise abort the whole pacstrap), enable systemd services, and (if
    BlackArch is off) strip BlackArch-only entries.
-5. **`mkarchiso`** — assemble the SquashFS + bootloaders into a hybrid ISO.
+5. **Pre-download + `mkarchiso`** — every package the ISO needs is
+   pre-downloaded into the host pacman cache (retried and resumable, so a
+   flaky network can't kill the assembly), then `mkarchiso` assembles the
+   SquashFS + bootloaders into a hybrid ISO.
 6. **Checksum** — write a `.sha256` next to the ISO.
 
 Output: `out/aegis-*.iso` and `out/aegis-*.iso.sha256`.

@@ -64,7 +64,10 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
     if ! grep -q '^\[blackarch\]' /etc/pacman.conf; then
         log "bootstrapping BlackArch via strap.sh"
         tmp_strap="$(mktemp)"
-        retry "BlackArch strap.sh download" curl -fsSL "${AEGIS_BLACKARCH_STRAP_URL}" -o "${tmp_strap}"
+        # --max-time: curl has no stall abort either — a stalled connection
+        # must not hang the retry loop (the strap script is tiny; 60s is ample).
+        retry "BlackArch strap.sh download" curl -fsSL --max-time 60 --retry 3 \
+            "${AEGIS_BLACKARCH_STRAP_URL}" -o "${tmp_strap}"
         chmod +x "${tmp_strap}"
         # strap.sh adds [blackarch], installs blackarch-keyring & blackarch-mirrorlist
         retry "BlackArch keyring bootstrap" "${tmp_strap}"
@@ -158,7 +161,9 @@ done
 # breaks the build.
 OHMYZSH="${STAGED_PROFILE}/airootfs/usr/share/oh-my-zsh"
 if [[ ! -d "${OHMYZSH}" ]]; then
-    if git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "${OHMYZSH}"; then
+    # timeout: git has no stall abort — on a flaky network a clone can hang
+    # forever and the build with it. 300s covers a slow clone of ~10MB.
+    if timeout 300 git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "${OHMYZSH}"; then
         rm -rf "${OHMYZSH}/.git" "${OHMYZSH}/.github"
         # compaudit-safe perms: oh-my-zsh refuses completions from world-writable
         # dirs, and the staged airootfs inherits whatever the build host gives it.
@@ -186,16 +191,22 @@ if [[ -f "${FF_SKEL}" ]]; then
 fi
 
 # --- HiTech-arch-animation: alternate plymouth boot animation ----------------
-# Cloned at build time; the upstream 2560x1440 PNG frames are ~350MB, so they
-# are downscaled to 1920x1080 and palette-quantized (~51MB, visually
-# identical — verified, no banding on the neon glow). Ships alongside the
-# aegis theme as an alternate: AEGIS_PLYMOUTH_THEME selects the boot default
-# at build time (live + installed, via plymouthd.conf), and
-# plymouth-set-default-theme -R <theme> switches it on an installed system.
+# Cloned at build time ONLY when selected (AEGIS_PLYMOUTH_THEME): the upstream
+# 2560x1440 PNG frames are ~350MB, and cloning them for an unselected
+# alternate theme made every build download 350MB it never used. When
+# selected they are downscaled to 1920x1080 and palette-quantized (~51MB,
+# visually identical — verified, no banding on the neon glow).
+# AEGIS_PLYMOUTH_THEME selects the boot default at build time (live +
+# installed, via plymouthd.conf), and plymouth-set-default-theme -R <theme>
+# switches it on an installed system.
+THEME_SEL="${AEGIS_PLYMOUTH_THEME:-aegis}"
 HITECH_DIR="${STAGED_PROFILE}/airootfs/usr/share/plymouth/themes/hitech-arch-animation"
-if [[ ! -d "${HITECH_DIR}" ]] && command -v magick >/dev/null 2>&1; then
+if [[ "${THEME_SEL}" == "hitech-arch-animation" ]] && [[ ! -d "${HITECH_DIR}" ]] \
+   && command -v magick >/dev/null 2>&1; then
     hitech_tmp="$(mktemp -d)"
-    if git clone -q --depth=1 https://github.com/xDeFc0nx/HiTech-arch-animation.git "${hitech_tmp}"; then
+    # timeout: git has no stall abort — on a flaky network a 350MB clone can
+    # hang forever. 900s covers a clone at ~400KB/s.
+    if timeout 900 git clone -q --depth=1 https://github.com/xDeFc0nx/HiTech-arch-animation.git "${hitech_tmp}"; then
         mkdir -p "${HITECH_DIR}"
         for frame in "${hitech_tmp}"/progress-*.png; do
             magick "${frame}" -resize 1920x1080 -colors 256 \
@@ -215,7 +226,6 @@ fi
 # plymouthd.conf: which theme the live + installed systems boot with (only
 # applied when the selected theme actually shipped — a missing theme would
 # leave plymouth with nothing to draw).
-THEME_SEL="${AEGIS_PLYMOUTH_THEME:-aegis}"
 if [[ -d "${STAGED_PROFILE}/airootfs/usr/share/plymouth/themes/${THEME_SEL}" ]]; then
     sed -i "s/^Theme=.*/Theme=${THEME_SEL}/" \
         "${STAGED_PROFILE}/airootfs/etc/plymouth/plymouthd.conf" 2>/dev/null || true
@@ -392,7 +402,10 @@ KERNEL_PKGS="linux intel-ucode amd-ucode grub"
 # to a /tmp dir open to everyone, then copy the finished packages in as root.
 dl_tmp="$(mktemp -d /tmp/aegis-kerneldl.XXXXXX)"
 chmod 0777 "${dl_tmp}"
-retry "kernel pre-download" pacman -Sw --noconfirm --cachedir "${dl_tmp}" ${KERNEL_PKGS}
+# timeout as a belt-and-suspenders stall abort (pacman aborts stalled
+# downloads itself, but a connection trickling under its radar would hang) —
+# 1800s covers a ~140MB download at ~80KB/s; partial downloads resume on retry.
+retry "kernel pre-download" timeout 1800 pacman -Sw --noconfirm --cachedir "${dl_tmp}" ${KERNEL_PKGS}
 cp -a "${dl_tmp}"/. "${PKG_CACHE}/"
 rm -rf "${dl_tmp}"
 # Signatures are deleted on purpose: LocalFileSigLevel=Optional means the
@@ -597,6 +610,22 @@ ok "systemd services enabled in staged airootfs"
 ok "profile staged at ${STAGED_PROFILE}"
 
 # -----------------------------------------------------------------------------
+# --- Pre-download every ISO package into the host cache (blip-proof mkarchiso)
+# mkarchiso's pacstrap (-c) installs from the HOST pacman cache and downloads
+# whatever is missing — with no retry, so one blip in a multi-GB download
+# kills the whole build. Pre-download everything here instead: already-cached
+# packages are skipped, partial downloads resume, and the whole call is
+# retried — so pacstrap finds a complete cache and runs without the network.
+ISO_PKGS="$(sed '/^[[:blank:]]*#.*/d;s/#.*//;/^[[:blank:]]*$/d' "${STAGED_PROFILE}/packages.x86_64")"
+log "pre-downloading the ISO package set ($(printf '%s\n' "${ISO_PKGS}" | wc -l) packages) into the pacman cache"
+# Runs with the STAGED conf — the same config pacstrap will use — because the
+# list includes aegis-meta from the local [aegis] repo (absent from the host
+# config, so the host config would die with "target not found").
+# shellcheck disable=SC2086  # intentional word-split: one package per arg
+retry "ISO package pre-download" pacman --config "${STAGED_PROFILE}/pacman.conf" \
+    -Syw --noconfirm --cachedir /var/cache/pacman/pkg ${ISO_PKGS}
+ok "all ISO packages present in the pacman cache"
+
 step "5/6 Running mkarchiso (this takes a while)"
 AEGIS_VERSION="${VERSION}" mkarchiso -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
 
