@@ -148,10 +148,13 @@ cp -a "${REPO_ROOT}/${AEGIS_PROFILE_DIR}" "${STAGED_PROFILE}"
 # boot-package validation ("The 'syslinux' package is missing from the
 # package list!") and the live system's shell scripts ("bad interpreter:
 # /bin/bash^M"). grep -I skips binaries, so theme PNGs/fonts are never touched.
+# grep exits 1 when the tree is already CRLF-free (the common case on a fresh
+# clone); read exits 1 at pipe EOF. Under set -e/pipefail (lib/common.sh) either
+# would kill the build at this exact spot, so the pipeline's status is ignored.
 grep -rIl $'\r$' "${STAGED_PROFILE}" 2>/dev/null | while read -r f; do
     sed -i 's/\r$//' "$f"
     log "normalized CRLF: ${f#"${STAGED_PROFILE}/"}"
-done
+done || true
 
 # --- Oh My Zsh: vendor the zsh framework into the image ----------------------
 # Cloned at build time so every Aegis user gets the full terminal — the custom
