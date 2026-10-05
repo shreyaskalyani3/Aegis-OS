@@ -97,9 +97,8 @@ jobs:
           sudo docker image prune -af 2>/dev/null || true
           echo "=== Setting up /mnt scratch mounts for build work & pacman cache ==="
           sudo mkdir -p /mnt/aegis-work /mnt/pacman-cache
-          sudo chown -R "$(id -u):$(id -g)" /mnt/aegis-work /mnt/pacman-cache
-          mkdir -p work
-          sudo mount --bind /mnt/aegis-work work
+          sudo chmod 777 /mnt/aegis-work /mnt/pacman-cache
+          mkdir -p work out
           echo "=== Disks after setup ==="
           df -h / /mnt
 
@@ -107,6 +106,7 @@ jobs:
         run: |
           docker run --rm --privileged \
             -v "$PWD":/aegis -w /aegis \
+            -v /mnt/aegis-work:/aegis/work \
             -v /mnt/pacman-cache:/var/cache/pacman/pkg \
             -e AEGIS_TOOL_SET \
             -e AEGIS_ENABLE_BLACKARCH \
@@ -116,6 +116,17 @@ jobs:
               echo "==> Building Aegis OS (tool set: ${AEGIS_TOOL_SET}, blackarch: ${AEGIS_ENABLE_BLACKARCH})"
               bash scripts/build-iso.sh
             '
+
+      - name: Debug failure details
+        if: failure()
+        run: |
+          echo "=== Disk usage on runner ==="
+          df -h / /mnt || true
+          echo "=== Scratch storage contents ==="
+          ls -la /mnt/aegis-work 2>/dev/null || true
+          ls -la /mnt/pacman-cache 2>/dev/null || true
+          echo "=== Output directory ==="
+          ls -la out/ 2>/dev/null || true
 
       - name: Normalize output ownership
         # Files created by root inside the container are root-owned on the host;
