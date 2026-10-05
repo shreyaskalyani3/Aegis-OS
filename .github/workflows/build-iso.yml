@@ -89,12 +89,36 @@ jobs:
         run: |
           echo "=== Root disk before cleanup ==="
           df -h / /mnt || true
+
+          echo "=== Cleaning apt caches & lists ==="
+          sudo rm -rf /var/cache/apt /var/lib/apt/lists/* 2>/dev/null || true
+          sudo apt-get clean 2>/dev/null || true
+
+          echo "=== Pruning Docker system & volumes ==="
+          sudo docker system prune -af --volumes 2>/dev/null || true
+
+          echo "=== Removing unneeded preinstalled toolchains ==="
           sudo rm -rf \
-            /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet \
-            /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
-            /usr/local/share/powershell /usr/share/swift "${AGENT_TOOLSDIRECTORY:-}" \
+            /opt/hostedtoolcache \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/share/swift \
+            /usr/local/share/chromium \
+            /usr/local/share/vcpkg \
+            /usr/local/lib/node_modules \
+            /usr/share/ruby* \
+            /usr/local/julia* \
+            "${AGENT_TOOLSDIRECTORY:-}" \
             2>/dev/null || true
-          sudo docker image prune -af 2>/dev/null || true
+
+          echo "=== Disabling swap to reclaim /mnt space ==="
+          sudo swapoff -a 2>/dev/null || true
+          sudo rm -f /swapfile /mnt/swapfile 2>/dev/null || true
+
           echo "=== Setting up /mnt scratch mounts for build work & pacman cache ==="
           sudo mkdir -p /mnt/aegis-work /mnt/pacman-cache
           sudo chmod 777 /mnt/aegis-work /mnt/pacman-cache
