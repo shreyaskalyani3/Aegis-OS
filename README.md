@@ -46,7 +46,7 @@ the branding, and the build tooling that compile into a distributable `.iso`.
 | **Installer** | Calamares graphical installer — Aegis is **installable to disk**, not just a live CD |
 | **Shell** | Zsh + a security-focused prompt, sensible aliases, tmux |
 
-See [`docs/TOOLS.md`](docs/TOOLS.md) for the full toolset and [`docs/AI-AGENTS.md`](docs/AI-AGENTS.md)
+See [`docs/MANUAL.md`](docs/MANUAL.md) for the complete operator and field manual, [`docs/TOOLS.md`](docs/TOOLS.md) for the full toolset, and [`docs/AI-AGENTS.md`](docs/AI-AGENTS.md)
 for how the agents are integrated.
 
 ---
@@ -274,7 +274,7 @@ profile/                   # the archiso profile
   └─ airootfs/             # the live filesystem overlay (branding, services, scripts)
 packages/                  # custom aegis-* packages (PKGBUILDs → local repo)
 branding/                  # logos, wallpaper, plymouth splash
-docs/                      # BUILDING, AI-AGENTS, TOOLS, ETHICS
+docs/                      # MANUAL, BUILDING, AI-AGENTS, TOOLS, ETHICS
 ```
 
 **Before you spend two hours on a build,** lint the profile — it runs on Windows, needs no Arch,

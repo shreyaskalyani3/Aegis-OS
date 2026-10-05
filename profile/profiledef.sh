@@ -6,7 +6,7 @@
 
 iso_name="aegis"
 iso_label="AEGIS_$(date +%Y%m)"
-iso_publisher="Aegis OS Project <https://aegis-os.example>"
+iso_publisher="Aegis OS Project <https://github.com/shreyaskalyani3/Aegis-OS>"
 iso_application="Aegis OS — Security & Agent-native Live/Install"
 iso_version="${AEGIS_VERSION:-$(date +%Y.%m.%d)}"
 install_dir="aegis"

@@ -58,6 +58,7 @@ jobs:
         # "Artifact storage quota has been hit". Delete artifacts from
         # previous runs before the long build, so the current run has room.
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           CURRENT_RUN_ID: ${{ github.run_id }}
@@ -68,7 +69,7 @@ jobs:
             exit 1
           }
           old_ids="$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
-            --jq ".artifacts[] | select(.workflow_run.id != ${CURRENT_RUN_ID}) | .id")"
+            --jq ".artifacts[] | select(.workflow_run.id != ${CURRENT_RUN_ID}) | .id" 2>/dev/null || true)"
           if [[ -z "${old_ids}" ]]; then
             echo "No previous artifacts to delete."
             exit 0
@@ -77,26 +78,36 @@ jobs:
           echo "${old_ids}"
           while IFS= read -r artifact_id; do
             [[ -n "${artifact_id}" ]] || continue
-            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/${artifact_id}"
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/${artifact_id}" 2>/dev/null || true
           done <<< "${old_ids}"
 
-      - name: Free up runner disk space
+      - name: Free up runner disk space & configure high-capacity scratch storage
         # `broad` needs ~8-16 GB; the runner's root fs only has ~14 GB free by
         # default. Dropping the preinstalled toolchains we don't use buys ~25 GB.
+        # Furthermore, GitHub runners carry ~65+ GB on /mnt; we bind work/ and
+        # the pacman cache there so the build will never hit an out-of-disk error.
         run: |
-          echo "Before:"; df -h /
+          echo "=== Root disk before cleanup ==="
+          df -h / /mnt || true
           sudo rm -rf \
             /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet \
             /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
             /usr/local/share/powershell /usr/share/swift "${AGENT_TOOLSDIRECTORY:-}" \
             2>/dev/null || true
           sudo docker image prune -af 2>/dev/null || true
-          echo "After:"; df -h /
+          echo "=== Setting up /mnt scratch mounts for build work & pacman cache ==="
+          sudo mkdir -p /mnt/aegis-work /mnt/pacman-cache
+          sudo chown -R "$(id -u):$(id -g)" /mnt/aegis-work /mnt/pacman-cache
+          mkdir -p work
+          sudo mount --bind /mnt/aegis-work work
+          echo "=== Disks after setup ==="
+          df -h / /mnt
 
       - name: Build the ISO inside a privileged Arch container
         run: |
           docker run --rm --privileged \
             -v "$PWD":/aegis -w /aegis \
+            -v /mnt/pacman-cache:/var/cache/pacman/pkg \
             -e AEGIS_TOOL_SET \
             -e AEGIS_ENABLE_BLACKARCH \
             archlinux:latest bash -eo pipefail -c '
@@ -110,7 +121,7 @@ jobs:
         # Files created by root inside the container are root-owned on the host;
         # chown them back so the unprivileged upload step can read them.
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" out work 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" out work /mnt/aegis-work /mnt/pacman-cache 2>/dev/null || true
 
       - name: List build output
         if: always()
@@ -123,13 +134,14 @@ jobs:
         # from previous runs before creating the new one. Tag builds also
         # publish a Release, so the current artifact is the only one needed.
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           current="${{ github.run_id }}"
           old_ids="$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
-            --jq ".artifacts[] | select(.workflow_run.id != \"$current\") | .id")"
+            --jq ".artifacts[] | select(.workflow_run.id != \"$current\") | .id" 2>/dev/null || true)"
           if [[ -z "${old_ids}" ]]; then
             echo "No previous artifacts to delete."
             exit 0
@@ -138,7 +150,7 @@ jobs:
           echo "${old_ids}"
           while IFS= read -r artifact_id; do
             [[ -n "${artifact_id}" ]] || continue
-            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/${artifact_id}"
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/${artifact_id}" 2>/dev/null || true
           done <<< "${old_ids}"
 
       - name: Upload ISO artifact
@@ -153,7 +165,7 @@ jobs:
             out/*.iso
             out/*.sha256
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
       - name: Publish Release (version tags only)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -163,3 +175,4 @@ jobs:
             out/*.iso
             out/*.sha256
           generate_release_notes: true
+
