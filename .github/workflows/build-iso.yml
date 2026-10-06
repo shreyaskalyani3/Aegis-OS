@@ -123,8 +123,8 @@ jobs:
           sudo rm -f /swapfile /mnt/swapfile 2>/dev/null || true
 
           echo "=== Setting up /mnt scratch mounts for build work & pacman cache ==="
-          sudo mkdir -p /mnt/aegis-work /mnt/pacman-cache
-          sudo chmod 777 /mnt/aegis-work /mnt/pacman-cache
+          sudo mkdir -p /mnt/aegis-work /mnt/pacman-cache /mnt/aegis-out
+          sudo chmod 777 /mnt/aegis-work /mnt/pacman-cache /mnt/aegis-out
           mkdir -p work out
           echo "=== Disks after setup ==="
           df -h / /mnt
@@ -135,6 +135,7 @@ jobs:
             -v "$PWD":/aegis -w /aegis \
             -v /mnt/aegis-work:/aegis/work \
             -v /mnt/pacman-cache:/var/cache/pacman/pkg \
+            -v /mnt/aegis-out:/aegis/out \
             -e AEGIS_TOOL_SET \
             -e AEGIS_ENABLE_BLACKARCH \
             archlinux:latest bash -eo pipefail -c '
