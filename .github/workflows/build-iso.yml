@@ -41,7 +41,10 @@ jobs:
   build-iso:
     name: Build ISO
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    # Run #38 (v2026.10.05, tool_set=broad) hit 84% of mksquashfs right at the
+    # 150-minute mark — the full build needs ~3h on a free runner. 360 is
+    # GitHub's job maximum and leaves margin for slow mirrors.
+    timeout-minutes: 360
     env:
       # github.event.inputs.* are strings ("true"/"false"/""); this keeps the
       # logic robust whether triggered manually or by a tag push (no inputs).
