@@ -17,6 +17,7 @@ require_cmd docker
 IMAGE="aegis-os-builder:latest"
 
 step "Building the builder image"
+export DOCKER_BUILDKIT=1
 docker build -t "${IMAGE}" -f "${REPO_ROOT}/docker/Dockerfile" "${REPO_ROOT}"
 
 step "Running the ISO build inside the container"
@@ -26,7 +27,7 @@ docker run --rm -it \
     -v "${REPO_ROOT}:/aegis" \
     -w /aegis \
     -e AEGIS_VERSION="${AEGIS_VERSION:-}" \
-    -e AEGIS_TOOL_SET="${AEGIS_TOOL_SET:-}" \
+    -e AEGIS_TOOL_SET="${AEGIS_TOOL_SET:-lean}" \
     "${IMAGE}" \
     bash scripts/build-iso.sh
 

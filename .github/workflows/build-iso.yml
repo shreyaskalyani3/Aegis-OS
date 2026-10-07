@@ -16,10 +16,10 @@ on:
   workflow_dispatch:
     inputs:
       tool_set:
-        description: "Baked-in BlackArch breadth (full will NOT fit on CI disk)"
+        description: "Baked-in tool coverage (lean: standard ~4.8 GB production ISO)"
         type: choice
         options: [lean, broad, full]
-        default: broad
+        default: lean
       enable_blackarch:
         description: "Include the BlackArch repo / arsenal"
         type: boolean
@@ -41,14 +41,11 @@ jobs:
   build-iso:
     name: Build ISO
     runs-on: ubuntu-latest
-    # Run #38 (v2026.10.05, tool_set=broad) hit 84% of mksquashfs right at the
-    # 150-minute mark — the full build needs ~3h on a free runner. 360 is
-    # GitHub's job maximum and leaves margin for slow mirrors.
-    timeout-minutes: 360
+    timeout-minutes: 120
     env:
       # github.event.inputs.* are strings ("true"/"false"/""); this keeps the
       # logic robust whether triggered manually or by a tag push (no inputs).
-      AEGIS_TOOL_SET: ${{ github.event.inputs.tool_set || 'broad' }}
+      AEGIS_TOOL_SET: ${{ github.event.inputs.tool_set || 'lean' }}
       AEGIS_ENABLE_BLACKARCH: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.enable_blackarch == 'true') && '1' || '0' }}
 
     steps:

@@ -631,47 +631,31 @@ ok "all ISO packages present in the pacman cache"
 
 step "5/6 Running mkarchiso (this takes a while)"
 
-# Isolate isofs_dir (where airootfs.sfs and ISO staging files are written)
-# to ${OUT}/isofs on the runner's root disk via a bind mount.
-# This splits disk usage across disks:
-#   - /mnt holds the uncompressed airootfs (~48 GB)
-#   - / holds the compressed airootfs.sfs (~25 GB) and the final ISO
-# A bind-mount ensures xorriso maps the contents directly to '/' of the ISO image,
-# avoiding the symlink issue where files were nested under '/iso'.
-mkdir -p "${WORK}/mkarchiso/iso" "${OUT}/isofs"
-if ! mountpoint -q "${WORK}/mkarchiso/iso" 2>/dev/null; then
-    mount --bind "${OUT}/isofs" "${WORK}/mkarchiso/iso"
+# Clean up any leftover mounts from interrupted previous runs
+if mountpoint -q "${WORK}/mkarchiso/iso" 2>/dev/null; then
+    umount "${WORK}/mkarchiso/iso" 2>/dev/null || true
 fi
-
-cleanup_bind_mount() {
-    if mountpoint -q "${WORK}/mkarchiso/iso" 2>/dev/null; then
-        umount "${WORK}/mkarchiso/iso" 2>/dev/null || true
-    fi
-}
-trap cleanup_bind_mount EXIT
+rm -rf "${OUT}/isofs" 2>/dev/null || true
 
 # Background optimizer: when mksquashfs starts, pacstrap has finished all package
-# installations. Purging /var/cache/pacman/pkg at this exact moment reclaims ~18 GB
-# on the root disk right as airootfs.sfs is being compressed.
+# installations. Purging /var/cache/pacman/pkg at this exact moment reclaims disk space
+# on the host pacman cache right as airootfs.sfs is being compressed.
 (
     while ! pgrep -x mksquashfs >/dev/null 2>&1; do
         sleep 5
     done
     sleep 3
-    printf '%s\n' "==> [Disk Optimizer] mksquashfs is running — purging package cache to reclaim 18 GB disk space"
+    printf '%s\n' "==> [Disk Optimizer] mksquashfs is running — purging package cache to reclaim disk space"
     rm -rf /var/cache/pacman/pkg/* 2>/dev/null || true
 ) &
 CACHE_CLEANER_PID=$!
 
-# Run mkarchiso without -r so it does not attempt rm -rf across the active mountpoint
 AEGIS_VERSION="${VERSION}" mkarchiso -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
 kill "${CACHE_CLEANER_PID}" 2>/dev/null || true
 wait "${CACHE_CLEANER_PID}" 2>/dev/null || true
 
-# Clean up mounts and intermediate directories now that the final ISO has been built
-cleanup_bind_mount
-trap - EXIT
-rm -rf "${OUT}/isofs" "${WORK}/mkarchiso" 2>/dev/null || true
+# Clean up intermediate scratch directories now that the final ISO has been built
+rm -rf "${WORK}/mkarchiso" 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 step "6/6 Finalizing"
