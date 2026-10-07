@@ -632,14 +632,23 @@ ok "all ISO packages present in the pacman cache"
 step "5/6 Running mkarchiso (this takes a while)"
 
 # Isolate isofs_dir (where airootfs.sfs and ISO staging files are written)
-# to ${OUT}/isofs on the runner's root disk. This splits disk usage:
-#   - /mnt (~70 GB) holds ONLY the uncompressed ~48 GB airootfs
-#   - / (~60 GB) holds the compressed ~13 GB airootfs.sfs and final ISO
-# This eliminates "No space left on device" when creating airootfs.sfs.
-mkdir -p "${WORK}/mkarchiso" "${OUT}/isofs"
-if [[ ! -e "${WORK}/mkarchiso/iso" ]]; then
-    ln -s "${OUT}/isofs" "${WORK}/mkarchiso/iso"
+# to ${OUT}/isofs on the runner's root disk via a bind mount.
+# This splits disk usage across disks:
+#   - /mnt holds the uncompressed airootfs (~48 GB)
+#   - / holds the compressed airootfs.sfs (~25 GB) and the final ISO
+# A bind-mount ensures xorriso maps the contents directly to '/' of the ISO image,
+# avoiding the symlink issue where files were nested under '/iso'.
+mkdir -p "${WORK}/mkarchiso/iso" "${OUT}/isofs"
+if ! mountpoint -q "${WORK}/mkarchiso/iso" 2>/dev/null; then
+    mount --bind "${OUT}/isofs" "${WORK}/mkarchiso/iso"
 fi
+
+cleanup_bind_mount() {
+    if mountpoint -q "${WORK}/mkarchiso/iso" 2>/dev/null; then
+        umount "${WORK}/mkarchiso/iso" 2>/dev/null || true
+    fi
+}
+trap cleanup_bind_mount EXIT
 
 # Background optimizer: when mksquashfs starts, pacstrap has finished all package
 # installations. Purging /var/cache/pacman/pkg at this exact moment reclaims ~18 GB
@@ -654,12 +663,15 @@ fi
 ) &
 CACHE_CLEANER_PID=$!
 
-AEGIS_VERSION="${VERSION}" mkarchiso -r -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
+# Run mkarchiso without -r so it does not attempt rm -rf across the active mountpoint
+AEGIS_VERSION="${VERSION}" mkarchiso -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
 kill "${CACHE_CLEANER_PID}" 2>/dev/null || true
 wait "${CACHE_CLEANER_PID}" 2>/dev/null || true
 
-# Remove staging isofs directory now that the final ISO has been produced
-rm -rf "${OUT}/isofs" 2>/dev/null || true
+# Clean up mounts and intermediate directories now that the final ISO has been built
+cleanup_bind_mount
+trap - EXIT
+rm -rf "${OUT}/isofs" "${WORK}/mkarchiso" 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 step "6/6 Finalizing"
