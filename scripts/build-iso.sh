@@ -630,7 +630,36 @@ retry "ISO package pre-download" pacman --config "${STAGED_PROFILE}/pacman.conf"
 ok "all ISO packages present in the pacman cache"
 
 step "5/6 Running mkarchiso (this takes a while)"
+
+# Isolate isofs_dir (where airootfs.sfs and ISO staging files are written)
+# to ${OUT}/isofs on the runner's root disk. This splits disk usage:
+#   - /mnt (~70 GB) holds ONLY the uncompressed ~48 GB airootfs
+#   - / (~60 GB) holds the compressed ~13 GB airootfs.sfs and final ISO
+# This eliminates "No space left on device" when creating airootfs.sfs.
+mkdir -p "${WORK}/mkarchiso" "${OUT}/isofs"
+if [[ ! -e "${WORK}/mkarchiso/iso" ]]; then
+    ln -s "${OUT}/isofs" "${WORK}/mkarchiso/iso"
+fi
+
+# Background optimizer: when mksquashfs starts, pacstrap has finished all package
+# installations. Purging /var/cache/pacman/pkg at this exact moment reclaims ~18 GB
+# on the root disk right as airootfs.sfs is being compressed.
+(
+    while ! pgrep -x mksquashfs >/dev/null 2>&1; do
+        sleep 5
+    done
+    sleep 3
+    printf '%s\n' "==> [Disk Optimizer] mksquashfs is running — purging package cache to reclaim 18 GB disk space"
+    rm -rf /var/cache/pacman/pkg/* 2>/dev/null || true
+) &
+CACHE_CLEANER_PID=$!
+
 AEGIS_VERSION="${VERSION}" mkarchiso -r -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
+kill "${CACHE_CLEANER_PID}" 2>/dev/null || true
+wait "${CACHE_CLEANER_PID}" 2>/dev/null || true
+
+# Remove staging isofs directory now that the final ISO has been produced
+rm -rf "${OUT}/isofs" 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 step "6/6 Finalizing"
