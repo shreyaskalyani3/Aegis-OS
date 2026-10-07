@@ -630,22 +630,7 @@ retry "ISO package pre-download" pacman --config "${STAGED_PROFILE}/pacman.conf"
 ok "all ISO packages present in the pacman cache"
 
 step "5/6 Running mkarchiso (this takes a while)"
-# Background cache cleaner: once pacstrap has populated airootfs and created
-# /etc/machine-id, the package archives in /var/cache/pacman/pkg are no longer
-# needed. Purging them frees ~18 GB of disk space before and during mksquashfs.
-(
-    while [[ ! -f "${WORK}/mkarchiso/x86_64/airootfs/etc/machine-id" ]]; do
-        sleep 10
-    done
-    sleep 5
-    printf '%s\n' "==> [Disk Optimizer] pacstrap completed — purging package cache to free disk space for SquashFS"
-    rm -rf /var/cache/pacman/pkg/* 2>/dev/null || true
-) &
-CACHE_CLEANER_PID=$!
-
 AEGIS_VERSION="${VERSION}" mkarchiso -r -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
-kill "${CACHE_CLEANER_PID}" 2>/dev/null || true
-wait "${CACHE_CLEANER_PID}" 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 step "6/6 Finalizing"
