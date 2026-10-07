@@ -122,9 +122,9 @@ jobs:
           sudo swapoff -a 2>/dev/null || true
           sudo rm -f /swapfile /mnt/swapfile 2>/dev/null || true
 
-          echo "=== Setting up /mnt scratch mounts for build work & pacman cache ==="
-          sudo mkdir -p /mnt/aegis-work /mnt/pacman-cache /mnt/aegis-out
-          sudo chmod 777 /mnt/aegis-work /mnt/pacman-cache /mnt/aegis-out
+          echo "=== Setting up storage mounts ==="
+          sudo mkdir -p /mnt/aegis-work /home/runner/pacman-cache
+          sudo chmod 777 /mnt/aegis-work /home/runner/pacman-cache
           mkdir -p work out
           echo "=== Disks after setup ==="
           df -h / /mnt
@@ -134,8 +134,7 @@ jobs:
           docker run --rm --privileged \
             -v "$PWD":/aegis -w /aegis \
             -v /mnt/aegis-work:/aegis/work \
-            -v /mnt/pacman-cache:/var/cache/pacman/pkg \
-            -v /mnt/aegis-out:/aegis/out \
+            -v /home/runner/pacman-cache:/var/cache/pacman/pkg \
             -e AEGIS_TOOL_SET \
             -e AEGIS_ENABLE_BLACKARCH \
             archlinux:latest bash -eo pipefail -c '
@@ -152,7 +151,7 @@ jobs:
           df -h / /mnt || true
           echo "=== Scratch storage contents ==="
           ls -la /mnt/aegis-work 2>/dev/null || true
-          ls -la /mnt/pacman-cache 2>/dev/null || true
+          ls -la /home/runner/pacman-cache 2>/dev/null || true
           echo "=== Output directory ==="
           ls -la out/ 2>/dev/null || true
 
@@ -160,7 +159,7 @@ jobs:
         # Files created by root inside the container are root-owned on the host;
         # chown them back so the unprivileged upload step can read them.
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" out work /mnt/aegis-work /mnt/pacman-cache 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" out work /mnt/aegis-work /home/runner/pacman-cache 2>/dev/null || true
 
       - name: List build output
         if: always()
