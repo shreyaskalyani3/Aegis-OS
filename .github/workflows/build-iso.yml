@@ -202,12 +202,88 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Prepare Release Assets (split ISO if > 2GB)
+        # GitHub Releases strictly limits individual asset files to < 2 GiB (2147483648 bytes).
+        # Standard desktop ISOs are ~4.8 GB. We split files >= 2000 MB into 1900 MB parts
+        # and provide one-click recombine scripts (join-iso.sh and join-iso.bat).
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p release-assets
+          cp out/*.sha256 release-assets/ 2>/dev/null || true
+
+          for iso in out/*.iso; do
+            [[ -f "$iso" ]] || continue
+            filename="$(basename "$iso")"
+            filesize=$(stat -c%s "$iso")
+
+            if [ "$filesize" -ge 2097152000 ]; then
+              echo "ISO $filename is ${filesize} bytes (> 2 GiB). Splitting into 1900MB parts for GitHub Release..."
+              split -b 1900M -d "$iso" "release-assets/${filename}.part"
+
+              cat << 'EOF' > release-assets/join-iso.sh
+              #!/usr/bin/env bash
+              # Merge parts back into the complete ISO
+              set -e
+              ISO_NAME=$(ls *.iso.part00 2>/dev/null | head -n1 | sed 's/\.part00$//')
+              if [ -z "$ISO_NAME" ]; then
+                  echo "Error: *.iso.part00 not found in current directory"
+                  exit 1
+              fi
+              echo "Joining parts to create ${ISO_NAME}..."
+              cat "${ISO_NAME}.part"* > "${ISO_NAME}"
+              echo "Verifying SHA256..."
+              sha256sum -c "${ISO_NAME}.sha256" || true
+              echo "Done! ${ISO_NAME} is ready."
+              EOF
+              sed -i 's/^  *//' release-assets/join-iso.sh
+              chmod +x release-assets/join-iso.sh
+
+              cat << 'EOF' > release-assets/join-iso.bat
+              @echo off
+              setlocal enabledelayedexpansion
+              for %%f in (*.iso.part00) do (
+                  set "base=%%~nf"
+                  set "isoname=!base!"
+              )
+              if "%isoname%"=="" (
+                  echo Error: *.iso.part00 not found
+                  pause
+                  exit /b 1
+              )
+              echo Joining parts to create %isoname%...
+              copy /b %isoname%.part* %isoname%
+              echo.
+              echo Verification: Run certutil -hashfile %isoname% SHA256 and compare with .sha256 file.
+              echo Done! %isoname% is ready.
+              pause
+              EOF
+              sed -i 's/^  *//' release-assets/join-iso.bat
+            else
+              echo "ISO $filename is ${filesize} bytes (<= 2 GiB). Copying directly."
+              cp "$iso" release-assets/
+            fi
+          done
+
+          echo "=== Release Assets to upload ==="
+          ls -lh release-assets/
+
       - name: Publish Release (version tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            out/*.iso
-            out/*.sha256
+          files: release-assets/*
           generate_release_notes: true
+          body: |
+            ### 🛡️ Aegis OS Release
+
+            > [!TIP]
+            > **Single-file Direct Download**: You can also download the complete, un-split ISO in one file directly from the **Artifacts** section of the [Actions Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+            #### Recombining Multi-Part ISO:
+            GitHub Releases enforce a 2 GiB per-file limit, so this ISO is split into 1.9 GB parts (`.part00`, `.part01`, ...).
+            
+            - **Linux / macOS**:
+              Run `./join-iso.sh` (or `cat *.iso.part* > aegis-os.iso`)
+            - **Windows**:
+              Double-click `join-iso.bat` (or in CMD: `copy /b *.iso.part* aegis-os.iso`)
 
