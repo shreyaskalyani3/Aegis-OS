@@ -1,0 +1,9 @@
+[Desktop Entry]
+DefaultProfile=Aegis.profile
+
+[MainWindow]
+MenuBar=Disabled
+ToolBarsMovable=Disabled
+
+[TabBar]
+TabBarVisibility=ShowTabBarWhenNeeded

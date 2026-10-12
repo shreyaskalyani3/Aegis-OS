@@ -1,0 +1,10 @@
+[org.kde.kdecoration2]
+BorderSize=Normal
+ButtonsOnLeft=M
+ButtonsOnRight=IAX
+CloseOnDoubleClickOnMenu=false
+Theme=Breeze
+
+[Windows]
+BorderlessMaximizedWindows=false
+FocusPolicy=ClickToFocus

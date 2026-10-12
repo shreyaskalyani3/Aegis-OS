@@ -116,7 +116,7 @@ Output: `out/aegis-*.iso` and `out/aegis-*.iso.sha256`.
 | `AEGIS_ENABLE_CHAOTIC` | `1` adds Chaotic-AUR to the build environment |
 | `AEGIS_AI_AGENTS` | which agents the tooling knows about |
 | `AEGIS_LIVE_USER` / `_PASSWORD` | live-session credentials (default `aegis`/`aegis`) |
-| `AEGIS_DESKTOP` | desktop environment (wired for `xfce`) |
+| `AEGIS_DESKTOP` | desktop environment (wired for `plasma`) |
 | `AEGIS_PLYMOUTH_THEME` | plymouth boot animation: `aegis` (default) or `hitech-arch-animation` (neon Arch boot animation, vendored at build time) |
 | `AEGIS_NET_RETRIES` | attempts each network call gets before the build gives up (default 5) |
 
@@ -149,7 +149,7 @@ qemu-system-x86_64 -enable-kvm -m 4096 -smp 2 -cdrom out/aegis-*.iso
 
 Or attach the ISO to a new VirtualBox/VMware VM (≥4 GB RAM), or write it to a
 USB stick with `dd`/Rufus/Etcher and boot bare metal. The live session
-autologins to XFCE as `aegis`.
+autologins to KDE Plasma as `aegis`.
 
 ---
 
@@ -165,7 +165,7 @@ sudo archinstall        # official Arch guided installer
 
 > The Calamares configuration in `profile/airootfs/etc/calamares/` targets this
 > profile's layout (SquashFS at `/run/archiso/bootmnt/aegis/x86_64/airootfs.sfs`,
-> GRUB, LightDM/XFCE). If you change `install_dir`, `iso_name`, or the image
+> GRUB, SDDM/Plasma). If you change `install_dir`, `iso_name`, or the image
 > type in `profiledef.sh`, update `modules/unpackfs.conf` to match. Validate a
 > disk install in a VM before relying on it. `archinstall` is unaffected by
 > profile changes and is the safe fallback.

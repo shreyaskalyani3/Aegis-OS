@@ -12,7 +12,7 @@
 #
 #  To add a tool: add a TOOLS row. To add a category: add a CATEGORIES row, a
 #  case in xdgcat(), an icon in gen-brand-icons.sh, and an <Include> branch in
-#  profile/airootfs/etc/xdg/menus/xfce-applications-merged/aegis-tools.menu.
+#  profile/airootfs/etc/xdg/menus/applications-merged/aegis-tools.menu.
 # =============================================================================
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -150,11 +150,7 @@ printf '%s' "$TOOLS" | while IFS='|' read -r slug cmd name desc pkg; do
     grp="$(group_of "$slug")"
     pkgopt=""
     [[ -n "$pkg" ]] && pkgopt="--pkg $pkg "
-    # Exec is a single xfce4-terminal invocation. Both --title and --command take
-    # one argument each, so each is double-quoted as a whole (desktop-entry spec
-    # quoting). Inside --command, --desc uses single quotes, which xfce4-terminal
-    # resolves when it shell-splits the value -- so no description may contain an
-    # apostrophe.
+    # Exec launches Konsole with tab title and runs aegis-run
     cat > "$APPS/aegis-tool-$cmd.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -162,7 +158,7 @@ Version=1.0
 Name=$name
 GenericName=$desc
 Comment=$desc
-Exec=xfce4-terminal --title="$name" --command="aegis-run ${pkgopt}--group $grp --desc '$desc' $cmd"
+Exec=konsole -p tabtitle="$name" -e aegis-run ${pkgopt}--group $grp --desc '$desc' $cmd
 Icon=aegis-cat-$slug
 Terminal=false
 StartupNotify=false

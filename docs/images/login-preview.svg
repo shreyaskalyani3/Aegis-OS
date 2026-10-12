@@ -39,7 +39,7 @@
   <!-- ===== Greeter top bar ===== -->
   <rect x="0" y="0" width="1600" height="34" fill="#11161d" opacity="0.9"/>
   <text x="20" y="22" font-size="13" fill="#8b98a5">sentinel</text>
-  <text x="1360" y="22" font-size="13" fill="#dbe4ec">Xfce Session</text>
+  <text x="1360" y="22" font-size="13" fill="#dbe4ec">Plasma Session</text>
   <g stroke="#aeb9c4" stroke-width="1.6" fill="none">
     <circle cx="1452" cy="17" r="8"/><path d="M1452 12 v5 l3 3"/>
   </g>
@@ -74,7 +74,7 @@
     <text x="800" y="591" text-anchor="middle" font-size="16" fill="#ffffff">Log In</text>
 
     <!-- session selector -->
-    <text x="800" y="644" text-anchor="middle" font-size="13" fill="#8b98a5">Session:  Xfce  &#9662;</text>
+    <text x="800" y="644" text-anchor="middle" font-size="13" fill="#8b98a5">Session:  Plasma  &#9662;</text>
   </g>
 
   <!-- ===== Footer wordmark ===== -->

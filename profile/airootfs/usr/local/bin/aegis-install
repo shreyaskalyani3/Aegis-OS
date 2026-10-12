@@ -89,8 +89,8 @@ ENVV=(
   "DISPLAY=${DISPLAY:-:0}"
   "XAUTHORITY=${XAUTH:-${HOME:-/home/aegis}/.Xauthority}"
   "DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-}"
-  "XDG_CURRENT_DESKTOP=XFCE"
-  "QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-gtk3}"
+  "XDG_CURRENT_DESKTOP=KDE"
+  "QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-kde}"
 )
 
 printf '%s::%s starting the Aegis OS installer%s\n' "${C_G}" "${Z}" "${C_D}${Z}"

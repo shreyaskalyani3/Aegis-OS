@@ -7,7 +7,7 @@
 #  A violet [AGENT] tag marks shells spawned inside an AI coding agent
 #  (Claude Code sets CLAUDECODE=1 for the shells it spawns; export
 #  AEGIS_AGENT=<name> to mark any other nested-agent environment), and a red
-#  ✘ marker reports a failed last command. Truecolor hex — xfce4-terminal
+#  ✘ marker reports a failed last command. Truecolor hex — Konsole
 #  supports it. No text plugin needed: the wordmark lives in the theme itself.
 # =============================================================================
 

@@ -4,7 +4,7 @@ Version=1.0
 Name=Lynis
 GenericName=Local system hardening audit
 Comment=Local system hardening audit
-Exec=xfce4-terminal --title="Lynis" --command="aegis-run --group blackarch-scanner --desc 'Local system hardening audit' lynis"
+Exec=konsole -p tabtitle="Lynis" -e aegis-run --group blackarch-scanner --desc 'Local system hardening audit' lynis
 Icon=aegis-cat-vuln
 Terminal=false
 StartupNotify=false

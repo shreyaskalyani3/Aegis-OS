@@ -18,7 +18,7 @@ The full text of the GNU General Public License version 3 is available at:
 NOTE ON BUNDLED SOFTWARE
 -------------------------------------------------------------------------------
 Aegis OS is a distribution: it aggregates a large amount of third-party software
-(the Linux kernel, Arch Linux packages, BlackArch tools, XFCE, Calamares, and the
+(the Linux kernel, Arch Linux packages, BlackArch tools, KDE Plasma, Calamares, and the
 bundled AI agents Claude Code, OpenCode, Aider, and Codex). Each of those retains
 its own upstream license and copyright. This GPL-3.0 license applies ONLY to the
 original build scripts, packaging, configuration, and branding authored within

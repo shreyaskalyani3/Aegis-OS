@@ -37,7 +37,7 @@ conflicts=('aegis-release')
 # Curated essentials guaranteed to exist in core/extra. The rest of the system
 # is defined in profile/packages.x86_64; do not duplicate the full list here.
 # NOTE: only real package names here — pacman cannot satisfy a dependency on a
-# group (so 'xfce4-session', not the 'xfce4' group).
+# group (so 'plasma-desktop', not the 'plasma' group).
 depends=(
   base
   sudo
@@ -45,11 +45,10 @@ depends=(
   git
   networkmanager
   xorg-server
-  xfce4-session
-  xfwm4
-  xfdesktop
-  lightdm
-  lightdm-gtk-greeter
+  plasma-desktop
+  plasma-workspace
+  kwin
+  sddm
   nodejs
   npm
   python

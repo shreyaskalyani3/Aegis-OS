@@ -1,29 +1,16 @@
 <!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
  "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
 <!--
-  Aegis Tools — the categorised security menu.
+  Aegis Tools — the categorised security menu for KDE Plasma (XDG standard).
 
-  This is a MERGE FRAGMENT, not a replacement for garcon's
-  /etc/xdg/menus/xfce-applications.menu. The stock file ends with
-  <DefaultMergeDirs/>, which expands to $XDG_CONFIG_DIRS/menus/
-  xfce-applications-merged/ — so dropping a fragment here *adds* the Aegis
-  branch while leaving every stock category (Settings, Development, Network,
-  System, Accessories, ...) untouched. Overwriting the stock file instead would
-  risk silently deleting those categories on any XFCE version whose menu differs
-  from the one we authored against.
+  This is a MERGE FRAGMENT placed in /etc/xdg/menus/applications-merged/.
+  KDE Plasma's Kickoff / Application Menu reads applications.menu, which
+  expands <DefaultMergeDirs/> to applications-merged/.
 
-  <Name>Xfce</Name> below must match the root menu name of the file being merged
-  into; for xfce-applications.menu that is "Xfce".
-
-  Three pieces have to agree for a tool to show up:
-    1. usr/share/applications/aegis-tool-<cmd>.desktop  -> Categories=X-Aegis-<Cat>;
-    2. usr/share/desktop-directories/aegis-NN-<slug>.directory  -> the label + icon
-    3. the <Include><Category> branch below
-  If a tool is missing from the image, its launcher still appears; aegis-run
-  offers to install it rather than failing.
+  <Name>Applications</Name> matches the standard root menu name.
 -->
 <Menu>
-  <Name>Xfce</Name>
+  <Name>Applications</Name>
 
   <Menu>
     <Name>Aegis Tools</Name>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Aegis OS — application icon, used for the Whisker "Aegis" menu button.
+  Aegis OS — application icon, used for the Kickoff "Aegis" menu button.
 
   Drawn for SMALL sizes on purpose. The panel renders this at icon-size=20, and
   the previous version was a 0.22-opacity shield with a 16-unit stroke scaled by

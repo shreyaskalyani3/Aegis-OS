@@ -4,7 +4,7 @@ Version=1.0
 Name=dirb
 GenericName=Web content brute-forcer
 Comment=Web content brute-forcer
-Exec=xfce4-terminal --title="dirb" --command="aegis-run --group blackarch-webapp --desc 'Web content brute-forcer' dirb"
+Exec=konsole -p tabtitle="dirb" -e aegis-run --group blackarch-webapp --desc 'Web content brute-forcer' dirb
 Icon=aegis-cat-web
 Terminal=false
 StartupNotify=false

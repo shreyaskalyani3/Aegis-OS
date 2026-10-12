@@ -244,18 +244,15 @@ fi
 AIROOTFS="${STAGED_PROFILE}/airootfs"
 
 # Hide menu entries that are irrelevant on Aegis (upstream .desktop files we
-# cannot edit). NoDisplay alone keeps them out of Whisker; Hidden=true is also
-# set because some shells (XFCE Applications) only honour Hidden. Valid keys
+# cannot edit). NoDisplay alone keeps them out of application menus; Hidden=true is also
+# set because some shells only honour Hidden. Valid keys
 # only — NoDisplay/Hidden are booleans, so a stray Name-only stub with made-up
 # keys would itself fail desktop-file validation.
 TOMBSTONE_DIR="${AIROOTFS}/usr/local/share/applications"
 mkdir -p "${TOMBSTONE_DIR}"
 TOMBSTONES=(
   assistant designer linguist qdbusviewer qt5ct qt6ct kvantummanager
-  xfce4-web-browser xfce4-file-manager xfce4-terminal-emulator xfce4-mail-reader
   org.gnome.FileRoller htop btop vim nvim
-  xfce4-about thunar-bulk-rename xfburn xfce4-dict gigolo xfdashboard
-  xfce4-screensaver xfce4-screensaver-preferences parole blueman-adapters
   avahi-discover bssh bvnc lstopo cmake-gui qv4l2 qvidcap calamares
 )
 for t in "${TOMBSTONES[@]}"; do
@@ -577,13 +574,13 @@ LIB="/usr/lib/systemd/system"
 mkdir -p "${SYSD}/multi-user.target.wants" "${SYSD}/graphical.target.wants" \
          "${SYSD}/sysinit.target.wants" "${SYSD}/bluetooth.target.wants"
 
-# Boot into the graphical target (LightDM greeter -> XFCE).
+# Boot into the graphical target (SDDM greeter -> KDE Plasma).
 ln -sf "${LIB}/graphical.target" "${SYSD}/default.target"
 
-# Display manager: LightDM. The generic display-manager.service alias is what
+# Display manager: SDDM. The generic display-manager.service alias is what
 # other tooling references; the graphical.target.wants link guarantees start.
-ln -sf "${LIB}/lightdm.service" "${SYSD}/display-manager.service"
-ln -sf "${LIB}/lightdm.service" "${SYSD}/graphical.target.wants/lightdm.service"
+ln -sf "${LIB}/sddm.service" "${SYSD}/display-manager.service"
+ln -sf "${LIB}/sddm.service" "${SYSD}/graphical.target.wants/sddm.service"
 
 # Networking (NetworkManager) + its D-Bus aliases.
 ln -sf "${LIB}/NetworkManager.service"            "${SYSD}/multi-user.target.wants/NetworkManager.service"

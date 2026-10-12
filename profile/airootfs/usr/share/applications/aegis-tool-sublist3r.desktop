@@ -4,7 +4,7 @@ Version=1.0
 Name=Sublist3r
 GenericName=Subdomain enumeration via search engines
 Comment=Subdomain enumeration via search engines
-Exec=xfce4-terminal --title="Sublist3r" --command="aegis-run --group blackarch-recon --desc 'Subdomain enumeration via search engines' sublist3r"
+Exec=konsole -p tabtitle="Sublist3r" -e aegis-run --group blackarch-recon --desc 'Subdomain enumeration via search engines' sublist3r
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

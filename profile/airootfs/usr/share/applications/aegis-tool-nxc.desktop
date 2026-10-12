@@ -4,7 +4,7 @@ Version=1.0
 Name=NetExec
 GenericName=Network & Active Directory protocol toolkit
 Comment=Network & Active Directory protocol toolkit
-Exec=xfce4-terminal --title="NetExec" --command="aegis-run --pkg netexec --group blackarch-recon --desc 'Network & Active Directory protocol toolkit' nxc"
+Exec=konsole -p tabtitle="NetExec" -e aegis-run --pkg netexec --group blackarch-recon --desc 'Network & Active Directory protocol toolkit' nxc
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

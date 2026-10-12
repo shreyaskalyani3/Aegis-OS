@@ -7,8 +7,8 @@
 #
 #  Deliberately NOT adw-gtk3-dark: adw-gtk-theme ships only gtk-3.0/ and
 #  gtk-4.0/, so naming it here would silently fall back to stock GTK 2. Materia
-#  does ship gtk-2.0/ (with its assets), and materia-gtk-theme is already a hard
-#  requirement for the xfwm4 decorations — so this reuses it rather than pulling
+#  does ship gtk-2.0/ (with its assets), and materia-gtk-theme is already in
+#  packages.x86_64 for legacy GTK 2 tools — so this reuses it rather than pulling
 #  a fourth theme package in. Check 7 of scripts/dev/check-profile.sh enforces
 #  that the name resolves to a package we actually install.
 # =============================================================================

@@ -1,0 +1,10 @@
+[General]
+ShowFullPath=true
+ViewPropsTimestamp=2026,1,1,0,0,0
+
+[IconsMode]
+IconSize=48
+
+[MainWindow]
+MenuBar=Disabled
+ToolBarsMovable=Disabled

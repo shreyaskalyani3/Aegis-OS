@@ -4,7 +4,7 @@ Version=1.0
 Name=msfvenom
 GenericName=Payload generator and encoder
 Comment=Payload generator and encoder
-Exec=xfce4-terminal --title="msfvenom" --command="aegis-run --pkg metasploit --group blackarch-exploitation --desc 'Payload generator and encoder' msfvenom"
+Exec=konsole -p tabtitle="msfvenom" -e aegis-run --pkg metasploit --group blackarch-exploitation --desc 'Payload generator and encoder' msfvenom
 Icon=aegis-cat-exploit
 Terminal=false
 StartupNotify=false

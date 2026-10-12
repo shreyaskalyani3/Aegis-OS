@@ -32,7 +32,7 @@
   <!-- ===== Top panel ===== -->
   <rect x="0" y="0" width="1600" height="34" fill="#11161d"/>
   <rect x="0" y="33" width="1600" height="1.5" fill="#ff2e4d" opacity="0.35"/>
-  <!-- whisker menu: mini shield + label -->
+  <!-- kickoff menu: mini shield + label -->
   <g transform="translate(14 6) scale(0.14)">
     <path d="M0 0 L128 46 L128 194 C128 282 66 336 0 364 C-66 336 -128 282 -128 194 L-128 46 Z"
           transform="translate(80 0)" fill="url(#sh)"/>

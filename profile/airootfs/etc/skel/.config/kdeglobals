@@ -1,0 +1,59 @@
+[Colors:Button]
+BackgroundAlternate=38,44,52
+BackgroundNormal=43,49,58
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=255,255,255
+ForegroundInactive=175,176,179
+ForegroundLink=41,128,185
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=127,140,141
+
+[Colors:View]
+BackgroundAlternate=30,35,42
+BackgroundNormal=35,40,48
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=255,255,255
+ForegroundInactive=175,176,179
+ForegroundLink=41,128,185
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=127,140,141
+
+[Colors:Window]
+BackgroundAlternate=38,44,52
+BackgroundNormal=43,49,58
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=255,255,255
+ForegroundInactive=175,176,179
+ForegroundLink=41,128,185
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=127,140,141
+
+[General]
+ColorScheme=BreezeDark
+Name=Breeze Dark
+fixed=JetBrainsMono Nerd Font,10,-1,5,50,0,0,0,0,0
+font=Noto Sans,10,-1,5,50,0,0,0,0,0
+menuFont=Noto Sans,10,-1,5,50,0,0,0,0,0
+smallestReadableFont=Noto Sans,8,-1,5,50,0,0,0,0,0
+toolBarFont=Noto Sans,10,-1,5,50,0,0,0,0,0
+widgetStyle=Breeze
+
+[Icons]
+Theme=Papirus-Dark
+
+[KDE]
+ShowDeleteCommand=true
+SingleClick=false
+contrast=4

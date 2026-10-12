@@ -17,8 +17,8 @@ Welcome to the official documentation and field manual for **Aegis OS**. This ma
    - [Installing to Disk with Calamares](#installing-to-disk-with-calamares)
    - [Offline Kernel Cache Architecture](#offline-kernel-cache-architecture)
 3. [Desktop Environment & Interface](#3-desktop-environment--interface)
-   - [XFCE 4 "Sentinel" Customization](#xfce-4-sentinel-customization)
-   - [Theming Stack (GTK 2/3/4, XFWM4, Papirus)](#theming-stack)
+   - [KDE Plasma 6 "Sentinel" Customization](#kde-plasma-6-sentinel-customization)
+   - [Theming Stack (Breeze Dark, Papirus, Qt & GTK)](#theming-stack)
    - [Terminal Experience & Fastfetch](#terminal-experience--fastfetch)
    - [The Aegis Tools Menu](#the-aegis-tools-menu)
    - [The `aegis-run` Dynamic Launcher](#the-aegis-run-dynamic-launcher)
@@ -65,8 +65,8 @@ Traditional security distributions provide hundreds of disconnected tools leavin
 │                        Aegis OS System Stack                           │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Application:  Aegis Tools (2,800+ BlackArch) · AI Agents (Claude/Codex)│
-│ Desktop:      XFCE 4 · Adw-GTK3-Dark · Materia-Dark-Compact · Papirus │
-│ Display:      Xorg Server · LightDM Greeter · PipeWire Audio           │
+│ Desktop:      KDE Plasma 6 · Breeze Dark · Papirus-Dark · JetBrains   │
+│ Display:      Wayland / X11 · SDDM Greeter · PipeWire Audio           │
 │ Kernel:       Arch Linux Kernel · mkinitcpio initramfs · systemd       │
 │ Base:         Arch Linux (Rolling Release) · Pacman Package Manager    │
 └────────────────────────────────────────────────────────────────────────┘
@@ -163,15 +163,15 @@ Aegis OS implements the **offline kernel cache pattern**:
 
 ## 3. Desktop Environment & Interface
 
-### XFCE 4 "Sentinel" Customization
+### KDE Plasma 6 "Sentinel" Customization
 
-Aegis OS runs a low-latency, highly customized **XFCE 4** desktop configured statically via xfconf XML in `/etc/skel/.config/xfce4/`.
+Aegis OS runs a low-latency, highly customized **KDE Plasma 6** desktop configured statically via Plasma applets and KDE rc files in `/etc/skel/.config/`.
 
-- **First-Frame Consistency**: Configuration is copied by `useradd -m` before session start. No "Empty or Default panel" prompts ever appear.
-- **Top Panel**:
-  - **Aegis Whisker Menu**: Fast searchable launcher.
-  - **Quick Launchers**: Terminal, File Manager (Thunar), Web Browser (Firefox), Aegis Tools, Aegis AI, Install to Disk.
-  - **Workspace Switcher & System Tray**: NetworkManager applet, audio control, power management, clock.
+- **First-Frame Consistency**: Configuration is copied by `useradd -m` before session start. No setup wizards or default panel prompts ever appear — the Aegis desktop identity is active from frame one.
+- **Top / Bottom Panel**:
+  - **Aegis Kickoff Menu**: Fast searchable launcher with the Aegis shield emblem and categorized security tools.
+  - **Quick Launchers**: Konsole Terminal, File Manager (Dolphin), Web Browser (Firefox), Aegis Tools, Aegis AI, Install to Disk.
+  - **Task Manager & System Tray**: Icon task switcher, NetworkManager applet, PipeWire audio control, power management, digital clock.
 
 ---
 
@@ -179,20 +179,22 @@ Aegis OS runs a low-latency, highly customized **XFCE 4** desktop configured sta
 
 | Component | Theme / Resource | Why Selected |
 | :--- | :--- | :--- |
-| **GTK 3 & GTK 4** | `adw-gtk3-dark` | Modern Libadwaita dark look for modern apps |
-| **Window Borders (xfwm4)** | `Materia-dark-compact` | Provides clean dark titlebars that Adwaita lacks |
-| **GTK 2 Apps** | `Materia-dark-compact` | Seamless dark styling for legacy tools |
+| **KDE Plasma Desktop** | `BreezeDark` | Native dark styling with crisp vector assets |
+| **Window Borders (KWin)** | `BreezeDark` | Clean, modern titlebars with borderless window styling |
+| **Display Manager** | `SDDM` + Breeze | Seamless dark login greeter matching the desktop |
+| **GTK 3 & GTK 4 Apps** | `breeze-gtk` / `adw-gtk3-dark` | Seamless dark integration for GTK applications in Plasma |
+| **GTK 2 Legacy Apps** | `Materia-dark-compact` | Seamless dark styling for older security tools |
 | **Icon Theme** | `Papirus-Dark` | Clear, high-contrast monochrome and colored icons |
-| **Qt Apps** | `QT_QPA_PLATFORMTHEME=gtk3` | Forces Calamares, Wireshark, etc. to adhere to dark theme |
+| **Qt Apps** | `QT_QPA_PLATFORMTHEME=kde` | Native Qt6 integration with Breeze styling |
 | **Monospace Font** | `JetBrainsMono Nerd Font` | Optimized for code legibility and CLI glyphs |
 
 ---
 
 ### Terminal Experience & Fastfetch
 
-Opening the terminal launches a styled **Alacritty** or **XFCE Terminal** session:
+Opening the terminal launches a styled **Konsole** or **Alacritty** session:
 - **Font**: JetBrainsMono Nerd Font (11pt).
-- **Color Palette**: GitHub Dark with high-contrast red cursor.
+- **Color Palette**: Dark palette with high-contrast red cursor.
 - **Shell**: `zsh` with Oh My Zsh pre-vendored into `/usr/share/oh-my-zsh`.
 - **MOTD**: Dynamic `aegis-motd` displaying system stats, IP addresses, active interfaces, and ASCII Sentinel shield.
 - **Fastfetch**: Custom Aegis OS configuration displaying hardware, kernel, memory, and desktop stats.
@@ -201,7 +203,7 @@ Opening the terminal launches a styled **Alacritty** or **XFCE Terminal** sessio
 
 ### The Aegis Tools Menu
 
-The application menu features a categorized Kali-style structure accessible via **Whisker Menu → Aegis Tools**:
+The application menu features a categorized Kali-style structure accessible via **Application Menu → Aegis Tools**:
 
 ```
 Aegis Tools

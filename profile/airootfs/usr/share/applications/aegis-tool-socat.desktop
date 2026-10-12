@@ -4,7 +4,7 @@ Version=1.0
 Name=socat
 GenericName=Multipurpose socket relay and tunnel
 Comment=Multipurpose socket relay and tunnel
-Exec=xfce4-terminal --title="socat" --command="aegis-run --group blackarch-exploitation --desc 'Multipurpose socket relay and tunnel' socat"
+Exec=konsole -p tabtitle="socat" -e aegis-run --group blackarch-exploitation --desc 'Multipurpose socket relay and tunnel' socat
 Icon=aegis-cat-exploit
 Terminal=false
 StartupNotify=false
