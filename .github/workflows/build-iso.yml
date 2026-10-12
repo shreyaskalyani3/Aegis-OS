@@ -219,45 +219,9 @@ jobs:
             if [ "$filesize" -ge 2097152000 ]; then
               echo "ISO $filename is ${filesize} bytes (> 2 GiB). Splitting into 1900MB parts for GitHub Release..."
               split -b 1900M -d "$iso" "release-assets/${filename}.part"
-
-              cat << 'EOF' > release-assets/join-iso.sh
-              #!/usr/bin/env bash
-              # Merge parts back into the complete ISO
-              set -e
-              ISO_NAME=$(ls *.iso.part00 2>/dev/null | head -n1 | sed 's/\.part00$//')
-              if [ -z "$ISO_NAME" ]; then
-                  echo "Error: *.iso.part00 not found in current directory"
-                  exit 1
-              fi
-              echo "Joining parts to create ${ISO_NAME}..."
-              cat "${ISO_NAME}.part"* > "${ISO_NAME}"
-              echo "Verifying SHA256..."
-              sha256sum -c "${ISO_NAME}.sha256" || true
-              echo "Done! ${ISO_NAME} is ready."
-              EOF
-              sed -i 's/^  *//' release-assets/join-iso.sh
+              cp scripts/release/join-iso.sh release-assets/
+              cp scripts/release/join-iso.bat release-assets/
               chmod +x release-assets/join-iso.sh
-
-              cat << 'EOF' > release-assets/join-iso.bat
-              @echo off
-              setlocal enabledelayedexpansion
-              for %%f in (*.iso.part00) do (
-                  set "base=%%~nf"
-                  set "isoname=!base!"
-              )
-              if "%isoname%"=="" (
-                  echo Error: *.iso.part00 not found
-                  pause
-                  exit /b 1
-              )
-              echo Joining parts to create %isoname%...
-              copy /b %isoname%.part* %isoname%
-              echo.
-              echo Verification: Run certutil -hashfile %isoname% SHA256 and compare with .sha256 file.
-              echo Done! %isoname% is ready.
-              pause
-              EOF
-              sed -i 's/^  *//' release-assets/join-iso.bat
             else
               echo "ISO $filename is ${filesize} bytes (<= 2 GiB). Copying directly."
               cp "$iso" release-assets/
