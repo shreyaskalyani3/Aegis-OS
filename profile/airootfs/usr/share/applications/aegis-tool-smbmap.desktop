@@ -4,7 +4,7 @@ Version=1.0
 Name=SMBMap
 GenericName=SMB share enumeration and access checks
 Comment=SMB share enumeration and access checks
-Exec=konsole -p tabtitle="SMBMap" -e aegis-run --group blackarch-recon --desc 'SMB share enumeration and access checks' smbmap
+Exec=konsole --profile Aegis -p tabtitle="SMBMap" -e aegis-run --group blackarch-recon --desc 'SMB share enumeration and access checks' smbmap
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

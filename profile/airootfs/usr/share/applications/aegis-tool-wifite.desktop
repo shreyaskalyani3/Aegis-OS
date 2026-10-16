@@ -4,7 +4,7 @@ Version=1.0
 Name=Wifite
 GenericName=Automated wireless network auditor
 Comment=Automated wireless network auditor
-Exec=konsole -p tabtitle="Wifite" -e aegis-run --group blackarch-wireless --desc 'Automated wireless network auditor' wifite
+Exec=konsole --profile Aegis -p tabtitle="Wifite" -e aegis-run --group blackarch-wireless --desc 'Automated wireless network auditor' wifite
 Icon=aegis-cat-wireless
 Terminal=false
 StartupNotify=false

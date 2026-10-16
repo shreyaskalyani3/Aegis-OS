@@ -4,7 +4,7 @@ Version=1.0
 Name=TShark
 GenericName=Terminal packet analyser
 Comment=Terminal packet analyser
-Exec=konsole -p tabtitle="TShark" -e aegis-run --pkg wireshark-cli --group blackarch-sniffer --desc 'Terminal packet analyser' tshark
+Exec=konsole --profile Aegis -p tabtitle="TShark" -e aegis-run --pkg wireshark-cli --group blackarch-sniffer --desc 'Terminal packet analyser' tshark
 Icon=aegis-cat-sniffing
 Terminal=false
 StartupNotify=false

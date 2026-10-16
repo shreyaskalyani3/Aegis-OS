@@ -1,6 +1,9 @@
 [Desktop Entry]
 DefaultProfile=Aegis.profile
 
+[Favorite Profiles]
+Favorites=Aegis.profile
+
 [MainWindow]
 MenuBar=Disabled
 ToolBarsMovable=Disabled

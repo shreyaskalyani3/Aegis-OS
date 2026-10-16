@@ -4,7 +4,7 @@ Version=1.0
 Name=MAC Changer
 GenericName=Change a network interface MAC address
 Comment=Change a network interface MAC address
-Exec=konsole -p tabtitle="MAC Changer" -e aegis-run --group blackarch-defensive --desc 'Change a network interface MAC address' macchanger
+Exec=konsole --profile Aegis -p tabtitle="MAC Changer" -e aegis-run --group blackarch-defensive --desc 'Change a network interface MAC address' macchanger
 Icon=aegis-cat-maintenance
 Terminal=false
 StartupNotify=false

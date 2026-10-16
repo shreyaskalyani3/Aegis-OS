@@ -4,7 +4,7 @@ Version=1.0
 Name=Aircrack-ng
 GenericName=WEP and WPA/WPA2-PSK key cracking
 Comment=WEP and WPA/WPA2-PSK key cracking
-Exec=konsole -p tabtitle="Aircrack-ng" -e aegis-run --group blackarch-wireless --desc 'WEP and WPA/WPA2-PSK key cracking' aircrack-ng
+Exec=konsole --profile Aegis -p tabtitle="Aircrack-ng" -e aegis-run --group blackarch-wireless --desc 'WEP and WPA/WPA2-PSK key cracking' aircrack-ng
 Icon=aegis-cat-wireless
 Terminal=false
 StartupNotify=false

@@ -15,7 +15,7 @@ done
 [[ -z "${term}" ]] && exit 0
 
 case "${term}" in
-    konsole)        exec "${term}" -p tabtitle="Aegis OS Setup" -e bash -lc aegis-setup ;;
+    konsole)        exec "${term}" --profile Aegis -e bash -lc aegis-setup ;;
     alacritty)      exec "${term}" --title "Aegis OS Setup" -e bash -lc aegis-setup ;;
     xterm)          exec "${term}" -T "Aegis OS Setup" -e bash -lc aegis-setup ;;
 esac

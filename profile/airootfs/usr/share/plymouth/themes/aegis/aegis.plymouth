@@ -10,3 +10,4 @@ ModuleName=script
 
 [script]
 ImageDir=/usr/share/plymouth/themes/aegis
+ScriptFile=/usr/share/plymouth/themes/aegis/aegis.script

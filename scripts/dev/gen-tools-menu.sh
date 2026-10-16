@@ -158,7 +158,7 @@ Version=1.0
 Name=$name
 GenericName=$desc
 Comment=$desc
-Exec=konsole -p tabtitle="$name" -e aegis-run ${pkgopt}--group $grp --desc '$desc' $cmd
+Exec=konsole --profile Aegis -p tabtitle="$name" -e aegis-run ${pkgopt}--group $grp --desc '$desc' $cmd
 Icon=aegis-cat-$slug
 Terminal=false
 StartupNotify=false

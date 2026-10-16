@@ -4,7 +4,7 @@ Version=1.0
 Name=Network Manager TUI
 GenericName=Text-mode network configuration
 Comment=Text-mode network configuration
-Exec=konsole -p tabtitle="Network Manager TUI" -e aegis-run --pkg networkmanager --group blackarch-defensive --desc 'Text-mode network configuration' nmtui
+Exec=konsole --profile Aegis -p tabtitle="Network Manager TUI" -e aegis-run --pkg networkmanager --group blackarch-defensive --desc 'Text-mode network configuration' nmtui
 Icon=aegis-cat-maintenance
 Terminal=false
 StartupNotify=false

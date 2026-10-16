@@ -4,7 +4,7 @@ Version=1.0
 Name=Bettercap
 GenericName=Network attack and monitoring framework
 Comment=Network attack and monitoring framework
-Exec=konsole -p tabtitle="Bettercap" -e aegis-run --group blackarch-sniffer --desc 'Network attack and monitoring framework' bettercap
+Exec=konsole --profile Aegis -p tabtitle="Bettercap" -e aegis-run --group blackarch-sniffer --desc 'Network attack and monitoring framework' bettercap
 Icon=aegis-cat-sniffing
 Terminal=false
 StartupNotify=false

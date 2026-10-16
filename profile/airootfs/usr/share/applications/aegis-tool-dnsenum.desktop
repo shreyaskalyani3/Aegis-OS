@@ -4,7 +4,7 @@ Version=1.0
 Name=dnsenum
 GenericName=DNS records and subdomain enumeration
 Comment=DNS records and subdomain enumeration
-Exec=konsole -p tabtitle="dnsenum" -e aegis-run --group blackarch-recon --desc 'DNS records and subdomain enumeration' dnsenum
+Exec=konsole --profile Aegis -p tabtitle="dnsenum" -e aegis-run --group blackarch-recon --desc 'DNS records and subdomain enumeration' dnsenum
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

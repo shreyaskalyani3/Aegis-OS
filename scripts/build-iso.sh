@@ -298,23 +298,17 @@ fi
 # cfgs — add to the syslinux APPEND lines, the grub.cfg linux lines, AND the
 # systemd-boot options lines (efiboot loader entries — without them a UEFI boot
 # never hands `splash` to the kernel and plymouth never engages).
-for f in "${STAGED_PROFILE}/syslinux/"archiso_sys-linux.cfg \
-         "${STAGED_PROFILE}/syslinux/"archiso_pxe-linux.cfg \
+for f in "${STAGED_PROFILE}/syslinux/"archiso_*.cfg \
+         "${STAGED_PROFILE}/syslinux/"*.cfg \
          "${STAGED_PROFILE}/grub/"grub.cfg \
-         "${STAGED_PROFILE}/efiboot/loader/entries/"0*.conf; do
+         "${STAGED_PROFILE}/efiboot/loader/entries/"*.conf; do
     [[ -f "${f}" ]] || continue
-    sed -i 's/^APPEND /APPEND quiet splash plymouth.ignore-serial-consoles /;
-            s/^\([[:space:]]*linux[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/;
-            s/^\([[:space:]]*options[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/' "${f}"
+    sed -i -E 's/^([[:space:]]*APPEND[[:space:]]+)/\1quiet splash plymouth.ignore-serial-consoles /;
+               s/^([[:space:]]*linux[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/;
+               s/^([[:space:]]*options[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/' "${f}"
+    sed -i -E 's/(quiet splash plymouth\.ignore-serial-consoles[[:space:]]*)+/quiet splash plymouth.ignore-serial-consoles /g' "${f}"
 done
-# plymouth must be in the LIVE initramfs HOOKS too: the conf.d/archiso.conf
-# drop-in reassigns HOOKS wholesale and sources after our aegis.conf drop-in,
-# so its list wins on the live medium. Inject after udev (idempotent).
-ARCHISO_CONF="${STAGED_PROFILE}/airootfs/etc/mkinitcpio.conf.d/archiso.conf"
-if [[ -f "${ARCHISO_CONF}" ]] && ! grep -q '^HOOKS=(base udev plymouth ' "${ARCHISO_CONF}"; then
-    sed -i 's/^HOOKS=(base udev /HOOKS=(base udev plymouth /' "${ARCHISO_CONF}"
-    log "injected plymouth into the live initramfs HOOKS"
-fi
+
 # Safety net: ensure the live initramfs config exists (critical for booting).
 # The archiso.conf drop-in carries the live HOOKS (archiso, loop mount, etc.);
 # without it mkinitcpio builds an initramfs that cannot mount the live medium.
@@ -325,6 +319,13 @@ for critical in etc/mkinitcpio.conf etc/mkinitcpio.conf.d/archiso.conf etc/mkini
         log "imported critical file: airootfs/${critical} (from releng)"
     fi
 done
+
+# plymouth must be in the LIVE initramfs HOOKS: inject after udev.
+ARCHISO_CONF="${STAGED_PROFILE}/airootfs/etc/mkinitcpio.conf.d/archiso.conf"
+if [[ -f "${ARCHISO_CONF}" ]] && ! grep -q 'plymouth' "${ARCHISO_CONF}"; then
+    sed -i -E 's/^([[:space:]]*HOOKS=\([^)]*udev)[[:space:]]+/\1 plymouth /' "${ARCHISO_CONF}"
+    log "injected plymouth into the live initramfs HOOKS"
+fi
 
 # Inject the absolute local-repo path into the [aegis] repo Server line.
 sed -i "s|file://__AEGIS_LOCAL_REPO__|file://${LOCALREPO}|g" "${STAGED_PROFILE}/pacman.conf"
@@ -594,6 +595,23 @@ ln -sf "${LIB}/systemd-timesyncd.service" "${SYSD}/dbus-org.freedesktop.timesync
 # Bluetooth (D-Bus activated; enabled for completeness).
 ln -sf "${LIB}/bluetooth.service" "${SYSD}/bluetooth.target.wants/bluetooth.service"
 ln -sf "${LIB}/bluetooth.service" "${SYSD}/dbus-org.bluez.service"
+
+# Mask systemd-firstboot so the console setup prompt never triggers on the live medium
+ln -sf "/dev/null" "${SYSD}/systemd-firstboot.service"
+
+# Plymouth bootsplash services (early start and clean transition to SDDM)
+ln -sf "${LIB}/plymouth-start.service"     "${SYSD}/sysinit.target.wants/plymouth-start.service"
+ln -sf "${LIB}/plymouth-quit.service"      "${SYSD}/multi-user.target.wants/plymouth-quit.service"
+ln -sf "${LIB}/plymouth-quit-wait.service" "${SYSD}/multi-user.target.wants/plymouth-quit-wait.service"
+
+# Ensure default system timezone is set
+mkdir -p "${STAGED_PROFILE}/airootfs/etc"
+echo "${AEGIS_TIMEZONE:-UTC}" > "${STAGED_PROFILE}/airootfs/etc/timezone"
+ln -sf "/usr/share/zoneinfo/${AEGIS_TIMEZONE:-UTC}" "${STAGED_PROFILE}/airootfs/etc/localtime"
+
+# Ensure Plymouth default theme symlink
+mkdir -p "${STAGED_PROFILE}/airootfs/usr/share/plymouth/themes"
+ln -sf "aegis/aegis.plymouth" "${STAGED_PROFILE}/airootfs/usr/share/plymouth/themes/default.plymouth"
 
 # The Aegis credential oneshot creates the live user and sets the passwords. It
 # is ordered before both aegis-live-setup and the display manager, and is the

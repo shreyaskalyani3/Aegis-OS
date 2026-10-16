@@ -4,7 +4,7 @@ Version=1.0
 Name=DNSRecon
 GenericName=DNS enumeration and zone-transfer checks
 Comment=DNS enumeration and zone-transfer checks
-Exec=konsole -p tabtitle="DNSRecon" -e aegis-run --group blackarch-recon --desc 'DNS enumeration and zone-transfer checks' dnsrecon
+Exec=konsole --profile Aegis -p tabtitle="DNSRecon" -e aegis-run --group blackarch-recon --desc 'DNS enumeration and zone-transfer checks' dnsrecon
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

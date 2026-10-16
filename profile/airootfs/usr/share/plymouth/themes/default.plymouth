@@ -1,0 +1,9 @@
+# Aegis OS default plymouth theme
+[Plymouth Theme]
+Name=Aegis OS
+Description=Aegis OS — pulsing shield boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/aegis
+ScriptFile=/usr/share/plymouth/themes/aegis/aegis.script

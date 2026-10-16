@@ -4,7 +4,7 @@ Version=1.0
 Name=Sleuth Kit (fls)
 GenericName=List files and directories in a disk image
 Comment=List files and directories in a disk image
-Exec=konsole -p tabtitle="Sleuth Kit (fls)" -e aegis-run --pkg sleuthkit --group blackarch-forensic --desc 'List files and directories in a disk image' fls
+Exec=konsole --profile Aegis -p tabtitle="Sleuth Kit (fls)" -e aegis-run --pkg sleuthkit --group blackarch-forensic --desc 'List files and directories in a disk image' fls
 Icon=aegis-cat-forensics
 Terminal=false
 StartupNotify=false

@@ -4,7 +4,7 @@ Version=1.0
 Name=strace
 GenericName=Trace system calls and signals
 Comment=Trace system calls and signals
-Exec=konsole -p tabtitle="strace" -e aegis-run --group blackarch-reversing --desc 'Trace system calls and signals' strace
+Exec=konsole --profile Aegis -p tabtitle="strace" -e aegis-run --group blackarch-reversing --desc 'Trace system calls and signals' strace
 Icon=aegis-cat-reversing
 Terminal=false
 StartupNotify=false

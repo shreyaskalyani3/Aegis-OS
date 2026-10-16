@@ -4,7 +4,7 @@ Version=1.0
 Name=ffuf
 GenericName=Fast web fuzzer
 Comment=Fast web fuzzer
-Exec=konsole -p tabtitle="ffuf" -e aegis-run --group blackarch-webapp --desc 'Fast web fuzzer' ffuf
+Exec=konsole --profile Aegis -p tabtitle="ffuf" -e aegis-run --group blackarch-webapp --desc 'Fast web fuzzer' ffuf
 Icon=aegis-cat-web
 Terminal=false
 StartupNotify=false

@@ -4,7 +4,7 @@ Version=1.0
 Name=Fierce
 GenericName=DNS reconnaissance and IP-space scanner
 Comment=DNS reconnaissance and IP-space scanner
-Exec=konsole -p tabtitle="Fierce" -e aegis-run --group blackarch-recon --desc 'DNS reconnaissance and IP-space scanner' fierce
+Exec=konsole --profile Aegis -p tabtitle="Fierce" -e aegis-run --group blackarch-recon --desc 'DNS reconnaissance and IP-space scanner' fierce
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

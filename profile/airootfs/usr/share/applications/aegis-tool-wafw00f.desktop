@@ -4,7 +4,7 @@ Version=1.0
 Name=wafw00f
 GenericName=Identify the web application firewall in front of a site
 Comment=Identify the web application firewall in front of a site
-Exec=konsole -p tabtitle="wafw00f" -e aegis-run --group blackarch-scanner --desc 'Identify the web application firewall in front of a site' wafw00f
+Exec=konsole --profile Aegis -p tabtitle="wafw00f" -e aegis-run --group blackarch-scanner --desc 'Identify the web application firewall in front of a site' wafw00f
 Icon=aegis-cat-vuln
 Terminal=false
 StartupNotify=false

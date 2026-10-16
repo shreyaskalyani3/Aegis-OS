@@ -4,7 +4,7 @@ Version=1.0
 Name=Hash Identifier
 GenericName=Identify the type of a hash
 Comment=Identify the type of a hash
-Exec=konsole -p tabtitle="Hash Identifier" -e aegis-run --group blackarch-cracker --desc 'Identify the type of a hash' hash-identifier
+Exec=konsole --profile Aegis -p tabtitle="Hash Identifier" -e aegis-run --group blackarch-cracker --desc 'Identify the type of a hash' hash-identifier
 Icon=aegis-cat-passwords
 Terminal=false
 StartupNotify=false
