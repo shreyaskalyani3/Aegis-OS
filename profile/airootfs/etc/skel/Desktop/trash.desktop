@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Recycle Bin
+GenericName=Trash
+Comment=Contains removed files
+Exec=dolphin trash:/
+Icon=user-trash
+Terminal=false
+StartupNotify=true
+Categories=System;FileManager;

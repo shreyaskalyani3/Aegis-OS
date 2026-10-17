@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Secure Browser
+GenericName=Web Browser
+Comment=Browse the World Wide Web securely
+Exec=firefox %u
+Icon=firefox
+Terminal=false
+StartupNotify=true
+Categories=Network;WebBrowser;
+Keywords=internet;web;browser;firefox;secure;network;

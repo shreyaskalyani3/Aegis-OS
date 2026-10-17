@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=VFS Storage
+GenericName=File Manager
+Comment=Browse files and virtual file storage
+Exec=dolphin
+Icon=system-file-manager
+Terminal=false
+StartupNotify=true
+Categories=System;FileManager;
+Keywords=files;manager;vfs;storage;dolphin;explorer;

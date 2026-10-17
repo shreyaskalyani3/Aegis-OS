@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Home
+GenericName=Home Folder
+Comment=Open personal home folder
+Exec=dolphin
+Icon=user-home
+Terminal=false
+StartupNotify=true
+Categories=System;FileManager;

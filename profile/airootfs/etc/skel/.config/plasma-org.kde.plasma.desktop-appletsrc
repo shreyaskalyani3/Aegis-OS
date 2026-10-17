@@ -19,7 +19,7 @@ ToolBoxButtonX=1000
 
 [Containments][1][Wallpaper][org.kde.image][General]
 FillMode=2
-Image=file:///usr/share/backgrounds/aegis/aegis-wallpaper.svg
+Image=file:///usr/share/backgrounds/aegis/aegis-wallpaper-cyber.png
 
 [Containments][2]
 activityId=
@@ -45,7 +45,7 @@ immutability=1
 plugin=org.kde.plasma.icontasks
 
 [Containments][2][Applets][5][Configuration][General]
-launchers=applications:konsole.desktop,applications:org.kde.dolphin.desktop,applications:firefox.desktop,applications:aegis-tools.desktop,applications:aegis-ai.desktop,applications:aegis-install.desktop
+launchers=applications:aegis-terminal.desktop,applications:aegis-files.desktop,applications:aegis-browser.desktop,applications:aegis-tools.desktop,applications:aegis-ai.desktop,applications:aegis-install.desktop
 
 [Containments][2][Applets][6]
 immutability=1

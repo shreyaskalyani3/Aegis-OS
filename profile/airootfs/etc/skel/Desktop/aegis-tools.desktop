@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Security Guard
+GenericName=Security Tool Manager
+Comment=Browse and install BlackArch security tool groups
+Exec=konsole --profile Aegis -p tabtitle="Security Guard" -e aegis-run --desc 'Security tool manager' aegis-tools
+Icon=aegis-tools
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;Security;X-Aegis-Maintenance;
+Keywords=tools;blackarch;security;install;arsenal;guard;
