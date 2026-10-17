@@ -6,7 +6,7 @@ set -uo pipefail
 
 log(){ printf 'aegis-desktop-setup: %s\n' "$*" >&2; }
 
-WALL="/usr/share/backgrounds/aegis/aegis-wallpaper-cyber.png"
+WALL="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"
 
 # 1. Apply wallpaper if tool is available
 if [[ -r "${WALL}" ]] && command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then

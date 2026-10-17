@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Aegis Terminal
+Name=Terminal
 GenericName=Terminal Emulator
-Comment=Open the Aegis Terminal
+Comment=Open an Aegis shell
 Exec=konsole --profile Aegis
 Icon=utilities-terminal
 Terminal=false

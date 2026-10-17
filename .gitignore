@@ -23,7 +23,3 @@ Thumbs.db
 
 # Local Claude Code settings (machine-specific)
 .claude/settings.local.json
-
-# Scratch concept images
-Gemini_Generated_Image_*.png
-

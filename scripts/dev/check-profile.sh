@@ -71,7 +71,7 @@ note "  categories: $(grep -ho 'X-Aegis-[A-Za-z]*' profile/airootfs/usr/share/ap
 note ""
 note "=== 3b. Every Icon= resolves to an icon we ship ============="
 # Stock names we rely on from Papirus / hicolor (present via installed packages).
-STOCK="utilities-terminal system-file-manager firefox preferences-system system-software-install dialog-password preferences-desktop-wallpaper user-home user-trash"
+STOCK="utilities-terminal system-file-manager firefox preferences-system system-software-install dialog-password preferences-desktop-wallpaper"
 for icon in $(grep -rh '^Icon=' profile/airootfs --include='*.desktop' --include='*.directory' | sed 's/^Icon=//' | sort -u); do
     if [[ -f "profile/airootfs/usr/share/icons/hicolor/scalable/apps/${icon}.svg" ]]; then
         note "  ours  ${icon}"

@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=App Vault
-GenericName=AI Agents & Security Vault
+Name=Aegis AI Agent
+GenericName=AI Coding Agent
 Comment=Launch or install an AI coding agent (Claude Code, OpenCode, Aider, Codex)
-Exec=konsole --profile Aegis -p tabtitle="App Vault" -e aegis-run --desc 'AI coding agent' aegis-ai
+Exec=konsole --profile Aegis -p tabtitle="Aegis AI" -e aegis-run --desc 'AI coding agent' aegis-ai
 Icon=aegis-ai
 Terminal=false
 StartupNotify=true
