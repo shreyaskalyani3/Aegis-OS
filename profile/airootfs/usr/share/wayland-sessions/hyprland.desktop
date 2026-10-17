@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Hyprland (Aphotic Cyber)
+Comment=An intelligent dynamic tiling Wayland compositor with Aphotic Quickshell
+Exec=Hyprland
+Icon=aegis
+Type=Application
+DesktopNames=Hyprland
+Keywords=tiling;wayland;compositor;cyber;aphotic;

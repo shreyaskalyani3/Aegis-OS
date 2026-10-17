@@ -1,0 +1,1313 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import qs.config
+import qs.components
+import qs.services
+import qs.services.ai
+
+ColumnLayout {
+    id: root
+
+    spacing: Tokens.spacing.largeIncreased
+
+    Component.onCompleted: LlamaSwapStats.hold("settings-ai", root.visible)
+    Component.onDestruction: LlamaSwapStats.hold("settings-ai", false)
+    onVisibleChanged: LlamaSwapStats.hold("settings-ai", root.visible)
+
+    StyledText {
+        text: qsTr("AI")
+        font: Tokens.font.title.large
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("Provider")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsRow {
+                searchId: "aiActive"
+                icon: "smart_toy"
+                label: qsTr("Active")
+                description: qsTr("Used when AI Chat opens")
+
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    Repeater {
+                        model: AiProviders.providers
+
+                        StyledRect {
+                            id: providerPill
+
+                            required property var modelData
+                            readonly property bool active: providerPill.modelData.id === AiConfig.activeProvider
+                            readonly property bool available: AiProviders.isAvailable(providerPill.modelData.id)
+
+                            Layout.preferredHeight: 28
+                            Layout.preferredWidth: pillLabel.implicitWidth + Tokens.padding.medium * 2
+                            radius: Tokens.rounding.full
+                            opacity: providerPill.available ? 1 : 0.4
+                            color: providerPill.active ? Colours.signal : Colours.layer(Colours.surfaceLift, 3)
+
+                            Behavior on color {
+                                CAnim {}
+                            }
+
+                            StyledText {
+                                id: pillLabel
+                                anchors.centerIn: parent
+                                text: providerPill.modelData.label
+                                color: providerPill.active ? Colours.contrastOn(Colours.signal) : Colours.inkMuted
+                                font: Tokens.font.label.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                showHoverBackground: providerPill.available
+                            }
+
+                            // A disabled Interact's own MouseArea stops
+                            // accepting clicks, letting them fall through
+                            // to whatever is behind it -- the dashboard's
+                            // click-outside-to-dismiss MouseArea, in this
+                            // overlay family. This plain MouseArea stays
+                            // enabled regardless of availability so it
+                            // always absorbs the click; it only acts when
+                            // the provider is actually usable.
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (providerPill.available)
+                                        AiConfig.activeProvider = providerPill.modelData.id;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Everything locally-hosted below is installed by the `ai` layer --
+    // Ollama's host and model store, the GGUF directory. With the
+    // layer off these are absent, not empty: the pane keeps only Provider,
+    // API Keys and Intelligence, which are what a base shell can actually
+    // use (Claude's CLI session plus the Gemini and ChatGPT APIs).
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+        visible: InstallProfile.aiEnabled
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("Ollama")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsRow {
+                icon: "dns"
+                label: qsTr("Host")
+                description: AiConfig.ollamaHostConfigured ? AiConfig.ollamaHost : qsTr("Not set -- Ollama provider unavailable")
+
+                StyledRect {
+                    Layout.preferredWidth: 200
+                    Layout.preferredHeight: 32
+                    radius: Tokens.rounding.full
+                    color: Colours.layer(Colours.surfaceLift, 3)
+
+                    TextInput {
+                        id: hostInput
+
+                        anchors.fill: parent
+                        anchors.leftMargin: Tokens.padding.medium
+                        anchors.rightMargin: Tokens.padding.medium
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        font: Tokens.font.label.small
+                        color: Colours.ink
+                        text: AiConfig.ollamaHost
+
+                        Keys.onReturnPressed: {
+                            const value = hostInput.text.trim();
+                            if (value.length > 0) {
+                                AiConfig.ollamaHost = value;
+                                AiProviders.refreshOllamaModels();
+                            }
+                        }
+
+                        StyledText {
+                            visible: hostInput.text.length === 0
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("http://host:11434")
+                            color: Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+                    }
+                }
+            }
+
+            SettingsRow {
+                icon: AiProviders.ollamaReachable ? "check_circle" : "power_settings_new"
+                label: qsTr("Status")
+                description: {
+                    if (AiProviders.startingOllama)
+                        return qsTr("Starting…");
+                    if (AiProviders.stoppingOllama)
+                        return qsTr("Stopping…");
+                    if (AiProviders.ollamaReachable)
+                        return qsTr("Running at %1").arg(AiConfig.ollamaHost);
+                    return qsTr("Not reachable at %1").arg(AiConfig.ollamaHost);
+                }
+
+                // Wrapped in a RowLayout, not a bare StyledRect, so
+                // Layout.preferredWidth/Height below actually apply: a lone
+                // StyledRect dropped directly into SettingsRow's trailing
+                // slot (a plain Item, not a Layout) silently collapses to
+                // 0x0 instead.
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    StyledRect {
+                        Layout.preferredHeight: 32
+                        Layout.preferredWidth: startLabel.implicitWidth + Tokens.padding.large * 2
+                        radius: Tokens.rounding.full
+                        visible: !AiProviders.ollamaReachable
+                        opacity: AiProviders.startingOllama ? 0.5 : 1
+                        color: Colours.signal
+
+                        StyledText {
+                            id: startLabel
+                            anchors.centerIn: parent
+                            text: AiProviders.startingOllama ? qsTr("Starting…") : qsTr("Start Ollama")
+                            color: Colours.contrastOn(Colours.signal)
+                            font: Tokens.font.label.small
+                        }
+
+                        Interact {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            disabled: AiProviders.startingOllama
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !AiProviders.startingOllama
+                            onClicked: AiProviders.startOllama()
+                        }
+                    }
+
+                    StyledRect {
+                        Layout.preferredHeight: 32
+                        Layout.preferredWidth: stopLabel.implicitWidth + Tokens.padding.large * 2
+                        radius: Tokens.rounding.full
+                        visible: AiProviders.ollamaReachable
+                        opacity: AiProviders.stoppingOllama ? 0.5 : 1
+                        color: Colours.layer(Colours.surfaceLift, 3)
+
+                        StyledText {
+                            id: stopLabel
+                            anchors.centerIn: parent
+                            text: AiProviders.stoppingOllama ? qsTr("Stopping…") : qsTr("Stop Ollama")
+                            color: Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+
+                        Interact {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            disabled: AiProviders.stoppingOllama
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !AiProviders.stoppingOllama
+                            onClicked: AiProviders.stopOllama()
+                        }
+                    }
+                }
+            }
+
+            SettingsRow {
+                searchId: "aiModel"
+                icon: "memory"
+                label: qsTr("Model")
+                description: AiConfig.ollamaModel.length > 0 ? AiConfig.ollamaModel : qsTr("None selected")
+
+                StyledRect {
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                    radius: Tokens.rounding.full
+                    color: Colours.layer(Colours.surfaceLift, 3)
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        text: "refresh"
+                        color: Colours.inkMuted
+                        fontStyle: Tokens.font.icon.small
+                    }
+
+                    Interact {
+                        anchors.fill: parent
+                        radius: parent.radius
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AiProviders.refreshOllamaModels()
+                    }
+                }
+            }
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            Layout.topMargin: Tokens.spacing.extraSmall
+            visible: AiProviders.ollamaModels.length > 0
+            spacing: Tokens.spacing.small
+
+            Repeater {
+                model: AiProviders.ollamaModels
+
+                StyledRect {
+                    id: modelPill
+
+                    required property string modelData
+                    readonly property bool active: modelPill.modelData === AiConfig.ollamaModel
+
+                    implicitHeight: 28
+                    implicitWidth: modelLabel.implicitWidth + Tokens.padding.medium * 2
+                    radius: Tokens.rounding.full
+                    color: modelPill.active ? Colours.signal : Colours.layer(Colours.surfaceLift, 2)
+
+                    StyledText {
+                        id: modelLabel
+                        anchors.centerIn: parent
+                        text: modelPill.modelData
+                        color: modelPill.active ? Colours.contrastOn(Colours.signal) : Colours.inkMuted
+                        font: Tokens.font.label.small
+                    }
+
+                    Interact {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        showHoverBackground: !modelPill.active
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AiConfig.ollamaModel = modelPill.modelData
+                    }
+                }
+            }
+        }
+    }
+
+    // A llama-swap server's running models become Resource Engine claims
+    // (LlamaSwapClaims). Nothing is polled until a host is set.
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+        visible: InstallProfile.aiEnabled
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("llama-swap")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsRow {
+                icon: "dns"
+                label: qsTr("Host")
+                description: AiConfig.llamaSwapHostConfigured ? AiConfig.llamaSwapHost : qsTr("Not set -- llama-swap models are not tracked")
+
+                StyledRect {
+                    Layout.preferredWidth: 200
+                    Layout.preferredHeight: 32
+                    radius: Tokens.rounding.full
+                    color: Colours.layer(Colours.surfaceLift, 3)
+
+                    TextInput {
+                        id: llamaSwapHostInput
+
+                        anchors.fill: parent
+                        anchors.leftMargin: Tokens.padding.medium
+                        anchors.rightMargin: Tokens.padding.medium
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        font: Tokens.font.label.small
+                        color: Colours.ink
+                        text: AiConfig.llamaSwapHost
+
+                        // Empty clears the host, which stops the poll.
+                        Keys.onReturnPressed: AiConfig.llamaSwapHost = llamaSwapHostInput.text.trim()
+
+                        StyledText {
+                            visible: llamaSwapHostInput.text.length === 0
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("http://host:9090")
+                            color: Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+                    }
+                }
+            }
+
+            SettingsRow {
+                visible: AiConfig.llamaSwapHostConfigured
+                icon: AiProviders.llamaSwapReachable ? "check_circle" : "error"
+                label: qsTr("Status")
+                description: {
+                    if (!AiProviders.llamaSwapReachable)
+                        return qsTr("Not reachable at %1").arg(AiConfig.llamaSwapHost);
+                    const running = AiProviders.llamaSwapRunningModels.map(m => m.name);
+                    return running.length > 0 ? qsTr("Running: %1").arg(running.join(", ")) : qsTr("Reachable, no model loaded");
+                }
+            }
+
+            SettingsRow {
+                searchId: "aiInferenceMode"
+                icon: InferenceMode.active ? "speed" : "memory"
+                label: qsTr("Inference mode")
+                description: {
+                    if (!InferenceMode.active)
+                        return qsTr("Idle");
+                    const rate = LlamaSwapStats.tokensPerSecond > 0
+                        ? qsTr(" · %1 tok/s").arg(Math.round(LlamaSwapStats.tokensPerSecond))
+                        : "";
+                    return qsTr("Active · %1%2").arg(InferenceMode.model || qsTr("Local model")).arg(rate);
+                }
+
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    Repeater {
+                        model: [{ id: "auto", label: qsTr("Auto") }, { id: "off", label: qsTr("Off") }]
+
+                        StyledRect {
+                            id: inferencePill
+
+                            required property var modelData
+                            readonly property bool active: inferencePill.modelData.id === InferenceMode.mode
+
+                            Layout.preferredHeight: 28
+                            Layout.preferredWidth: inferenceLabel.implicitWidth + Tokens.padding.medium * 2
+                            radius: Tokens.rounding.full
+                            color: inferencePill.active ? Colours.signal : Colours.layer(Colours.surfaceLift, 3)
+
+                            StyledText {
+                                id: inferenceLabel
+                                anchors.centerIn: parent
+                                text: inferencePill.modelData.label
+                                color: inferencePill.active ? Colours.contrastOn(Colours.signal) : Colours.inkMuted
+                                font: Tokens.font.label.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: InferenceMode.setMode(inferencePill.modelData.id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+        visible: InstallProfile.aiEnabled
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("LM Studio")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsRow {
+                icon: "dns"
+                label: qsTr("Host")
+                description: AiConfig.lmStudioHostConfigured ? AiConfig.lmStudioHost : qsTr("Not set -- LM Studio models are not tracked")
+
+                StyledRect {
+                    Layout.preferredWidth: 200
+                    Layout.preferredHeight: 32
+                    radius: Tokens.rounding.full
+                    color: Colours.layer(Colours.surfaceLift, 3)
+
+                    TextInput {
+                        id: lmStudioHostInput
+
+                        anchors.fill: parent
+                        anchors.leftMargin: Tokens.padding.medium
+                        anchors.rightMargin: Tokens.padding.medium
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        font: Tokens.font.label.small
+                        color: Colours.ink
+                        text: AiConfig.lmStudioHost
+
+                        Keys.onReturnPressed: AiConfig.lmStudioHost = lmStudioHostInput.text.trim()
+
+                        StyledText {
+                            visible: lmStudioHostInput.text.length === 0
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("http://host:1234")
+                            color: Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+                    }
+                }
+            }
+
+            SettingsRow {
+                visible: AiConfig.lmStudioHostConfigured
+                icon: AiProviders.lmStudioReachable ? "check_circle" : "error"
+                label: qsTr("Status")
+                description: {
+                    if (!AiProviders.lmStudioReachable)
+                        return qsTr("Not reachable at %1").arg(AiConfig.lmStudioHost);
+                    const running = AiProviders.lmStudioRunningModels.map(model => model.name);
+                    return running.length > 0 ? qsTr("Running: %1").arg(running.join(", ")) : qsTr("Reachable, no model loaded");
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        id: ollamaModelsSection
+
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+        visible: InstallProfile.aiEnabled && AiConfig.activeProvider === "ollama" && AiConfig.ollamaHostConfigured
+
+        function formatVram(bytes: real): string {
+            return qsTr("%1 GB").arg((bytes / 1073741824).toFixed(1));
+        }
+
+        function runningInfo(name: string): var {
+            return AiProviders.ollamaRunningModels.find(m => m.name === name) ?? null;
+        }
+
+        Component.onCompleted: AiProviders.refreshRunningModels()
+
+        onVisibleChanged: {
+            if (ollamaModelsSection.visible)
+                AiProviders.refreshRunningModels();
+        }
+
+        Timer {
+            id: ollamaModelsPoll
+
+            interval: 5000
+            running: ollamaModelsSection.visible
+            repeat: true
+            onTriggered: AiProviders.refreshRunningModels()
+        }
+
+        ActivityProbe {
+            name: "settings.ai-models"
+            kind: "network"
+            timer: ollamaModelsPoll
+        }
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("Ollama Models")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+            visible: AiProviders.ollamaModels.length > 0
+
+            Repeater {
+                model: AiProviders.ollamaModels
+
+                SettingsRow {
+                    id: modelRow
+
+                    required property string modelData
+                    readonly property var running: ollamaModelsSection.runningInfo(modelRow.modelData)
+                    readonly property bool active: modelRow.modelData === AiConfig.ollamaModel
+
+                    icon: "memory"
+                    label: modelRow.modelData
+                    description: modelRow.running ? qsTr("Running -- %1 VRAM").arg(ollamaModelsSection.formatVram(modelRow.running.size_vram)) : qsTr("Idle")
+
+                    RowLayout {
+                        spacing: Tokens.spacing.small
+
+                        MaterialIcon {
+                            text: "check_circle"
+                            fill: modelRow.active ? 1 : 0
+                            color: modelRow.active ? Colours.signal : Colours.inkMuted
+                            fontStyle: Tokens.font.icon.small
+
+                            Interact {
+                                anchors.fill: parent
+                                anchors.margins: -Tokens.padding.small
+                                radius: Tokens.rounding.full
+                                onClicked: AiConfig.ollamaModel = modelRow.modelData
+                            }
+                        }
+
+                        MaterialIcon {
+                            text: "delete"
+                            color: Colours.alert
+                            fontStyle: Tokens.font.icon.small
+
+                            Interact {
+                                anchors.fill: parent
+                                anchors.margins: -Tokens.padding.small
+                                radius: Tokens.rounding.full
+                                onClicked: AiProviders.deleteModel(modelRow.modelData)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsRow {
+                searchId: "aiPullModel"
+                icon: "download"
+                label: qsTr("Pull new model")
+                description: qsTr("Downloads a model onto the Ollama host")
+
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    StyledRect {
+                        Layout.preferredWidth: 160
+                        Layout.preferredHeight: 32
+                        radius: Tokens.rounding.full
+                        color: Colours.layer(Colours.surfaceLift, 3)
+
+                        TextInput {
+                            id: pullInput
+
+                            anchors.fill: parent
+                            anchors.leftMargin: Tokens.padding.medium
+                            anchors.rightMargin: Tokens.padding.medium
+                            verticalAlignment: TextInput.AlignVCenter
+                            clip: true
+                            enabled: !AiProviders.pulling
+                            font: Tokens.font.label.small
+                            color: Colours.ink
+
+                            Keys.onReturnPressed: {
+                                if (pullInput.text.trim().length > 0) {
+                                    AiProviders.pullModel(pullInput.text);
+                                    pullInput.text = "";
+                                }
+                            }
+
+                            StyledText {
+                                visible: pullInput.text.length === 0
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("llama3.2")
+                                color: Colours.inkMuted
+                                font: Tokens.font.label.small
+                            }
+                        }
+                    }
+
+                    StyledRect {
+                        Layout.preferredWidth: pullLabel.implicitWidth + Tokens.padding.large * 2
+                        Layout.preferredHeight: 32
+                        radius: Tokens.rounding.full
+                        opacity: AiProviders.pulling ? 0.5 : 1
+                        color: Colours.signal
+
+                        StyledText {
+                            id: pullLabel
+                            anchors.centerIn: parent
+                            text: AiProviders.pulling ? qsTr("Pulling…") : qsTr("Pull")
+                            color: Colours.contrastOn(Colours.signal)
+                            font: Tokens.font.label.small
+                        }
+
+                        Interact {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            showHoverBackground: !AiProviders.pulling
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !AiProviders.pulling
+                            onClicked: {
+                                if (pullInput.text.trim().length > 0) {
+                                    AiProviders.pullModel(pullInput.text);
+                                    pullInput.text = "";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("API Keys")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            ApiKeyRow {
+                searchId: "apiKeyClaude"
+                icon: "key"
+                label: qsTr("Claude (Anthropic)")
+                hasKey: AiKeys.hasAnthropicKey
+                onKeySubmitted: value => AiKeys.anthropicApiKey = value
+                onKeyCleared: AiKeys.anthropicApiKey = ""
+            }
+
+            ApiKeyRow {
+                searchId: "apiKeyGemini"
+                icon: "key"
+                label: qsTr("Gemini")
+                hasKey: AiKeys.hasGeminiKey
+                onKeySubmitted: value => AiKeys.geminiApiKey = value
+                onKeyCleared: AiKeys.geminiApiKey = ""
+            }
+
+            ApiKeyRow {
+                searchId: "apiKeyChatgpt"
+                icon: "key"
+                label: qsTr("ChatGPT")
+                hasKey: AiKeys.hasOpenaiKey
+                onKeySubmitted: value => AiKeys.openaiApiKey = value
+                onKeyCleared: AiKeys.openaiApiKey = ""
+            }
+        }
+    }
+
+    SettingsSection {
+        Layout.fillWidth: true
+        visible: InstallProfile.aiEnabled
+        icon: "folder"
+        label: qsTr("Model Storage")
+        description: qsTr("Where Ollama and GGUF weights live on disk")
+
+        content: ColumnLayout {
+            spacing: Tokens.spacing.extraSmall
+
+            SettingsGroup {
+                Layout.fillWidth: true
+
+                SettingsRow {
+                    searchId: "aiOllamaModels"
+                    icon: "folder"
+                    label: qsTr("Ollama models")
+                    description: ModelStorage.ollamaDirExists ? qsTr("%1 -- %2 used").arg(ModelStorage.ollamaDir).arg(ModelStorage.ollamaDirSize) : qsTr("%1 -- not created yet").arg(ModelStorage.ollamaDir)
+
+                    RowLayout {
+                        spacing: Tokens.spacing.small
+
+                        StyledRect {
+                            visible: !ModelStorage.ollamaDirExists
+                            Layout.preferredWidth: createOllamaLabel.implicitWidth + Tokens.padding.large * 2
+                            Layout.preferredHeight: 32
+                            radius: Tokens.rounding.full
+                            color: Colours.signal
+
+                            StyledText {
+                                id: createOllamaLabel
+                                anchors.centerIn: parent
+                                text: qsTr("Create")
+                                color: Colours.contrastOn(Colours.signal)
+                                font: Tokens.font.label.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: ModelStorage.createOllamaDir()
+                            }
+                        }
+
+                        StyledRect {
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 28
+                            radius: Tokens.rounding.full
+                            color: Colours.layer(Colours.surfaceLift, 3)
+
+                            MaterialIcon {
+                                anchors.centerIn: parent
+                                text: "refresh"
+                                color: Colours.inkMuted
+                                fontStyle: Tokens.font.icon.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: ModelStorage.refreshOllama()
+                            }
+                        }
+                    }
+                }
+
+                SettingsRow {
+                    searchId: "aiGgufDir"
+                    icon: "folder_open"
+                    label: qsTr("GGUF directory")
+                    description: ModelStorage.ggufDirExists ? qsTr("%1 -- %2 used").arg(ModelStorage.ggufDir).arg(ModelStorage.ggufDirSize) : qsTr("%1 -- not created yet").arg(ModelStorage.ggufDir)
+
+                    RowLayout {
+                        spacing: Tokens.spacing.small
+
+                        StyledRect {
+                            Layout.preferredWidth: 200
+                            Layout.preferredHeight: 32
+                            radius: Tokens.rounding.full
+                            color: Colours.layer(Colours.surfaceLift, 3)
+
+                            TextInput {
+                                id: ggufDirInput
+
+                                anchors.fill: parent
+                                anchors.leftMargin: Tokens.padding.medium
+                                anchors.rightMargin: Tokens.padding.medium
+                                verticalAlignment: TextInput.AlignVCenter
+                                clip: true
+                                font: Tokens.font.label.small
+                                color: Colours.ink
+                                text: Settings.ggufModelsDir
+
+                                Component.onCompleted: ggufDirInput.cursorPosition = 0
+
+                                Keys.onReturnPressed: {
+                                    const value = ggufDirInput.text.trim();
+                                    if (value.length > 0)
+                                        Settings.ggufModelsDir = value;
+                                }
+                            }
+                        }
+
+                        StyledRect {
+                            visible: !ModelStorage.ggufDirExists
+                            Layout.preferredWidth: createGgufLabel.implicitWidth + Tokens.padding.large * 2
+                            Layout.preferredHeight: 32
+                            radius: Tokens.rounding.full
+                            color: Colours.signal
+
+                            StyledText {
+                                id: createGgufLabel
+                                anchors.centerIn: parent
+                                text: qsTr("Create")
+                                color: Colours.contrastOn(Colours.signal)
+                                font: Tokens.font.label.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: ModelStorage.createGgufDir()
+                            }
+                        }
+
+                        StyledRect {
+                            visible: ModelStorage.ggufDirExists
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 28
+                            radius: Tokens.rounding.full
+                            color: Colours.layer(Colours.surfaceLift, 3)
+
+                            MaterialIcon {
+                                anchors.centerIn: parent
+                                text: "refresh"
+                                color: Colours.inkMuted
+                                fontStyle: Tokens.font.icon.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: ModelStorage.refreshGguf()
+                            }
+                        }
+                    }
+                }
+            }
+
+            StyledText {
+                visible: ModelStorage.ggufDirExists && ModelStorage.ggufFiles.length === 0
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("No .gguf files in this directory yet.")
+                color: Colours.inkMuted
+                font: Tokens.font.label.small
+            }
+
+            SettingsGroup {
+                Layout.fillWidth: true
+                visible: ModelStorage.ggufDirExists && ModelStorage.ggufFiles.length > 0
+
+                Repeater {
+                    model: ModelStorage.ggufFiles
+
+                    SettingsRow {
+                        id: ggufRow
+
+                        required property var modelData
+
+                        icon: "description"
+                        label: ggufRow.modelData.name
+                        description: ggufRow.modelData.sizeText
+
+                        MaterialIcon {
+                            text: "delete"
+                            color: Colours.alert
+                            fontStyle: Tokens.font.icon.small
+
+                            Interact {
+                                anchors.fill: parent
+                                anchors.margins: -Tokens.padding.small
+                                radius: Tokens.rounding.full
+                                onClicked: ModelStorage.deleteGgufFile(ggufRow.modelData.name)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("Intelligence")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsToggleRow {
+                searchId: "aiQuickChat"
+                label: qsTr("Quick-chat popout")
+                description: qsTr("SUPER+Shift+A — a fast overlay separate from the AI Chat tab above")
+                checked: Settings.intelligenceEnabled
+                onToggled: state => Settings.intelligenceEnabled = state
+            }
+
+            SettingsRow {
+                searchId: "aiDefaultProvider"
+                icon: "smart_toy"
+                label: qsTr("Default provider")
+                description: qsTr("Used for new Intelligence sessions — blank follows Active above")
+
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    Repeater {
+                        model: [{ id: "", label: qsTr("Same as Active") }, ...AiProviders.providers]
+
+                        StyledRect {
+                            id: defaultProviderPill
+
+                            required property var modelData
+                            readonly property bool active: defaultProviderPill.modelData.id === Settings.intelligenceDefaultProvider
+
+                            Layout.preferredHeight: 28
+                            Layout.preferredWidth: defaultProviderLabel.implicitWidth + Tokens.padding.medium * 2
+                            radius: Tokens.rounding.full
+                            color: defaultProviderPill.active ? Colours.signal : Colours.layer(Colours.surfaceLift, 3)
+
+                            StyledText {
+                                id: defaultProviderLabel
+                                anchors.centerIn: parent
+                                text: defaultProviderPill.modelData.label
+                                color: defaultProviderPill.active ? Colours.contrastOn(Colours.signal) : Colours.inkMuted
+                                font: Tokens.font.label.small
+                            }
+
+                            Interact {
+                                anchors.fill: parent
+                                radius: parent.radius
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: Settings.intelligenceDefaultProvider = defaultProviderPill.modelData.id
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingsRow {
+                searchId: "aiDefaultModel"
+                icon: "memory"
+                label: qsTr("Default model")
+                description: qsTr("Ollama-only — blank follows the Active model above")
+
+                StyledRect {
+                    Layout.preferredWidth: 160
+                    Layout.preferredHeight: 32
+                    radius: Tokens.rounding.full
+                    color: Colours.layer(Colours.surfaceLift, 3)
+
+                    TextInput {
+                        id: defaultModelInput
+
+                        anchors.fill: parent
+                        anchors.leftMargin: Tokens.padding.medium
+                        anchors.rightMargin: Tokens.padding.medium
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        font: Tokens.font.label.small
+                        color: Colours.ink
+                        text: Settings.intelligenceDefaultModel
+
+                        Keys.onReturnPressed: Settings.intelligenceDefaultModel = defaultModelInput.text.trim()
+
+                        StyledText {
+                            visible: defaultModelInput.text.length === 0
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Same as Active")
+                            color: Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+                    }
+                }
+            }
+
+            SettingsRow {
+                searchId: "aiSessionLimits"
+                icon: "auto_delete"
+                label: qsTr("Session limits")
+                description: qsTr("Older or excess sessions are pruned automatically — 0 disables a limit")
+
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    StyledRect {
+                        Layout.preferredWidth: 60
+                        Layout.preferredHeight: 32
+                        radius: Tokens.rounding.full
+                        color: Colours.layer(Colours.surfaceLift, 3)
+
+                        TextInput {
+                            id: maxSessionsInput
+
+                            anchors.fill: parent
+                            horizontalAlignment: TextInput.AlignHCenter
+                            verticalAlignment: TextInput.AlignVCenter
+                            validator: IntValidator {
+                                bottom: 0
+                                top: 999
+                            }
+                            font: Tokens.font.label.small
+                            color: Colours.ink
+                            text: Settings.intelligenceMaxSessions.toString()
+
+                            Keys.onReturnPressed: {
+                                const value = parseInt(maxSessionsInput.text, 10);
+                                if (!isNaN(value))
+                                    Settings.intelligenceMaxSessions = value;
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        text: qsTr("max sessions")
+                        color: Colours.inkMuted
+                        font: Tokens.font.label.small
+                    }
+
+                    StyledRect {
+                        Layout.preferredWidth: 60
+                        Layout.preferredHeight: 32
+                        radius: Tokens.rounding.full
+                        color: Colours.layer(Colours.surfaceLift, 3)
+
+                        TextInput {
+                            id: autoPruneInput
+
+                            anchors.fill: parent
+                            horizontalAlignment: TextInput.AlignHCenter
+                            verticalAlignment: TextInput.AlignVCenter
+                            validator: IntValidator {
+                                bottom: 0
+                                top: 999
+                            }
+                            font: Tokens.font.label.small
+                            color: Colours.ink
+                            text: Settings.intelligenceAutoPruneDays.toString()
+
+                            Keys.onReturnPressed: {
+                                const value = parseInt(autoPruneInput.text, 10);
+                                if (!isNaN(value))
+                                    Settings.intelligenceAutoPruneDays = value;
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        text: qsTr("days old")
+                        color: Colours.inkMuted
+                        font: Tokens.font.label.small
+                    }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.extraSmall
+        visible: AiConfig.assistantEnabled
+
+        StyledText {
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("Aphotic Assistant")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsRow {
+                searchId: "aiInstalledModel"
+                icon: "smart_toy"
+                label: qsTr("Installed model")
+                description: AiConfig.assistantModel.length > 0 ? AiConfig.assistantModel : qsTr("Unknown")
+
+                RowLayout {
+                    spacing: Tokens.spacing.small
+
+                    StyledRect {
+                        Layout.preferredWidth: reinstallLabel.implicitWidth + Tokens.padding.large * 2
+                        Layout.preferredHeight: 32
+                        radius: Tokens.rounding.full
+                        opacity: AiProviders.pulling ? 0.5 : 1
+                        color: Colours.layer(Colours.surfaceLift, 3)
+
+                        StyledText {
+                            id: reinstallLabel
+                            anchors.centerIn: parent
+                            text: AiProviders.pulling ? qsTr("Pulling…") : qsTr("Reinstall")
+                            color: Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+
+                        Interact {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            showHoverBackground: !AiProviders.pulling
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !AiProviders.pulling
+                            onClicked: AiProviders.pullModel(AiConfig.assistantModel)
+                        }
+                    }
+
+                    StyledRect {
+                        id: uninstallButton
+
+                        property bool confirming: false
+
+                        Layout.preferredWidth: uninstallLabel.implicitWidth + Tokens.padding.large * 2
+                        Layout.preferredHeight: 32
+                        radius: Tokens.rounding.full
+                        color: uninstallButton.confirming ? Colours.alert : Colours.layer(Colours.surfaceLift, 3)
+
+                        Behavior on color {
+                            CAnim {}
+                        }
+
+                        StyledText {
+                            id: uninstallLabel
+                            anchors.centerIn: parent
+                            text: uninstallButton.confirming ? qsTr("Confirm remove?") : qsTr("Uninstall")
+                            color: uninstallButton.confirming ? Colours.contrastOn(Colours.alert) : Colours.inkMuted
+                            font: Tokens.font.label.small
+                        }
+
+                        Interact {
+                            anchors.fill: parent
+                            radius: parent.radius
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (uninstallButton.confirming) {
+                                    AiProviders.deleteModel(AiConfig.assistantModel);
+                                    if (AiConfig.activeProvider === "assistant")
+                                        AiConfig.activeProvider = "ollama";
+                                    AiConfig.assistantEnabled = false;
+                                    AiConfig.assistantModel = "";
+                                    AiConfig.assistantInstalledAt = "";
+                                    uninstallButton.confirming = false;
+                                } else {
+                                    uninstallButton.confirming = true;
+                                    uninstallResetTimer.restart();
+                                }
+                            }
+                        }
+
+                        Timer {
+                            id: uninstallResetTimer
+                            interval: 4000
+                            onTriggered: uninstallButton.confirming = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component ApiKeyRow: SettingsRow {
+        id: keyRow
+
+        required property bool hasKey
+
+        signal keySubmitted(value: string)
+        signal keyCleared
+
+        description: keyRow.hasKey ? qsTr("Key configured") : qsTr("No key set")
+
+        RowLayout {
+            spacing: Tokens.spacing.small
+
+            StyledRect {
+                visible: !keyRow.hasKey
+                Layout.preferredWidth: 170
+                Layout.preferredHeight: 32
+                radius: Tokens.rounding.full
+                color: Colours.layer(Colours.surfaceLift, 3)
+
+                TextInput {
+                    id: keyInput
+
+                    anchors.fill: parent
+                    anchors.leftMargin: Tokens.padding.medium
+                    anchors.rightMargin: Tokens.padding.medium
+                    verticalAlignment: TextInput.AlignVCenter
+                    clip: true
+                    echoMode: TextInput.Password
+                    font: Tokens.font.label.small
+                    color: Colours.ink
+
+                    Keys.onReturnPressed: {
+                        const value = keyInput.text.trim();
+                        if (value.length > 0) {
+                            keyRow.keySubmitted(value);
+                            keyInput.text = "";
+                        }
+                    }
+
+                    StyledText {
+                        visible: keyInput.text.length === 0
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Paste key, Enter")
+                        color: Colours.inkMuted
+                        font: Tokens.font.label.small
+                    }
+                }
+            }
+
+            StyledRect {
+                visible: keyRow.hasKey
+                Layout.preferredWidth: clearLabel.implicitWidth + Tokens.padding.large * 2
+                Layout.preferredHeight: 32
+                radius: Tokens.rounding.full
+                color: Colours.layer(Colours.surfaceLift, 3)
+
+                StyledText {
+                    id: clearLabel
+                    anchors.centerIn: parent
+                    text: qsTr("Clear")
+                    color: Colours.inkMuted
+                    font: Tokens.font.label.small
+                }
+
+                Interact {
+                    anchors.fill: parent
+                    radius: parent.radius
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: keyRow.keyCleared()
+                }
+            }
+        }
+    }
+}

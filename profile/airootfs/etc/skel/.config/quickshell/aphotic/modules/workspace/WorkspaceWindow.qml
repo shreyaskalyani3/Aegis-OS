@@ -1,0 +1,77 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Wayland
+import qs.components
+import qs.services
+
+PanelWindow {
+    id: root
+
+    property QtObject _sonarTarget: Loader {
+        active: Settings.sonarEnabled
+        sourceComponent: EchoTarget {
+            target: root.contentItem
+            targetId: "core:workspace"
+            label: qsTr("Workspace")
+            action: "workspace"
+            bindDescription: "Toggle plugin workspace"
+            plugin: ""
+            eligible: true
+        }
+    }
+
+    required property var modelData
+    required property ScreenState screenState
+    screen: modelData
+
+    WlrLayershell.namespace: "aphotic-workspace"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
+    color: "transparent"
+
+    anchors.top: true
+    anchors.bottom: true
+    anchors.left: true
+    anchors.right: true
+    implicitWidth: screen.width
+    implicitHeight: screen.height
+    visible: reveal.active && PluginRegistry.surfacesFor("workspace").length > 0 && !Surfaces.suppressed
+
+    MouseArea {
+        anchors.fill: parent
+        focus: true
+        onClicked: root.screenState.workspace = false
+        Keys.onEscapePressed: root.screenState.workspace = false
+    }
+
+    MouseArea {
+        anchors.centerIn: parent
+        width: content.width
+        height: content.height
+        acceptedButtons: Qt.AllButtons
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: Colours.shadow
+        opacity: reveal.visibleProgress * 0.45
+    }
+
+    SurfaceReveal {
+        id: reveal
+
+        anchors.centerIn: parent
+        shown: root.screenState.workspace
+        edge: "bottom"
+
+        WorkspaceContent {
+            id: content
+            width: Math.min(root.width - 96, 1520)
+            height: Math.min(root.height - 128, 920)
+            surfaceActive: root.visible
+        }
+    }
+}

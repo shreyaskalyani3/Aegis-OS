@@ -1,0 +1,2326 @@
+#!/usr/bin/env bash
+# aphotic plugin — install, manage, and run hooks for the plugin system.
+# @cmd: plugin
+# @cmd.desc: List, install, enable/disable, or remove plugins
+# @cmd.group: CONFIG
+# @cmd.opt: list [--remote] [--json] [--category <name>]  | List installed (or available-remote) plugins
+# @cmd.opt: install <name> [--link]                        | Install a plugin from APHOTIC_PLUGINS_REPO
+# @cmd.opt: enable|disable <name>                          | Toggle a plugin without uninstalling it
+# @cmd.opt: remove <name>                                  | Uninstall a plugin
+# @cmd.opt: validate <dir>                                  | Check a plugin folder's manifest and files before installing it
+# @cmd.opt: api [--json]                                    | The shell runtime API version and the calls a plugin may declare
+# @cmd.opt: trust-security-index                            | Opt into the separate security-category plugin index
+# @cmd.opt: untrust-security-index                          | Revoke that opt-in (hides security-category plugins again)
+#
+# See docs/PLUGIN_SYSTEM.md. A plugin is a directory under
+# APHOTIC_PLUGINS_DIR with its own plugin.toml (same "directory +
+# manifest" shape as a theme). This file also owns `run-theme-hooks`/
+# `run-project-hooks`/`run-workspace-hooks`, the shared implementations
+# of each hook-firing loop, called from cmd_theme.sh/Themes.qml/
+# Wallpapers.qml/wallswitcher.py (theme), ProjectItem.qml (project), and
+# WorkspaceProfilesPane.qml (workspace) respectively -- see
+# _aphotic_plugin_run_theme_hooks and _aphotic_plugin_run_hook_by_capability
+# below. project/workspace hooks only fire for plugins that declare the
+# matching capability tag in their manifest, not every enabled plugin.
+
+_aphotic_plugin_dir() { printf '%s/%s' "$APHOTIC_PLUGINS_DIR" "$1"; }
+
+_aphotic_plugin_root_value() {
+    local manifest="$1" key="$2"
+    awk -v key="$key" '
+        /^\[/ { exit }
+        $0 ~ "^[[:space:]]*"key"[[:space:]]*=" {
+            sub(/^[^=]*=[[:space:]]*/, "")
+            gsub(/^"|"$/, "")
+            print
+            exit
+        }
+    ' "$manifest"
+}
+
+# ---------------------------------------------------------------------
+# What this shell build actually has a host for.
+#
+# The plugin catalogue is a separate repo on its own release cadence, so
+# it can offer a plugin whose only surface this shell cannot mount. That
+# install currently succeeds all the way through -- it copies the tree,
+# links the QML module, writes a registry entry -- and then renders
+# nothing, with no error anywhere to explain why. The gate belongs on
+# this side: a plugin cannot know which Aphotic it is being installed
+# into, and the shell already knows exactly which kinds it reads.
+#
+# Grow both lists in the same commit that adds the host. Anything absent
+# is reported as unhosted, which is the safe direction to fail -- a
+# surface silently dropped is the failure this exists to catch.
+# ---------------------------------------------------------------------
+APHOTIC_PLUGIN_HOSTED_SURFACES="dashboard notch settings workspace overlay fullscreen-overlay background pet_action edge_tab"
+APHOTIC_PLUGIN_HOSTED_CAPABILITIES="ui-surface theme-hook project-hook workspace-hook harness-hook profile cli chat-provider action keybind engine"
+
+APHOTIC_PLUGIN_KEYBIND_MODIFIERS="SHIFT CAPS CTRL CONTROL ALT MOD1 MOD2 MOD3 SUPER WIN LOGO MOD4 MOD5"
+
+# The built-in protocol names an [engine].protocol may name. The shell
+# speaks these parsers; anything else is refused at install, the same
+# direction the API version is refused. Each name replaces code that is in
+# core today.
+APHOTIC_PLUGIN_ENGINE_PROTOCOLS="ollama llama-swap lmstudio openai-models engine-report"
+# The capability tokens an [engine] may declare. Every token except `chat`
+# has to be backed by a verb, a stats endpoint or a progress source.
+APHOTIC_PLUGIN_ENGINE_CAPABILITIES="models claims stats progress chat start stop load unload switch"
+
+# ---------------------------------------------------------------------
+# The shell runtime API a plugin may call (manifest v3.9's [api]).
+#
+# Surfaces and hooks say where a plugin mounts; [api] says what it may
+# ask the running shell for once it is there:
+#
+#   [api]
+#   version = 1
+#   uses = ["context.observe", "resource.observe"]
+#
+# The shell hands each plugin a handle (PluginApi.handle(name)) carrying
+# only what `uses` names, checked again at call time so disabling or
+# removing the plugin revokes it. VERSION is the contract version this
+# build speaks: a plugin written against a newer one is refused at
+# install rather than failing on its first missing call. Grow USES in
+# the same commit as services/PluginApiCore.js; the test holds them
+# equal.
+# ---------------------------------------------------------------------
+APHOTIC_PLUGIN_API_VERSION=2
+APHOTIC_PLUGIN_API_USES="context.observe context.request resource.observe surface.declare notifications.publish sonar.register"
+
+# Exact word match against a space-separated list. Not `grep -w`: grep
+# counts `-` as a word boundary, so `-w profile` matches "profile-hook"
+# and a plugin declaring the unhosted `profile` capability would read as
+# hosted.
+_aphotic_plugin_in_list() {
+    local needle="$1" item
+    for item in $2; do
+        [[ "$item" == "$needle" ]] && return 0
+    done
+    return 1
+}
+
+# The `[ui.<kind>]` sections a manifest declares, named as the registry
+# and index.json name them. Section headers are scanned directly rather
+# than asked for through _aphotic_plugin_ui_json, because the whole point
+# is to see kinds this build does not parse -- that function silently
+# drops a section it has no case for, so asking it would report a
+# future surface kind as simply absent rather than as unhosted.
+_aphotic_plugin_manifest_surfaces() {
+    local manifest="$1"
+    [[ -f "$manifest" ]] || return 0
+    sed -n 's/^[[:space:]]*\[ui\.\([a-z_-]*\)\][[:space:]]*$/\1/p' "$manifest" \
+        | sed -e 's/^dashboard_tab$/dashboard/' \
+              -e 's/^notch_tile$/notch/' \
+              -e 's/^settings_pane$/settings/' \
+        | sort -u
+}
+
+# Verdict on a plugin's declared capabilities and surfaces, given as two
+# newline-separated lists. Prints `ok`, or `partial:<parts>` /
+# `inert:<parts>` with a human list of what has no host.
+#
+# partial and inert are a real distinction, not a severity gradient. A
+# plugin declaring a surface this build renders *and* one it does not
+# still works, so refusing it would remove something functional; a
+# plugin whose every declared part is unhosted installs to nothing at
+# all. The question is therefore "does any of it work", not "is all of
+# it supported".
+#
+# `ui-surface` never counts as working on its own -- it is the tag that
+# says surfaces exist, and the surfaces themselves decide.
+_aphotic_plugin_host_verdict() {
+    local caps="$1" surfaces="$2"
+    local item working=0 unhosted=""
+
+    while IFS= read -r item; do
+        [[ -n "$item" ]] || continue
+        if ! _aphotic_plugin_in_list "$item" "$APHOTIC_PLUGIN_HOSTED_CAPABILITIES"; then
+            unhosted+="${unhosted:+, }${item} capability"
+            continue
+        fi
+        [[ "$item" == "ui-surface" ]] || working=$((working + 1))
+    done <<<"$caps"
+
+    while IFS= read -r item; do
+        [[ -n "$item" ]] || continue
+        if _aphotic_plugin_in_list "$item" "$APHOTIC_PLUGIN_HOSTED_SURFACES"; then
+            working=$((working + 1))
+        else
+            unhosted+="${unhosted:+, }${item} surface"
+        fi
+    done <<<"$surfaces"
+
+    if [[ -z "$unhosted" ]]; then
+        echo "ok"
+    elif [[ "$working" -gt 0 ]]; then
+        echo "partial:${unhosted}"
+    else
+        echo "inert:${unhosted}"
+    fi
+}
+
+# Same verdict for a catalogue entry rather than an on-disk manifest.
+# index.json already carries the normalized ui.surfaces[].surface names,
+# including kinds this build never parses out of a manifest, so the
+# remote listing can answer this without fetching anything.
+_aphotic_plugin_entry_verdict() {
+    local entry="$1"
+    _aphotic_plugin_host_verdict \
+        "$(jq -r '(.capabilities // [])[]' <<<"$entry")" \
+        "$(jq -r '((.ui.surfaces // [])[].surface) // empty' <<<"$entry" | sort -u)"
+}
+
+# Manifest v3 additions (see docs/archive/PLUGIN_SYSTEM.md): [owns] and
+# [ui.<surface-kind>] -- only `dashboard_tab` is shipped so far, the
+# natural extension point for a second UI-surface kind (a bar module, a
+# Settings pane) once a second plugin actually needs one. Both read as
+# empty/null on a v1 or v2 manifest, same "optional field, no error"
+# contract v2's category addition already established.
+
+# Manifest v3 additions (see docs/archive/PLUGIN_SYSTEM.md and
+# docs/PLUGIN_LAYER_MODEL.md): [owns] and [ui.<surface-kind>]. Three
+# surface kinds ship -- `dashboard_tab`, `notch_tile` and
+# `settings_pane` -- and all of them
+# normalize into one `ui.surfaces` array in the registry, because the
+# shell loops over surfaces generically and must never branch on which
+# plugin or which kind it is reading. A third kind (a bar module, a
+# Settings pane) is one more line in _aphotic_plugin_ui_json and zero
+# lines in the shell. All of it reads as empty/null on a v1 or v2
+# manifest, same "optional field, no error" contract v2's category
+# addition already established.
+#
+# A settings_pane also takes `parent`: the id of the Settings category
+# its section docks into. It is never its own rail entry -- the rail is a
+# fixed length by design, so fifty plugins are fifty collapsed sections
+# spread across the categories that own them, not fifty pages to scroll
+# past. Omitted, it falls back to the category matching `requires_layer`,
+# then to the Plugins pane.
+#
+# `requires_layer`/`requires_data` are the surface's activation gate,
+# declared by the plugin and evaluated by PluginRegistry.qml against a
+# fixed token vocabulary. A gate may name the profile layer that owns
+# the plugin, or a data source the plugin has nothing to read without.
+# It may not name another plugin: siblings under a profile are
+# independent, and a gate that could name one would make them a
+# dependency graph.
+_aphotic_plugin_owns_json() {
+    local manifest="$1" keys ext
+    keys="$(aphotic_toml_get_array "$manifest" owns config_keys | jq -R . | jq -s .)"
+    ext="$(aphotic_toml_get_array "$manifest" owns external_config | jq -R . | jq -s .)"
+    jq -n --argjson config_keys "${keys:-[]}" --argjson external_config "${ext:-[]}" \
+        '{config_keys: $config_keys, external_config: $external_config}'
+}
+
+_aphotic_plugin_surface_json() {
+    local manifest="$1" section="$2" surface="$3" id icon label component layer data parent anchor width height trigger
+    component="$(aphotic_toml_get "$manifest" "$section" component)"
+    [[ -n "$component" ]] || return 1
+
+    id="$(aphotic_toml_get "$manifest" "$section" id)"
+    icon="$(aphotic_toml_get "$manifest" "$section" icon)"
+    label="$(aphotic_toml_get "$manifest" "$section" label)"
+    layer="$(aphotic_toml_get "$manifest" "$section" requires_layer)"
+    data="$(aphotic_toml_get "$manifest" "$section" requires_data)"
+    parent="$(aphotic_toml_get "$manifest" "$section" parent)"
+    # Overlay only -- the surface budget the host sizes its window from
+    # once. Empty for the other three kinds, which draw inside a window
+    # core already owns and ignore these.
+    anchor="$(aphotic_toml_get "$manifest" "$section" anchor)"
+    width="$(aphotic_toml_get "$manifest" "$section" width)"
+    height="$(aphotic_toml_get "$manifest" "$section" height)"
+    # Fullscreen-overlay only -- what puts the surface on screen. Empty
+    # for every other kind; the registry defaults it and evaluates it.
+    trigger="$(aphotic_toml_get "$manifest" "$section" trigger)"
+
+    jq -n \
+        --arg surface "$surface" \
+        --arg id "${id:-}" \
+        --arg icon "${icon:-}" \
+        --arg label "${label:-}" \
+        --arg component "$component" \
+        --arg requires_layer "${layer:-}" \
+        --arg requires_data "${data:-}" \
+        --arg parent "${parent:-}" \
+        --argjson anchor "$(jq -n --arg a "${anchor:-}" '$a')" \
+        --argjson width "${width:-0}" \
+        --argjson height "${height:-0}" \
+        --argjson trigger "$(jq -n --arg t "${trigger:-}" '$t')" \
+        '{surface: $surface, id: $id, icon: $icon, label: $label, component: $component, requires_layer: $requires_layer, requires_data: $requires_data, parent: $parent, anchor: $anchor, width: $width, height: $height, trigger: $trigger}'
+}
+
+# [ui.edge_tab] (manifest v3.10) -- a tab a shelf edge can host. The base
+# fields come from the shared surface reader; this adds the placement
+# metadata that kind alone carries: `edges` (which of left/right, both when
+# omitted) and `notch` (the plugin also allows it in the notch). Placement
+# is data, checked by the host: an unknown edge token leaves the tab with no
+# edge rather than silently claiming both, and the shell never asks a
+# manifest anything executable.
+_aphotic_plugin_edge_tab_json() {
+    local manifest="$1" edges notch placement
+    placement="$(awk '
+        $0 == "[ui.edge_tab]" { inside=1; next }
+        /^\[/ { inside=0 }
+        inside && /^[[:space:]]*edges[[:space:]]*=/ {
+            sub(/^[^=]*=[[:space:]]*/, ""); print; found=1; exit
+        }
+        END { if (!found) print "omitted" }
+    ' "$manifest")"
+    if [[ "$placement" == "omitted" ]]; then
+        edges='["left","right"]'
+    elif [[ "$placement" == \[* ]]; then
+        edges="$(aphotic_toml_get_array "$manifest" ui.edge_tab edges | jq -R . | jq -s .)"
+    else
+        edges='[]'
+    fi
+    notch="$(aphotic_toml_get "$manifest" ui.edge_tab notch)"
+    [[ "$notch" == "true" ]] || notch="false"
+    _aphotic_plugin_surface_json "$manifest" ui.edge_tab edge_tab \
+        | jq --argjson edges "${edges:-[]}" --arg notch "$notch" \
+            '. + {edges: $edges, notch: ($notch == "true")}'
+}
+
+_aphotic_plugin_ui_json() {
+    local manifest="$1" entries=() entry
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.dashboard_tab dashboard)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.notch_tile notch)"; then
+        entries+=("$entry")
+    fi
+    # Three slots, not a loop over however many a manifest declares: the
+    # shared TOML reader (`aphotic_toml_get`, globalcontrol.sh) is
+    # deliberately flat, single-section-match, no arrays-of-tables --
+    # shared with theme.toml, not worth risking for this. Every other
+    # surface kind only ever needs one entry per plugin; `pet_action` is
+    # the first that doesn't (the pet's own MVP list is terminal + VS
+    # Code, PETS.md §7.1), so it gets bounded room to grow instead of a
+    # real parser change. Raise the cap (and PLUGIN_SYSTEM.md's note on
+    # it) the day a plugin actually needs a fourth.
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.pet_action pet_action)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.pet_action_2 pet_action)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.pet_action_3 pet_action)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.settings_pane settings)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.workspace workspace)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.overlay overlay)"; then
+        entries+=("$entry")
+    fi
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.fullscreen-overlay fullscreen-overlay)"; then
+        entries+=("$entry")
+    fi
+    # manifest v3.10. The one hosted surface that takes placement metadata
+    # beyond a gate: `edges` says which shelf edges may carry the tab
+    # (both when omitted) and `notch` says the plugin also allows the tab
+    # in the notch. Both are data, checked by the host; an edge token this
+    # shell does not know leaves the tab with no edge rather than both.
+    if entry="$(_aphotic_plugin_edge_tab_json "$manifest")"; then
+        entries+=("$entry")
+    fi
+
+    # manifest v3.8. Unlike [ui.overlay], this one takes no anchor or
+    # width/height: BackgroundWindow is already a statically sized
+    # full-screen surface, so there is no geometry for a manifest to
+    # budget and nothing for a plugin to place itself against.
+    if entry="$(_aphotic_plugin_surface_json "$manifest" ui.background background)"; then
+        entries+=("$entry")
+    fi
+
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        echo 'null'
+        return 0
+    fi
+
+    printf '%s\n' "${entries[@]}" | jq -s '{surfaces: .}'
+}
+
+# The `profile` capability (manifest v3.1). A plugin declaring one ships
+# a headless QML component the shell instantiates, exactly the way it
+# loads a UI surface -- the component registers itself with ProfileEngine
+# and, if it claims anything, with ResourceEngine. Claims are deliberately
+# NOT declared here: ProfileEngine.register() already takes them from the
+# component, and a second declaration in the manifest would be a second
+# source of truth for the same fact, drifting the moment one is edited.
+_aphotic_plugin_profile_json() {
+    local manifest="$1" id label component layer data snapshot
+    component="$(aphotic_toml_get "$manifest" profile component)"
+    id="$(aphotic_toml_get "$manifest" profile id)"
+    if [[ -z "$component" ]] || [[ -z "$id" ]]; then
+        echo 'null'
+        return 0
+    fi
+
+    label="$(aphotic_toml_get "$manifest" profile label)"
+    layer="$(aphotic_toml_get "$manifest" profile requires_layer)"
+    data="$(aphotic_toml_get "$manifest" profile requires_data)"
+    snapshot="$(aphotic_toml_get_array "$manifest" profile snapshot | jq -R . | jq -s .)"
+
+    jq -n \
+        --arg id "$id" \
+        --arg label "${label:-$id}" \
+        --arg component "$component" \
+        --arg requires_layer "${layer:-}" \
+        --arg requires_data "${data:-}" \
+        --argjson snapshot "${snapshot:-[]}" \
+        '{id: $id, label: $label, component: $component, requires_layer: $requires_layer, requires_data: $requires_data, snapshot: $snapshot}'
+}
+
+# The `cli` capability (manifest v3.2). A plugin declaring one contributes
+# a command -- top-level (`aphotic foo`) or a subcommand of an existing one
+# (`aphotic ai fit`) -- which the dispatcher and the extended core command
+# resolve by declaration. Recorded here so `aphotic plugin list --json` can
+# report it and drift detection can see it change; the CLI path itself
+# reads the manifest directly through aphotic_plugin_cli_resolve, since a
+# command must work whether or not a registry sync has run.
+_aphotic_plugin_cli_json() {
+    local manifest="$1" command subcommand script summary
+    command="$(aphotic_toml_get "$manifest" cli command)"
+    script="$(aphotic_toml_get "$manifest" cli script)"
+    if [[ -z "$command" ]] || [[ -z "$script" ]]; then
+        echo 'null'
+        return 0
+    fi
+
+    subcommand="$(aphotic_toml_get "$manifest" cli subcommand)"
+    summary="$(aphotic_toml_get "$manifest" cli summary)"
+
+    jq -n \
+        --arg command "$command" \
+        --arg subcommand "${subcommand:-}" \
+        --arg script "$script" \
+        --arg summary "${summary:-}" \
+        '{command: $command, subcommand: $subcommand, script: $script, summary: $summary}'
+}
+
+# The `chat-provider` capability (manifest v3.3). A plugin declaring one
+# contributes a pill to the AI chat provider list. Core keeps owning the
+# transport -- a provider names a `backend` core already speaks, it does
+# not ship one -- so what a plugin adds is identity plus the two things
+# that make a backend answer as something specific: which model, and
+# which system prompt.
+#
+# Both of those are per-machine, resolved when the plugin installs (a
+# model pull picks a tag for this GPU; a rendered prompt names this
+# install's profile, layers and theme), so neither can be a static file in
+# the plugin tree. `state` names a JSON file under
+# ~/.config/aphotic/plugins/<plugin>/ that the plugin writes and the shell
+# watches: {"model": "...", "systemPrompt": "..."}. One file, so a
+# re-pull or a re-render is a single atomic write the shell picks up live
+# rather than a snapshot that goes stale.
+_aphotic_plugin_chat_provider_json() {
+    local manifest="$1" id label backend state layer data
+    id="$(aphotic_toml_get "$manifest" chat_provider id)"
+    backend="$(aphotic_toml_get "$manifest" chat_provider backend)"
+    if [[ -z "$id" ]] || [[ -z "$backend" ]]; then
+        echo 'null'
+        return 0
+    fi
+
+    label="$(aphotic_toml_get "$manifest" chat_provider label)"
+    state="$(aphotic_toml_get "$manifest" chat_provider state)"
+    layer="$(aphotic_toml_get "$manifest" chat_provider requires_layer)"
+    data="$(aphotic_toml_get "$manifest" chat_provider requires_data)"
+
+    jq -n \
+        --arg id "$id" \
+        --arg label "${label:-$id}" \
+        --arg backend "$backend" \
+        --arg state "${state:-provider.json}" \
+        --arg requires_layer "${layer:-}" \
+        --arg requires_data "${data:-}" \
+        '{id: $id, label: $label, backend: $backend, state: $state, requires_layer: $requires_layer, requires_data: $requires_data}'
+}
+
+# The `engine` capability. A plugin declares one engine it serves, and the
+# shell mounts a descriptor-driven adapter for it rather than a hardcoded
+# per-engine file. One engine per plugin: [engine_2] is warned about and
+# ignored. The shared TOML reader is flat, so the section holds single-line
+# keys and one-line quoted arrays only; the nested `[engine.control]`,
+# `[engine.stats]` and `[engine.progress]` tables are read the same way.
+#
+# The registry entry keeps the manifest's own snake_case keys, because the
+# shell's EngineDescriptorCore.normalize() is the one parser that serves
+# this source and a drop-in alike -- a second shape here would be a second
+# answer to what a descriptor is.
+_aphotic_plugin_engine_control_json() {
+    local manifest="$1" start stop load unload switch
+    start="$(aphotic_toml_get "$manifest" engine.control start)"
+    stop="$(aphotic_toml_get "$manifest" engine.control stop)"
+    load="$(aphotic_toml_get "$manifest" engine.control load)"
+    unload="$(aphotic_toml_get "$manifest" engine.control unload)"
+    switch="$(aphotic_toml_get "$manifest" engine.control switch)"
+
+    jq -n \
+        --arg start "$start" \
+        --arg stop "$stop" \
+        --arg load "$load" \
+        --arg unload "$unload" \
+        --arg switch "$switch" \
+        '{start: $start, stop: $stop, load: $load, unload: $unload, switch: $switch}'
+}
+
+_aphotic_plugin_engine_stats_json() {
+    local manifest="$1" endpoint interval
+    grep -q '^[[:space:]]*\[engine\.stats\][[:space:]]*$' "$manifest" 2>/dev/null || { echo 'null'; return 0; }
+    endpoint="$(aphotic_toml_get "$manifest" engine.stats endpoint)"
+    interval="$(aphotic_toml_get "$manifest" engine.stats interval)"
+    if [[ "$interval" =~ ^[0-9]+$ ]]; then
+        jq -n --arg endpoint "$endpoint" --argjson interval "$interval" '{endpoint: $endpoint, interval: $interval}'
+    else
+        jq -n --arg endpoint "$endpoint" '{endpoint: $endpoint, interval: 0}'
+    fi
+}
+
+_aphotic_plugin_engine_progress_json() {
+    local manifest="$1" protocol file stale_after rate_unit
+    grep -q '^[[:space:]]*\[engine\.progress\][[:space:]]*$' "$manifest" 2>/dev/null || { echo 'null'; return 0; }
+    protocol="$(aphotic_toml_get "$manifest" engine.progress protocol)"
+    file="$(aphotic_toml_get "$manifest" engine.progress file)"
+    stale_after="$(aphotic_toml_get "$manifest" engine.progress stale_after)"
+    rate_unit="$(aphotic_toml_get "$manifest" engine.progress rate_unit)"
+    [[ "$stale_after" =~ ^[0-9]+$ ]] || stale_after=0
+
+    jq -n \
+        --arg protocol "$protocol" \
+        --arg file "$file" \
+        --argjson stale_after "$stale_after" \
+        --arg rate_unit "$rate_unit" \
+        '{protocol: $protocol, file: $file, stale_after: $stale_after, rate_unit: $rate_unit}'
+}
+
+_aphotic_plugin_engine_json() {
+    local manifest="$1" id label protocol endpoint host_key default_host key process port_flag gateway gateway_entry manages caps
+    grep -q '^[[:space:]]*\[engine\][[:space:]]*$' "$manifest" 2>/dev/null || { echo 'null'; return 0; }
+
+    id="$(aphotic_toml_get "$manifest" engine id)"
+    label="$(aphotic_toml_get "$manifest" engine label)"
+    protocol="$(aphotic_toml_get "$manifest" engine protocol)"
+    endpoint="$(aphotic_toml_get "$manifest" engine endpoint)"
+    host_key="$(aphotic_toml_get "$manifest" engine host_key)"
+    default_host="$(aphotic_toml_get "$manifest" engine default_host)"
+    key="$(aphotic_toml_get "$manifest" engine key)"
+    process="$(aphotic_toml_get "$manifest" engine process)"
+    port_flag="$(aphotic_toml_get "$manifest" engine port_flag)"
+    gateway="$(aphotic_toml_get "$manifest" engine gateway)"
+    gateway_entry="$(aphotic_toml_get "$manifest" engine gateway_entry)"
+    manages="$(aphotic_toml_get_array "$manifest" engine manages | jq -R . | jq -s .)"
+    caps="$(aphotic_toml_get_array "$manifest" engine capabilities | jq -R . | jq -s .)"
+
+    jq -n \
+        --arg id "$id" \
+        --arg label "${label:-$id}" \
+        --arg protocol "$protocol" \
+        --arg endpoint "$endpoint" \
+        --arg host_key "$host_key" \
+        --arg default_host "$default_host" \
+        --arg key "$key" \
+        --arg process "$process" \
+        --arg port_flag "$port_flag" \
+        --arg gateway "$gateway" \
+        --arg gateway_entry "$gateway_entry" \
+        --argjson manages "${manages:-[]}" \
+        --argjson capabilities "${caps:-[]}" \
+        --argjson control "$(_aphotic_plugin_engine_control_json "$manifest")" \
+        --argjson stats "$(_aphotic_plugin_engine_stats_json "$manifest")" \
+        --argjson progress "$(_aphotic_plugin_engine_progress_json "$manifest")" \
+        '{id: $id, label: $label, protocol: $protocol, endpoint: $endpoint, host_key: $host_key, default_host: $default_host, key: $key, process: $process, port_flag: $port_flag, gateway: $gateway, gateway_entry: $gateway_entry, manages: $manages, capabilities: $capabilities, control: $control, stats: $stats, progress: $progress}'
+}
+
+# Every `[engine*]` section a manifest declares, by name. Validate needs to
+# see [engine_2] to warn about it; the shell reads one engine per plugin.
+_aphotic_plugin_manifest_engine_sections() {
+    local manifest="$1"
+    [[ -f "$manifest" ]] || return 0
+    sed -n 's/^[[:space:]]*\(\[engine\(_[0-9]\+\)\?\]\)[[:space:]]*$/\1/p' "$manifest" | sort -u
+}
+
+# The characters a verb's command needs a shell to interpret. `{` and `}`
+# are left out on purpose: `{model}` is a placeholder, not syntax. The
+# adapter runs a `run` verb through Process with an argv array and never
+# sh -c, so a verb carrying any of these is refused rather than escaped.
+_aphotic_plugin_engine_has_shell_syntax() {
+    printf '%s' "$1" | LC_ALL=C grep -q '[;&|$`<>()]'
+}
+
+# Empty when a verb is either documented form, else the reason it is not.
+_aphotic_plugin_engine_verb_error() {
+    local value="$1" trimmed
+    trimmed="${value#"${value%%[![:space:]]*}"}"
+    trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+    if _aphotic_plugin_engine_has_shell_syntax "$trimmed"; then
+        echo "carries shell syntax"
+        return 0
+    fi
+    if [[ "$trimmed" =~ ^http[[:space:]]+[A-Z]+[[:space:]]+[^[:space:]]+$ ]]; then
+        echo ""
+        return 0
+    fi
+    if [[ "$trimmed" =~ ^run[[:space:]]+[^[:space:]] ]]; then
+        echo ""
+        return 0
+    fi
+    echo "is neither 'http <METHOD> <path>' nor 'run <command>'"
+}
+
+# Every token except `chat` has to be backed: a verb for the control
+# tokens, a stats endpoint for `stats`, a progress source for `progress`.
+# `models` and `claims` are backed by the protocol itself.
+_aphotic_plugin_engine_capability_backed() {
+    local manifest="$1" token="$2"
+    case "$token" in
+        chat|models|claims) return 0 ;;
+        stats) [[ -n "$(aphotic_toml_get "$manifest" engine.stats endpoint)" ]] ;;
+        progress) [[ -n "$(aphotic_toml_get "$manifest" engine.progress protocol)" && -n "$(aphotic_toml_get "$manifest" engine.progress file)" ]] ;;
+        start|stop|load|unload|switch) [[ -n "$(aphotic_toml_get "$manifest" engine.control "$token")" ]] ;;
+        *) return 1 ;;
+    esac
+}
+
+# The `action` capability (manifest v3.7, `ACT-01`). An action is a named
+# thing a user can ask for -- switch the pet, cycle the theme -- declared
+# once and reachable from every surface that offers actions, rather than
+# re-registered per surface. The component is headless, same shape as a
+# pet_action's: a plain QtObject that does its work in
+# `Component.onCompleted` and is torn down again immediately.
+#
+# Actions are the first capability where one plugin plausibly declares
+# several, so it takes five numbered sections rather than pet_action's
+# three. The shared TOML reader (globalcontrol.sh's `aphotic_toml_get`)
+# is flat, single-section-match, no arrays-of-tables; five is the room
+# this capability is given before that reader has to grow, and the sixth
+# action a plugin wants is the trigger to revisit it.
+_aphotic_plugin_action_entry_json() {
+    local manifest="$1" section="$2" id component icon label layer data
+    id="$(aphotic_toml_get "$manifest" "$section" id)"
+    component="$(aphotic_toml_get "$manifest" "$section" component)"
+    if [[ -z "$id" ]] || [[ -z "$component" ]]; then
+        return 1
+    fi
+
+    icon="$(aphotic_toml_get "$manifest" "$section" icon)"
+    label="$(aphotic_toml_get "$manifest" "$section" label)"
+    layer="$(aphotic_toml_get "$manifest" "$section" requires_layer)"
+    data="$(aphotic_toml_get "$manifest" "$section" requires_data)"
+
+    jq -n \
+        --arg id "$id" \
+        --arg icon "${icon:-}" \
+        --arg label "${label:-$id}" \
+        --arg component "$component" \
+        --arg requires_layer "${layer:-}" \
+        --arg requires_data "${data:-}" \
+        '{id: $id, icon: $icon, label: $label, component: $component, requires_layer: $requires_layer, requires_data: $requires_data}'
+}
+
+# [api] -> {version, uses}, or null when the manifest has no [api]
+# section. A section with no version is version 1: that is the only one
+# there has been. A version that is not a whole number is kept as-is so
+# validate can name it rather than it silently reading as 1.
+_aphotic_plugin_api_json() {
+    local manifest="$1" version uses
+    grep -q '^[[:space:]]*\[api\][[:space:]]*$' "$manifest" 2>/dev/null || { echo 'null'; return 0; }
+    version="$(aphotic_toml_get "$manifest" api version)"
+    uses="$(aphotic_toml_get_array "$manifest" api uses | jq -R . | jq -s .)"
+    if [[ -z "$version" ]]; then
+        version=1
+    fi
+    if [[ "$version" =~ ^[0-9]+$ ]]; then
+        jq -cn --argjson v "$version" --argjson u "${uses:-[]}" '{version: $v, uses: $u}'
+    else
+        jq -cn --arg v "$version" --argjson u "${uses:-[]}" '{version: $v, uses: $u}'
+    fi
+}
+
+# The API version a manifest asks for, 0 when it declares no [api].
+_aphotic_plugin_api_version() {
+    local api
+    api="$(_aphotic_plugin_api_json "$1")"
+    [[ "$api" == "null" ]] && { echo 0; return 0; }
+    jq -r '.version' <<<"$api"
+}
+
+_aphotic_plugin_actions_json() {
+    local manifest="$1" entries=() entry section
+    for section in action action_2 action_3 action_4 action_5; do
+        if entry="$(_aphotic_plugin_action_entry_json "$manifest" "$section")"; then
+            entries+=("$entry")
+        fi
+    done
+
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        echo 'null'
+        return 0
+    fi
+
+    printf '%s\n' "${entries[@]}" | jq -s .
+}
+
+_aphotic_plugin_describe() {
+    local name="$1" dir manifest display desc version category caps shelter enabled missing bin
+    dir="$(_aphotic_plugin_dir "$name")"
+    manifest="${dir}/plugin.toml"
+    [[ -f "$manifest" ]] || return 1
+
+    display="$(aphotic_toml_get "$manifest" plugin display_name)"
+    desc="$(aphotic_toml_get "$manifest" plugin description)"
+    version="$(aphotic_toml_get "$manifest" plugin version)"
+    category="$(aphotic_toml_get "$manifest" plugin category)"
+    caps="$(aphotic_toml_get_array "$manifest" plugin capabilities | jq -R . | jq -s .)"
+    shelter="$(_aphotic_plugin_root_value "$manifest" shelter)"
+    enabled="false"
+    aphotic_plugin_is_enabled "$name" && enabled="true"
+
+    missing="[]"
+    while IFS= read -r bin; do
+        [[ -z "$bin" ]] && continue
+        command -v "$bin" >/dev/null 2>&1 || missing="$(jq --arg b "$bin" '. + [$b]' <<<"$missing")"
+    done < <(aphotic_toml_get_array "$manifest" requires binaries)
+
+    local entry
+    entry="$(jq -n \
+        --arg name "$name" \
+        --arg display_name "${display:-$name}" \
+        --arg description "${desc:-}" \
+        --arg version "${version:-0.0.0}" \
+        --arg category "${category:-}" \
+        --arg shelter "${shelter:-}" \
+        --argjson capabilities "${caps:-[]}" \
+        --argjson enabled "$enabled" \
+        --argjson missing_binaries "$missing" \
+        --argjson owns "$(_aphotic_plugin_owns_json "$manifest")" \
+        --argjson ui "$(_aphotic_plugin_ui_json "$manifest")" \
+        --argjson profile "$(_aphotic_plugin_profile_json "$manifest")" \
+        --argjson cli "$(_aphotic_plugin_cli_json "$manifest")" \
+        --argjson chat_provider "$(_aphotic_plugin_chat_provider_json "$manifest")" \
+        --argjson engine "$(_aphotic_plugin_engine_json "$manifest")" \
+        --argjson actions "$(_aphotic_plugin_actions_json "$manifest")" \
+        --argjson keybinds "$(_aphotic_plugin_keybinds_json "$manifest")" \
+        --argjson api "$(_aphotic_plugin_api_json "$manifest")" \
+        '{name: $name, display_name: $display_name, description: $description, version: $version, category: $category, shelter: $shelter, capabilities: $capabilities, enabled: $enabled, missing_binaries: $missing_binaries, owns: $owns, ui: $ui, profile: $profile, cli: $cli, chat_provider: $chat_provider, engine: $engine, actions: $actions, keybinds: $keybinds, api: $api}')"
+
+    # The registry entry the shell actually reads is written by
+    # _aphotic_plugin_registry_sync out of these same four manifest
+    # fields, so "drifted" is exactly: what a sync would write now versus
+    # what is stored. Nothing kept the two in step -- a plugin whose files
+    # were changed in place (a manual edit, a `git pull` under a --link
+    # install, a half-finished install) left the shell reading a stale
+    # capability/ui entry with nothing reporting it. Comparing this
+    # function's own output rather than rebuilding the registry shape a
+    # second time is deliberate: a second description of that shape is the
+    # class of bug the flag exists to catch.
+    local stored expected drifted="false"
+    expected="$(jq -cS '{version, shelter, capabilities, owns, ui, profile, cli, chat_provider, engine, actions, keybinds, api}' <<<"$entry")"
+    # Missing keys are filled with the same null a fresh sync would write
+    # BEFORE comparing. Without this, every entry on disk reports drift the
+    # moment the registry schema grows a field -- one did (`profile`,
+    # manifest v3.1) -- and "everything you have installed has drifted" on
+    # upgrade is noise that trains people to ignore the signal. A plugin
+    # that genuinely gained a profile block still differs from null, so the
+    # real case is unaffected.
+    # Projected down to exactly the keys `expected` names, not compared
+    # whole. The registry also carries display metadata (display_name,
+    # description, category, requires_binaries) that the shell reads
+    # instead of re-running this function; a whole-object compare would
+    # read every one of those as an extra key and flag all of them as
+    # drift. Drift means "this plugin's contract changed", and a
+    # display string is not contract -- a manifest edit still refreshes
+    # it on the next sync.
+    stored="$(jq -cS --arg n "$name" '.installed[$n] // empty | if . == {} then empty else ({shelter: "", profile: null, cli: null, chat_provider: null, engine: null, actions: null, keybinds: null, api: null} + .) | {version, shelter, capabilities, owns, ui, profile, cli, chat_provider, engine, actions, keybinds, api} end' "$APHOTIC_PLUGINS_STATE_FILE" 2>/dev/null)"
+    [[ "$expected" != "$stored" ]] && drifted="true"
+
+    jq --argjson drifted "$drifted" '. + {drifted: $drifted}' <<<"$entry"
+}
+
+_aphotic_plugin_list_installed_json() {
+    local name entries=()
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        entries+=("$(_aphotic_plugin_describe "$name")")
+    done < <(aphotic_plugin_names)
+    printf '%s\n' "${entries[@]:-}" | jq -s 'map(select(. != null))'
+}
+
+# How long a fetched catalogue is served from disk before the next call
+# refetches. The index is a list of what exists to install, not live
+# state, so a few hours stale costs nothing; `--refresh` and every
+# install/remove path bypass it.
+APHOTIC_PLUGINS_INDEX_TTL="${APHOTIC_PLUGINS_INDEX_TTL:-21600}"
+
+_aphotic_plugin_index_cache_file() {
+    echo "${APHOTIC_STATE_HOME}/plugin-index.json"
+}
+
+# Annotated catalogue, served from disk when it is younger than the TTL.
+# Settings -> Plugins reads this file directly rather than shelling out at
+# all, so the fetch happens on an explicit refresh instead of on every
+# pane open. $1: "true" to ignore the cache and refetch.
+# The cache file carries the security-index trust flag alongside the
+# plugins, so the shell answers "is the security index trusted" from the
+# same file it already watches instead of spawning a third process for it.
+# Emits the plain plugins array on stdout: that is what `list --remote
+# --json` has always printed and what its callers parse.
+_aphotic_plugin_index_cached() {
+    local force="${1:-false}" cache age data trusted
+    cache="$(_aphotic_plugin_index_cache_file)"
+
+    if [[ "$force" != "true" && -s "$cache" ]]; then
+        age=$(( $(date +%s) - $(stat -c %Y "$cache" 2>/dev/null || echo 0) ))
+        if [[ "$age" -lt "$APHOTIC_PLUGINS_INDEX_TTL" ]]; then
+            jq -c '.plugins // []' "$cache" 2>/dev/null && return 0
+        fi
+    fi
+
+    data="$(_aphotic_plugin_annotate_remote_json "$(_aphotic_plugin_list_remote_json)")"
+    # A failed fetch yields an empty list. Keeping the last good catalogue
+    # rather than overwriting it with nothing means going offline leaves
+    # the pane showing what it showed before, not an empty index.
+    if [[ "$(jq -r 'length' <<<"$data" 2>/dev/null || echo 0)" -eq 0 && -s "$cache" ]]; then
+        jq -c '.plugins // []' "$cache" 2>/dev/null && return 0
+    fi
+
+    trusted="false"
+    aphotic_plugins_security_index_trusted && trusted="true"
+
+    mkdir -p "$(dirname "$cache")"
+    # Piped, never --argjson: a catalogue of any real size exceeds
+    # ARG_MAX as a command-line argument. A 2000-entry index fails
+    # outright that way.
+    printf '%s\n' "$data" | jq --argjson trusted "$trusted" \
+        --argjson fetched_at "$(date +%s)" \
+        '{fetched_at: $fetched_at, trusted: $trusted, plugins: .}' \
+        > "${cache}.tmp" && mv "${cache}.tmp" "$cache"
+    printf '%s\n' "$data"
+}
+
+_aphotic_plugin_list_remote_json() {
+    aphotic_require curl || return 1
+    local main_data security_data
+    main_data="$(curl -fsSL -m 10 "$APHOTIC_PLUGINS_INDEX_URL" 2>/dev/null || echo '{"plugins": []}')"
+
+    # Security-category plugins only ever appear here once the user has
+    # explicitly trusted the separate security index (see
+    # aphotic_plugins_security_index_trusted) -- untrusted, this
+    # function behaves exactly as if that index didn't exist, not just
+    # "installable but hidden" -- it's not fetched at all.
+    if aphotic_plugins_security_index_trusted; then
+        security_data="$(curl -fsSL -m 10 "$APHOTIC_PLUGINS_SECURITY_INDEX_URL" 2>/dev/null || echo '{"plugins": []}')"
+        # Slurped from stdin rather than passed as two --argjson values:
+        # either index is large enough to exceed ARG_MAX on its own.
+        printf '%s\n%s\n' "$main_data" "$security_data" \
+            | jq -s '{plugins: ((.[0].plugins // []) + (.[1].plugins // []))}'
+    else
+        echo "$main_data"
+    fi
+}
+
+# Fold each catalogue entry's host verdict into the entry itself, as
+# `host_support: {verdict, unhosted}`. Additive on purpose: Settings ->
+# Plugins reads this same `list --remote --json` and ignores fields it
+# does not know, so an older pane keeps working against a newer CLI.
+# One jq pass over the whole index, not a shell loop. This used to fork
+# _aphotic_plugin_entry_verdict plus a rewriting jq per catalogue entry --
+# four processes each, so a 2000-plugin index cost 8000 of them and
+# Settings -> Plugins waited on all of it. The verdict rule below is a
+# direct port of _aphotic_plugin_host_verdict; that function stays the
+# single answer for an on-disk manifest, and tests/test_plugin_host_gate.sh
+# holds the two in step.
+_aphotic_plugin_annotate_remote_json() {
+    local data="$1"
+
+    jq --arg hosted_caps "$APHOTIC_PLUGIN_HOSTED_CAPABILITIES" \
+       --arg hosted_surfaces "$APHOTIC_PLUGIN_HOSTED_SURFACES" '
+        ($hosted_caps | split(" ")) as $hc
+        | ($hosted_surfaces | split(" ")) as $hs
+        | def verdict:
+            [(.capabilities // [])[] | select(. != null and . != "")] as $caps
+            | [(.ui.surfaces // [])[].surface | select(. != null and . != "")] as $rawsurf
+            | ($rawsurf | unique) as $surfs
+            # Capability order first, then surfaces, matching the order
+            # the shell function builds its message in.
+            | ([$caps[] | select(. as $c | $hc | index($c) | not) | . + " capability"]
+               + [$surfs[] | select(. as $s | $hs | index($s) | not) | . + " surface"]) as $unhosted
+            | ([$caps[] | select(. as $c | $hc | index($c)) | select(. != "ui-surface")]
+               + [$surfs[] | select(. as $s | $hs | index($s))] | length) as $working
+            | if ($unhosted | length) == 0 then
+                  {verdict: "ok", unhosted: ""}
+              elif $working > 0 then
+                  {verdict: "partial", unhosted: ($unhosted | join(", "))}
+              else
+                  {verdict: "inert", unhosted: ($unhosted | join(", "))}
+              end;
+        (.plugins // []) | map(. + {host_support: verdict})
+    ' <<<"$data"
+}
+
+# Fire every enabled theme-hook plugin's on_theme_change script, piping
+# the current resolved palette (~/.local/state/aphotic/palette.json,
+# regenerated by wallust on every theme apply — see wallust.toml's
+# `plugin_palette` template) to it on stdin as JSON. Fire-and-forget with
+# a timeout: a broken/hanging plugin hook must never block or fail the
+# theme switch it's piggybacking on, matching the existing
+# papirus-folders/sddm-sync "warn and no-op" precedent in this same
+# command group.
+_aphotic_plugin_run_theme_hooks() {
+    local palette_file="${APHOTIC_STATE_HOME}/palette.json"
+    [[ -f "$palette_file" ]] || return 0
+
+    local name dir manifest hook caps
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        aphotic_plugin_is_enabled "$name" || continue
+
+        dir="$(_aphotic_plugin_dir "$name")"
+        manifest="${dir}/plugin.toml"
+        caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+        grep -qx "theme-hook" <<<"$caps" || continue
+
+        hook="$(aphotic_toml_get "$manifest" hooks on_theme_change)"
+        [[ -n "$hook" && -x "${dir}/${hook}" ]] || continue
+
+        (
+            timeout 5 "${dir}/${hook}" < "$palette_file" >/dev/null 2>&1 \
+                || aphotic_warn "plugin '${name}': on_theme_change hook failed or timed out"
+        ) &
+        disown 2>/dev/null || true
+    done < <(aphotic_plugin_names)
+}
+
+# Shared shape for the two new v2 hooks below: only plugins that declare
+# the matching capability tag AND set the matching [hooks] key get
+# fired -- not every enabled plugin -- so a theming-only plugin doesn't
+# get invoked on every project switch or workspace launch it has no
+# reason to care about. $1: capability tag, $2: hooks key, $3: single
+# positional argument passed to the hook script.
+_aphotic_plugin_run_hook_by_capability() {
+    local capability="$1" hooks_key="$2" arg="$3"
+    local name dir manifest hook caps
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        aphotic_plugin_is_enabled "$name" || continue
+
+        dir="$(_aphotic_plugin_dir "$name")"
+        manifest="${dir}/plugin.toml"
+        caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+        grep -qx "$capability" <<<"$caps" || continue
+
+        hook="$(aphotic_toml_get "$manifest" hooks "$hooks_key")"
+        [[ -n "$hook" && -x "${dir}/${hook}" ]] || continue
+
+        (
+            timeout 5 "${dir}/${hook}" "$arg" >/dev/null 2>&1 \
+                || aphotic_warn "plugin '${name}': ${hooks_key} hook failed or timed out"
+        ) &
+        disown 2>/dev/null || true
+    done < <(aphotic_plugin_names)
+}
+
+# Fired from the launcher's "@" project-switcher (ProjectItem.qml) after
+# it dispatches its own terminal+editor launch -- plugins never replace
+# that, they just get told a project was opened.
+_aphotic_plugin_run_project_hooks() {
+    local path="$1"
+    [[ -n "$path" ]] || return 0
+    _aphotic_plugin_run_hook_by_capability "project-hook" "on_project_open" "$path"
+}
+
+# Fired from Workspace Profiles' launchProfile() after it dispatches the
+# profile's own hyprctl execs.
+_aphotic_plugin_run_workspace_hooks() {
+    local profile_name="$1"
+    [[ -n "$profile_name" ]] || return 0
+    _aphotic_plugin_run_hook_by_capability "workspace-hook" "on_workspace_launch" "$profile_name"
+}
+
+# Confirmation gate for the separate security-category plugin index --
+# same shape as lib/install/blackarch.sh's ensure_blackarch_repo: a real
+# warning, explicit y/N, persisted only once accepted. --yes skips the
+# interactive prompt for a non-interactive caller (Settings -> Plugins,
+# which renders its own warning/confirm UI before calling this) --
+# mirrors exploit_disclaimer.sh's TTY-vs-flag split, just simpler since
+# there's no scripted-install angle here to fail loudly against.
+_aphotic_plugin_trust_security_index() {
+    local skip_prompt="$1"
+
+    if [[ "$skip_prompt" != "true" ]]; then
+        cat <<'EOF'
+================================================================
+         SECURITY-CATEGORY PLUGIN INDEX
+================================================================
+
+This index carries offensive-security tooling (e.g. Bloodhound,
+Caido) as installable plugins -- separate from the main,
+maintainer-curated aphotic-plugins index, and not vetted the
+same way.
+
+Only enable this if you understand what you're installing and
+intend to use it for legitimate, authorized security work.
+================================================================
+
+EOF
+        local confirm
+        read -rep $'[\e[1;33mACTION\e[0m] - Trust the security plugin index? (y,N) ' confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            aphotic_log "not trusted -- security-category plugins will stay hidden"
+            return 0
+        fi
+    fi
+
+    aphotic_plugins_set_security_index_trusted true
+    aphotic_ok "security plugin index trusted -- security-category plugins now visible in 'aphotic plugin list --remote'"
+}
+
+_aphotic_plugin_untrust_security_index() {
+    aphotic_plugins_set_security_index_trusted false
+    aphotic_ok "security plugin index untrusted -- security-category plugins hidden again (already-installed ones are unaffected)"
+}
+
+# JSON status query -- PluginsPane.qml uses this (not a heuristic over
+# whether any security-category entries happen to be present in the
+# fetched list) to decide whether to show the trust-prompt UI for the
+# security category.
+_aphotic_plugin_security_index_status() {
+    local trusted="false"
+    if aphotic_plugins_security_index_trusted; then
+        trusted="true"
+    fi
+    jq -n --argjson trusted "$trusted" '{trusted: $trusted}'
+}
+
+# Clone APHOTIC_PLUGINS_REPO on first use, `git pull --ff-only` on later
+# ones -- install() used to just fail with "clone/pull the repo there
+# first" and expect a human to have already done that by hand outside
+# this tool, which is exactly why Settings -> Plugins' Install button
+# looked like it did nothing: the CLI's own real, correct stderr error
+# was never surfaced by the QML side (no stderr collector on that
+# Process -- see PluginsPane.qml), so it just silently failed every
+# single time on a machine that had never manually cloned the repo. A
+# pull failure (network hiccup, local edits under APHOTIC_PLUGINS_REPO)
+# is non-fatal -- falls through to whatever's on disk already rather
+# than blocking install, matching the "warn and continue" convention
+# this file already uses for hook failures.
+_aphotic_plugin_sync_repo() {
+    aphotic_require git || return 1
+    if [[ -d "${APHOTIC_PLUGINS_REPO}/.git" ]]; then
+        echo "Updating plugin repo: git -C ${APHOTIC_PLUGINS_REPO} pull --ff-only"
+        git -C "$APHOTIC_PLUGINS_REPO" pull --ff-only || aphotic_err "pull failed — continuing with the existing local checkout at ${APHOTIC_PLUGINS_REPO}"
+    else
+        echo "Cloning plugin repo: git clone ${APHOTIC_PLUGINS_GIT_URL} ${APHOTIC_PLUGINS_REPO}"
+        git clone "$APHOTIC_PLUGINS_GIT_URL" "$APHOTIC_PLUGINS_REPO" || { aphotic_err "clone failed: ${APHOTIC_PLUGINS_GIT_URL}"; return 1; }
+    fi
+}
+
+# Installs whatever this just-copied plugin's plugin.toml declares it
+# needs, in the SAME visible kitty terminal `aphotic plugin install`
+# already runs in (see PluginsPane.qml's Install button) -- not a second
+# spawned window -- so the user watches one continuous clone -> copy ->
+# deps -> done flow instead of piecing together output from two terminals.
+# Same "shell out to yay/paru in a real terminal, no --noconfirm" contract
+# `PkgSearch.qml`'s own install() already established for the package-
+# search pane (SUPER+Y) -- yay/paru's own interactive prompts (which
+# provider to pick, PKGBUILD review, sudo password) show up exactly as
+# they would from a manual `yay -S`, since AUR packages run arbitrary
+# build scripts and this repo doesn't silently auto-confirm that anywhere
+# else either.
+_aphotic_plugin_install_deps() {
+    # Two statements, not one: bash 5.3 changed `local` to expand every
+    # assignment word before creating any of the locals, so the old
+    # single-statement `local dest="$1" manifest="${dest}/plugin.toml"`
+    # read an unset `dest` and resolved manifest to literally
+    # "/plugin.toml". That file never exists, so this function hit its
+    # `[[ -f "$manifest" ]] || return 0` guard and returned immediately --
+    # plugin dependency installation has been silently dead on any bash
+    # 5.3+ system.
+    local dest="$1"
+    local manifest="${dest}/plugin.toml" bin pkg helper=""
+    [[ -f "$manifest" ]] || return 0
+
+    command -v yay >/dev/null 2>&1 && helper="yay"
+    [[ -z "$helper" ]] && command -v paru >/dev/null 2>&1 && helper="paru"
+
+    local missing=()
+    while IFS= read -r bin; do
+        [[ -z "$bin" ]] && continue
+        command -v "$bin" >/dev/null 2>&1 || missing+=("$bin")
+    done < <(aphotic_toml_get_array "$manifest" requires binaries)
+
+    [[ ${#missing[@]} -eq 0 ]] && return 0
+
+    # `[requires] install_script = "hooks/x.sh"` -- an escape hatch for a
+    # dependency the AUR can't supply correctly. The fallback below maps a
+    # missing binary to a package of the same name, which is right for the
+    # common case but actively wrong when no such package exists: `codex`
+    # has no AUR package, so `yay -S codex` resolves to `codex-bin`, an
+    # unrelated Electron app that pulls a multi-GB chromium build. A
+    # plugin that knows its own dependency's real install path says so
+    # here and core runs that instead -- same trust model as [harness]
+    # wire/unwire, which already execute plugin-shipped scripts.
+    local install_script
+    install_script="$(aphotic_toml_get "$manifest" requires install_script)"
+    if [[ -n "$install_script" ]]; then
+        local script_path="${dest}/${install_script}"
+        if [[ -x "$script_path" ]]; then
+            echo "Installing dependencies (${missing[*]}) via the plugin's own ${install_script}"
+            "$script_path" || aphotic_warn "${install_script} exited non-zero -- install ${missing[*]} manually"
+        else
+            aphotic_warn "plugin.toml declares [requires].install_script = '${install_script}' but ${script_path} is not executable -- install ${missing[*]} manually"
+        fi
+        return 0
+    fi
+
+    if [[ -z "$helper" ]]; then
+        aphotic_warn "missing dependencies (${missing[*]}) but no AUR helper (yay/paru) found on PATH -- install manually"
+        return 0
+    fi
+
+    # `[requires] packages = [...]` in plugin.toml is an optional,
+    # explicit override for the (uncommon) case where a binary's real
+    # package name differs from the binary name itself -- e.g. a plugin
+    # needing a `foo` binary that actually ships in an AUR package called
+    # `foo-bin`. Falls back to installing each missing binary's own name
+    # as the package name, which is correct for the common case (openrgb
+    # the binary really does come from a package literally named
+    # `openrgb`) without requiring every plugin manifest to spell out an
+    # otherwise-redundant packages list.
+    local explicit_pkgs=()
+    while IFS= read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        explicit_pkgs+=("$pkg")
+    done < <(aphotic_toml_get_array "$manifest" requires packages)
+
+    local to_install=("${missing[@]}")
+    [[ ${#explicit_pkgs[@]} -gt 0 ]] && to_install=("${explicit_pkgs[@]}")
+
+    echo "Installing dependencies via ${helper}: ${to_install[*]}"
+    if "$helper" -S "${to_install[@]}"; then
+        aphotic_ok "dependencies installed"
+    else
+        aphotic_warn "some dependencies failed to install -- check the output above, or install manually"
+    fi
+}
+
+# Records/refreshes what `aphotic plugin install <name>` just installed
+# in APHOTIC_PLUGINS_STATE_FILE's "installed" map -- this is the
+# registry §2.2 of APHOTIC_UNIFIED_VISION.md asks for, recording per-
+# installed-plugin what it owns so remove can reverse it symmetrically.
+# It's also what PluginRegistry.qml (Quickshell side) reads to resolve
+# ui-surface tabs -- one JSON object, two consumers, kept in sync here
+# rather than duplicated. Called at the end of install(); enable/disable
+# don't touch it, since aphotic_plugin_is_enabled already layers on top
+# via the same file's "disabled" array.
+_aphotic_plugin_registry_sync() {
+    local name="$1" dir manifest version caps shelter owns ui profile cli chat_provider engine actions api keybinds
+    local display desc category binaries
+    aphotic_require jq || return 1
+    dir="$(_aphotic_plugin_dir "$name")"
+    manifest="${dir}/plugin.toml"
+    [[ -f "$manifest" ]] || return 1
+
+    version="$(aphotic_toml_get "$manifest" plugin version)"
+    caps="$(aphotic_toml_get_array "$manifest" plugin capabilities | jq -R . | jq -s .)"
+    shelter="$(_aphotic_plugin_root_value "$manifest" shelter)"
+    # Display metadata, stored so the shell can render the whole installed
+    # list straight out of this file. Settings -> Plugins used to shell out
+    # to `aphotic plugin list --json` to get these four, which re-reads
+    # every manifest on the machine -- ~200ms per installed plugin, paid on
+    # every pane open. They are a copy of the manifest by definition; a
+    # manifest edited in place refreshes them on the next sync, same as
+    # every other field here.
+    display="$(aphotic_toml_get "$manifest" plugin display_name)"
+    desc="$(aphotic_toml_get "$manifest" plugin description)"
+    category="$(aphotic_toml_get "$manifest" plugin category)"
+    binaries="$(aphotic_toml_get_array "$manifest" requires binaries | jq -R . | jq -s .)"
+    owns="$(_aphotic_plugin_owns_json "$manifest")"
+    ui="$(_aphotic_plugin_ui_json "$manifest")"
+    profile="$(_aphotic_plugin_profile_json "$manifest")"
+    cli="$(_aphotic_plugin_cli_json "$manifest")"
+    chat_provider="$(_aphotic_plugin_chat_provider_json "$manifest")"
+    engine="$(_aphotic_plugin_engine_json "$manifest")"
+    actions="$(_aphotic_plugin_actions_json "$manifest")"
+    keybinds="$(_aphotic_plugin_keybinds_json "$manifest")"
+    api="$(_aphotic_plugin_api_json "$manifest")"
+
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || echo '{"disabled": []}' > "$APHOTIC_PLUGINS_STATE_FILE"
+    aphotic_write_atomic "$APHOTIC_PLUGINS_STATE_FILE" \
+       jq --arg n "$name" \
+       --arg version "${version:-0.0.0}" \
+       --arg display_name "${display:-$name}" \
+       --arg description "${desc:-}" \
+       --arg category "${category:-}" \
+       --arg shelter "${shelter:-}" \
+       --argjson requires_binaries "${binaries:-[]}" \
+       --argjson capabilities "${caps:-[]}" \
+       --argjson owns "$owns" \
+       --argjson ui "$ui" \
+       --argjson profile "$profile" \
+       --argjson cli "$cli" \
+       --argjson chat_provider "$chat_provider" \
+       --argjson engine "$engine" \
+       --argjson actions "$actions" \
+       --argjson keybinds "$keybinds" \
+       --argjson api "$api" \
+       '.installed = ((.installed // {}) + {($n): {version: $version, display_name: $display_name, description: $description, category: $category, shelter: $shelter, requires_binaries: $requires_binaries, capabilities: $capabilities, owns: $owns, ui: $ui, profile: $profile, cli: $cli, chat_provider: $chat_provider, engine: $engine, actions: $actions, keybinds: $keybinds, api: $api}})' \
+       "$APHOTIC_PLUGINS_STATE_FILE"
+    # Every install and update funnels through here, so this is the one
+    # place that has to record "a plugin's code changed" for recovery.
+    aphotic_record_change "plugin-registered" "${name} ${version:-0.0.0}"
+}
+
+# Reverse of the above -- called from remove(). Deleting the registry
+# entry is what makes a ui-surface plugin's tab disappear from the
+# running shell (PluginRegistry.qml's surfaceRegistrations recomputes off
+# this same file, watched live via FileView) without the shell needing
+# to know anything else changed.
+_aphotic_plugin_registry_remove() {
+    local name="$1"
+    aphotic_require jq || return 1
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || return 0
+    aphotic_write_atomic "$APHOTIC_PLUGINS_STATE_FILE" \
+        jq --arg n "$name" 'if .installed then .installed |= del(.[$n]) else . end' \
+        "$APHOTIC_PLUGINS_STATE_FILE"
+    aphotic_record_change "plugin-removed" "$name"
+}
+
+# A `ui-surface` plugin's own QML files (AgentGraphTab.qml, etc.) need
+# to reference each other -- crucially, a `pragma Singleton` sibling
+# like AgentGraphService.qml -- through a real `import`, exactly like
+# every first-party qs.* module does (see e.g. services/ai/AiProviders.qml
+# importing its own qs.services.ai for its AiKeys/AiConfig siblings).
+# Confirmed live (2026-08-30): same-directory `pragma Singleton` access
+# with NO qmldir/import does *not* reliably resolve when the root file
+# was reached via a dynamic `Loader.source` URL rather than Quickshell's
+# own static tree-scan -- it silently returns undefined instead of the
+# singleton instance. So a plugin's `qml/` directory needs a real
+# qmldir (shipped in the plugin itself, e.g. `module qs.modules.plugins
+# .agentGraph`) AND needs to physically sit inside the shell's own `qs.*`
+# import root for that module import to resolve at all. This symlinks it
+# there -- the one thing besides the plugin's own directory that
+# `install`/`remove` touch on disk, and exactly the kind of "what a
+# plugin touches outside itself" fact the registry (`owns`) exists to
+# make auditable. Only done for a plugin that actually ships a `qml/
+# qmldir` -- a hook-only plugin has nothing to link.
+_aphotic_plugin_ui_module_name() {
+    # kebab-case plugin name -> camelCase QML module segment (QML import
+    # identifiers can't contain '-'). "agent-graph" -> "agentGraph".
+    echo "$1" | sed -E 's/-([a-z0-9])/\U\1/g'
+}
+
+_aphotic_plugin_link_ui_module() {
+    local name="$1" dest module_name link_path
+    dest="$(_aphotic_plugin_dir "$name")"
+    [[ -f "${dest}/qml/qmldir" ]] || return 0
+
+    module_name="$(_aphotic_plugin_ui_module_name "$name")"
+    link_path="${QUICKSHELL_CONFIG_DIR}/modules/plugins/${module_name}"
+    mkdir -p "${QUICKSHELL_CONFIG_DIR}/modules/plugins"
+    ln -sfn "${dest}/qml" "$link_path"
+}
+
+_aphotic_plugin_unlink_ui_module() {
+    local name="$1" module_name
+    module_name="$(_aphotic_plugin_ui_module_name "$name")"
+    rm -f "${QUICKSHELL_CONFIG_DIR}/modules/plugins/${module_name}"
+}
+
+# harness-hook capability (added alongside the Claude/Codex/OpenCode
+# reconciliation onto `modular` -- see docs/archive/PLUGIN_SYSTEM.md's
+# "harness-hook capability" section). Unlike theme/project/workspace
+# hooks, a harness-hook plugin doesn't wait for Aphotic to fire an event
+# -- it wires its own translator into a *different* program's own config
+# (~/.claude/settings.json, ~/.codex/hooks.json, ~/.config/opencode/
+# plugins/) so that program calls back into Aphotic's shared agent_hook
+# pipeline on its own events. That external config has no concept of
+# Aphotic's `disabled` array, so wiring can't just be a one-time
+# install-time action the way `[ui.*]`'s symlink is --
+# `enable`/`disable` have to actively wire/unwire too, or a "disabled"
+# plugin would keep firing for real.
+#
+# [harness] table (`plugin.toml`, `capabilities` includes "harness-hook"):
+#   [harness]
+#   wire = "hooks/wire.sh"     # relative to the plugin's own directory
+#   unwire = "hooks/unwire.sh"
+# Both scripts are invoked with one argument: this shell's own
+# lib/aphotic directory (where agent_hook.sh/agent_hook.py live), so a
+# plugin's translator (if it has one, e.g. codex_hook.py) can find the
+# core sink without assuming a fixed clone path. Fire-and-forget within
+# reason -- a failure is surfaced (aphotic_err), never silently dropped,
+# but never fatal to install/enable/disable/remove either, matching
+# every other best-effort step in this file.
+_aphotic_plugin_lib_dir() {
+    local here
+    here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "${LIB_DIR:-$(cd "${here}/.." && pwd)}"
+}
+
+_aphotic_plugin_has_harness_hook() {
+    local manifest="$1" caps
+    caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+    grep -qx "harness-hook" <<<"$caps"
+}
+
+_aphotic_plugin_run_harness_lifecycle_script() {
+    local name="$1" key="$2" dir manifest script script_path
+    dir="$(_aphotic_plugin_dir "$name")"
+    manifest="${dir}/plugin.toml"
+    [[ -f "$manifest" ]] || return 0
+    _aphotic_plugin_has_harness_hook "$manifest" || return 0
+
+    script="$(aphotic_toml_get "$manifest" harness "$key")"
+    [[ -n "$script" ]] || return 0
+    script_path="${dir}/${script}"
+    if [[ ! -f "$script_path" ]]; then
+        aphotic_err "${name}: harness.${key} (${script}) not found"
+        return 1
+    fi
+    chmod +x "$script_path" 2>/dev/null || true
+
+    if ! "$script_path" "$(_aphotic_plugin_lib_dir)"; then
+        aphotic_err "${name}: harness.${key} script failed"
+        return 1
+    fi
+}
+
+_aphotic_plugin_wire_harness() {
+    _aphotic_plugin_run_harness_lifecycle_script "$1" wire
+}
+
+_aphotic_plugin_unwire_harness() {
+    _aphotic_plugin_run_harness_lifecycle_script "$1" unwire
+}
+
+# The merge runs after every moment plugins.json changes; drop-in edits
+# are picked up by `aphotic agent harnesses` or the next usage-update.
+# Best-effort, same as wire/unwire: a failed merge leaves harnesses.json
+# stale and says so, it never fails the plugin command.
+_aphotic_plugin_harness_merge() {
+    command -v python3 >/dev/null 2>&1 || return 0
+    python3 "$(_aphotic_plugin_lib_dir)/harnesses_merge.py" "$APHOTIC_STATE_HOME" \
+        || aphotic_warn "harness descriptor merge failed -- harnesses.json may be stale"
+}
+
+# Real, live-confirmed architecture gap (2026-08-30): install.sh's
+# `deploy_user_configs` does `rm -rf`/`cp -R` over the WHOLE of
+# `Configs/quickshell/aphotic` -> `~/.config/quickshell/aphotic` on
+# every run (not a symlink -- see that function's own comment on why
+# most of the tree is a one-shot copy). `modules/plugins/<name>` lives
+# *inside* that same tree, so every config refresh silently deletes it
+# along with everything else, breaking any installed `ui-surface`
+# plugin until this is called again. This is that "again" -- idempotent,
+# safe to call after any config redeploy, and install.sh now does so
+# (see its own deploy_user_configs). Also callable by hand:
+# `aphotic plugin relink-ui-modules`.
+_aphotic_plugin_relink_all_ui_modules() {
+    local name
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        if aphotic_plugin_is_enabled "$name"; then
+            _aphotic_plugin_link_ui_module "$name"
+        else
+            _aphotic_plugin_unlink_ui_module "$name"
+        fi
+    done < <(aphotic_plugin_names)
+
+    local link module_name installed_name installed
+    for link in "${QUICKSHELL_CONFIG_DIR}/modules/plugins"/*; do
+        [[ -L "$link" ]] || continue
+        module_name="$(basename "$link")"
+        installed=false
+        while IFS= read -r installed_name; do
+            [[ -z "$installed_name" ]] && continue
+            if [[ "$(_aphotic_plugin_ui_module_name "$installed_name")" == "$module_name" ]]; then
+                installed=true
+                break
+            fi
+        done < <(aphotic_plugin_names)
+        if [[ "$installed" != "true" ]]; then
+            rm -f "$link"
+        fi
+    done
+}
+
+_aphotic_plugin_install() {
+    local name="$1" link="$2" src dest
+    [[ -n "$name" ]] || { aphotic_err "usage: aphotic plugin install <name> [--link]"; return 1; }
+
+    _aphotic_plugin_sync_repo || return 1
+
+    src="${APHOTIC_PLUGINS_REPO}/${name}"
+    if [[ ! -d "$src" ]] || [[ ! -f "${src}/plugin.toml" ]]; then
+        aphotic_err "no plugin '${name}' in ${APHOTIC_PLUGINS_REPO} (repo synced okay, but this name isn't in it — check 'aphotic plugin list --remote')"
+        return 1
+    fi
+
+    dest="$(_aphotic_plugin_dir "$name")"
+    if [[ -e "$dest" ]]; then
+        aphotic_err "already installed: ${dest} (remove it first to reinstall)"
+        return 1
+    fi
+
+    # Read off the manifest rather than the catalogue: --link installs a
+    # local working tree that is not in index.json at all, and the
+    # manifest is the source of truth for what the plugin declares.
+    local verdict
+    verdict="$(_aphotic_plugin_host_verdict \
+        "$(aphotic_toml_get_array "${src}/plugin.toml" plugin capabilities)" \
+        "$(_aphotic_plugin_manifest_surfaces "${src}/plugin.toml")")"
+    local wants_api
+    wants_api="$(_aphotic_plugin_api_version "${src}/plugin.toml")"
+    if [[ ! "$wants_api" =~ ^[0-9]+$ ]]; then
+        aphotic_err "'${name}': [api].version '${wants_api}' is not a whole number"
+        return 1
+    fi
+    if [[ "$wants_api" -gt "$APHOTIC_PLUGIN_API_VERSION" ]]; then
+        aphotic_err "'${name}' needs a newer Aphotic: it is written against plugin API v${wants_api}, this shell speaks v${APHOTIC_PLUGIN_API_VERSION}"
+        aphotic_log "its first call into the shell would fail, so this is a refusal rather than a warning -- 'aphotic update' first"
+        return 1
+    fi
+    if [[ "$wants_api" -lt 2 ]]; then
+        while IFS= read -r use; do
+            if [[ "$use" == "sonar.register" ]]; then
+                aphotic_err "'${name}': sonar.register requires plugin API v2, this manifest declares v${wants_api}"
+                aphotic_log "the runtime would silently deny the grant; declare [api] version = 2 instead"
+                return 1
+            fi
+        done < <(aphotic_toml_get_array "${src}/plugin.toml" api uses)
+    fi
+
+    case "$verdict" in
+        inert:*)
+            aphotic_err "'${name}' needs a newer Aphotic: no host here for its ${verdict#inert:}"
+            aphotic_log "everything it ships would be inert on ${APHOTIC_VERSION}, so this is a refusal rather than a warning -- 'aphotic update' first"
+            return 1
+            ;;
+        partial:*)
+            aphotic_warn "'${name}' installs, but this Aphotic has no host for its ${verdict#partial:} -- that part stays dark until you update"
+            ;;
+    esac
+
+    if [[ "$link" == "true" ]]; then
+        ln -s "$src" "$dest"
+        echo "Linked ${name} -> ${src}"
+    else
+        echo "Installing ${name}..."
+        cp -r "$src" "$dest"
+    fi
+
+    find "$dest" -path "*/hooks/*" -type f -exec chmod +x {} \; 2>/dev/null || true
+
+    _aphotic_plugin_install_deps "$dest"
+    _aphotic_plugin_registry_sync "$name"
+    _aphotic_plugin_link_ui_module "$name"
+    _aphotic_plugin_wire_harness "$name" || true
+    _aphotic_plugin_harness_merge
+
+    aphotic_ok "installed ${name}"
+    echo "PLUGIN INSTALLED: ${name}"
+}
+
+# Refresh an installed plugin's payload from the repo in place. The only
+# path before this was remove-then-install, which clears the plugin's
+# disabled-state entry and unwires/rewires its harness hooks -- so
+# picking up a bugfix release meant silently re-enabling a plugin the
+# user had turned off. This keeps both, and stages the copy so a failed
+# update leaves the working install alone rather than a half-copied tree.
+_aphotic_plugin_update_one() {
+    local name="$1" src dest staged previous from to
+    dest="$(_aphotic_plugin_dir "$name")"
+    [[ -e "$dest" ]] || { aphotic_err "not installed: ${name}"; return 1; }
+
+    src="${APHOTIC_PLUGINS_REPO}/${name}"
+    if [[ ! -d "$src" ]] || [[ ! -f "${src}/plugin.toml" ]]; then
+        aphotic_err "no plugin '${name}' in ${APHOTIC_PLUGINS_REPO}"
+        return 1
+    fi
+
+    to="$(aphotic_toml_get "${src}/plugin.toml" plugin version)"
+
+    # A --link install already points at the checkout, so its files are
+    # current by construction; only the registry entry can be stale.
+    if [[ -L "$dest" ]]; then
+        _aphotic_plugin_registry_sync "$name"
+        aphotic_ok "${name} is a linked install, refreshed its registry entry (${to:-0.0.0})"
+        return 0
+    fi
+
+    # The registry entry, not the installed manifest, is what the shell
+    # reads and what `plugin list` reports, so it is the "before" worth
+    # naming -- a manual file sync leaves the manifest current and the
+    # registry behind, which manifest-to-manifest would call unchanged.
+    from=""
+    if [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
+        from="$(jq -r --arg n "$name" '.installed[$n].version // ""' "$APHOTIC_PLUGINS_STATE_FILE" 2>/dev/null)"
+    fi
+    [[ -n "$from" ]] || from="$(aphotic_toml_get "${dest}/plugin.toml" plugin version)"
+
+    staged="${dest}.updating"
+    rm -rf "$staged"
+    if ! cp -r "$src" "$staged"; then
+        rm -rf "$staged"
+        aphotic_err "failed to stage update for ${name}, left the installed copy alone"
+        return 1
+    fi
+    find "$staged" -path "*/hooks/*" -type f -exec chmod +x {} \; 2>/dev/null || true
+
+    # Swap by two renames rather than rm-then-move. A running shell
+    # resolves modules/plugins/<mod> through this exact path, and an
+    # `rm -rf` of the old tree leaves that symlink dangling for as long
+    # as the delete takes -- measured 0.07 ms for agent-graph but 3.2 ms
+    # for a 2000-file tree, i.e. it grows with the plugin. Renames are
+    # constant-time, and the old tree is still on disk to put back if
+    # the second one fails.
+    previous="${dest}.previous"
+    rm -rf "$previous"
+    if ! mv "$dest" "$previous"; then
+        rm -rf "$staged"
+        aphotic_err "could not move ${name}'s installed copy aside, left it alone"
+        return 1
+    fi
+    if ! mv "$staged" "$dest"; then
+        mv "$previous" "$dest"
+        rm -rf "$staged"
+        aphotic_err "could not swap in the update for ${name}, restored the installed copy"
+        return 1
+    fi
+    rm -rf "$previous"
+
+    _aphotic_plugin_install_deps "$dest"
+    _aphotic_plugin_registry_sync "$name"
+    if aphotic_plugin_is_enabled "$name"; then
+        _aphotic_plugin_link_ui_module "$name"
+        _aphotic_plugin_wire_harness "$name" || true
+    else
+        _aphotic_plugin_unlink_ui_module "$name"
+    fi
+
+    if [[ "$from" == "$to" ]]; then
+        aphotic_ok "refreshed ${name} (${from:-0.0.0}, unchanged)"
+    else
+        aphotic_ok "updated ${name} ${from:-0.0.0} -> ${to:-0.0.0}"
+    fi
+    echo "PLUGIN UPDATED: ${name}"
+}
+
+_aphotic_plugin_update() {
+    local target="$1" name rc=0
+    [[ -n "$target" ]] || { aphotic_err "usage: aphotic plugin update <name>|--all"; return 1; }
+
+    _aphotic_plugin_sync_repo || return 1
+
+    if [[ "$target" != "--all" ]]; then
+        _aphotic_plugin_update_one "$target"
+        return $?
+    fi
+
+    # A disabled plugin is skipped by --all rather than refreshed:
+    # _aphotic_plugin_install_deps shells out to `yay -S` for anything in
+    # the manifest's [requires] that isn't on PATH, so a blanket refresh
+    # would install AUR packages on behalf of plugins the user has
+    # deliberately turned off. Naming one explicitly still updates it --
+    # that case is the whole reason this subcommand exists.
+    local skipped=()
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        if ! aphotic_plugin_is_enabled "$name"; then
+            skipped+=("$name")
+            continue
+        fi
+        _aphotic_plugin_update_one "$name" || rc=1
+    done < <(aphotic_plugin_names)
+
+    if [[ ${#skipped[@]} -gt 0 ]]; then
+        aphotic_log "skipped ${#skipped[@]} disabled plugin(s): ${skipped[*]} -- update by name to refresh anyway"
+    fi
+    return "$rc"
+}
+
+_aphotic_plugin_remove() {
+    local name="$1" dest
+    [[ -n "$name" ]] || { aphotic_err "usage: aphotic plugin remove <name>"; return 1; }
+    dest="$(_aphotic_plugin_dir "$name")"
+    [[ -e "$dest" ]] || { aphotic_err "not installed: ${name}"; return 1; }
+    _aphotic_plugin_unwire_harness "$name" || true
+    _aphotic_plugin_unlink_ui_module "$name"
+    rm -rf "$dest"
+    aphotic_plugin_set_enabled "$name" true # clear any disabled-state entry
+    _aphotic_plugin_registry_remove "$name"
+    _aphotic_plugin_harness_merge
+    aphotic_ok "removed ${name}"
+}
+
+# Static checks against a plugin folder, run without installing it or
+# touching the shell. `install` only ever checked host/capability
+# compatibility (_aphotic_plugin_host_verdict) at the point it was
+# already copying files -- there was nothing an author could run first
+# to catch a bad manifest before unsandboxed QML loads into a
+# long-running shell process. This is that check.
+#
+# Structural only: whether the manifest makes internal sense, not
+# whether this particular build can host what it declares (that's
+# still _aphotic_plugin_host_verdict, surfaced here as a warning since
+# it's still worth knowing before installing).
+# What each [api].uses entry hands a plugin. Kept beside the list it
+# describes; PluginApiCore.js carries the same ids.
+_aphotic_plugin_api_describe() {
+    case "$1" in
+        sonar.register) echo "register bounded Sonar targets for this plugin (API v2)" ;;
+        context.observe) echo "read the runtime context and its policy (reactive)" ;;
+        context.request) echo "suggest a context switch; the user confirms from a notification" ;;
+        resource.observe) echo "read the resource posture: level, resource, headline, surfaced (reactive)" ;;
+        surface.declare) echo "give a plugin surface a role so it coexists with core surfaces" ;;
+        notifications.publish) echo "post a notification under the plugin's name, subject to DND and context" ;;
+        *) echo "" ;;
+    esac
+}
+
+_aphotic_plugin_api() {
+    local use
+    if [[ "${1:-}" == "--json" ]]; then
+        aphotic_require jq || return 1
+        for use in $APHOTIC_PLUGIN_API_USES; do
+            jq -cn --arg id "$use" --arg d "$(_aphotic_plugin_api_describe "$use")" '{id: $id, description: $d}'
+        done | jq -s --argjson v "$APHOTIC_PLUGIN_API_VERSION" '{version: $v, uses: .}'
+        return 0
+    fi
+    echo "Plugin API v${APHOTIC_PLUGIN_API_VERSION}"
+    echo
+    for use in $APHOTIC_PLUGIN_API_USES; do
+        printf '  %-24s %s\n' "$use" "$(_aphotic_plugin_api_describe "$use")"
+    done
+    echo
+    echo "Declare in plugin.toml:"
+    echo "  [api]"
+    echo "  version = ${APHOTIC_PLUGIN_API_VERSION}"
+    echo "  uses = [\"context.observe\"]"
+    echo
+    echo "In QML: PluginApi.handle(\"<plugin-name>\") returns the calls declared, or null while disabled."
+}
+
+_aphotic_plugin_validate() {
+    local dir="$1" manifest name fails=0 warns=0
+    [[ -n "$dir" ]] || { aphotic_err "usage: aphotic plugin validate <dir>"; return 1; }
+    dir="${dir%/}"
+    [[ -d "$dir" ]] || { aphotic_err "not a directory: ${dir}"; return 1; }
+
+    name="$(basename "$dir")"
+    manifest="${dir}/plugin.toml"
+    if [[ ! -f "$manifest" ]]; then
+        aphotic_err "${name}: no plugin.toml in ${dir}"
+        return 1
+    fi
+
+    # The directory name becomes the install path and, via
+    # _aphotic_plugin_ui_module_name's kebab-to-camel rewrite, the QML
+    # module segment a ui-surface plugin loads under. Anything outside
+    # this either fails that rewrite or produces an install path with
+    # characters nothing downstream expects.
+    if [[ ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+        aphotic_err "${name}: directory name must be lowercase, start with a letter, and use only [a-z0-9-]"
+        fails=$((fails + 1))
+    fi
+
+    # A plugin ships everything it needs. A symlink is either a broken
+    # editor artifact or a way to make install copy a file from outside
+    # the plugin's own tree.
+    local link
+    while IFS= read -r link; do
+        aphotic_err "${name}: symlink in plugin tree: ${link#"$dir"/}"
+        fails=$((fails + 1))
+    done < <(find "$dir" -type l 2>/dev/null)
+
+    local display desc version category caps
+    display="$(aphotic_toml_get "$manifest" plugin display_name)"
+    desc="$(aphotic_toml_get "$manifest" plugin description)"
+    version="$(aphotic_toml_get "$manifest" plugin version)"
+    category="$(aphotic_toml_get "$manifest" plugin category)"
+    caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+
+    [[ -n "$display" ]] || { aphotic_err "${name}: [plugin].display_name missing"; fails=$((fails + 1)); }
+    [[ -n "$desc" ]] || { aphotic_err "${name}: [plugin].description missing"; fails=$((fails + 1)); }
+    [[ -n "$version" ]] || { aphotic_err "${name}: [plugin].version missing"; fails=$((fails + 1)); }
+
+    if [[ -z "$category" ]]; then
+        aphotic_warn "${name}: [plugin].category missing -- won't be reachable by 'plugin list --category'"
+        warns=$((warns + 1))
+    fi
+    # Documented, not enforced elsewhere -- 'aphotic plugin list --help'
+    # names this same set. A category outside it still installs, so this
+    # stays a warning, same reasoning as the capability check below.
+    if [[ -n "$category" ]]; then
+        _aphotic_plugin_in_list "$category" "dev security mobile ai theming productivity" || {
+            aphotic_warn "${name}: [plugin].category '${category}' isn't one of the documented categories (dev/security/mobile/ai/theming/productivity)"
+            warns=$((warns + 1))
+        }
+    fi
+    if [[ -z "$caps" ]]; then
+        aphotic_warn "${name}: [plugin].capabilities is empty -- declares nothing this shell can host"
+        warns=$((warns + 1))
+    fi
+
+    # An unrecognized capability isn't a hard failure on its own -- a
+    # manifest built against a newer contract has to fail open here,
+    # same as APHOTIC_PLUGIN_HOSTED_CAPABILITIES's own comment on why --
+    # but it's usually a typo, so it's worth flagging.
+    local known_caps="theme-hook ui-surface project-hook workspace-hook harness-hook profile cli chat-provider action keybind engine"
+    local cap
+    while IFS= read -r cap; do
+        [[ -n "$cap" ]] || continue
+        _aphotic_plugin_in_list "$cap" "$known_caps" || {
+            aphotic_warn "${name}: capability '${cap}' isn't one this build recognizes (typo, or a newer manifest version)"
+            warns=$((warns + 1))
+        }
+    done <<<"$caps"
+
+    # [api]: the version must be one this build speaks, and every `uses`
+    # entry should be a call it hands out. An unknown entry is a warning,
+    # same fail-open reasoning as capabilities above: the handle simply
+    # won't carry it.
+    local api_version use
+    api_version="$(_aphotic_plugin_api_version "$manifest")"
+    if [[ ! "$api_version" =~ ^[0-9]+$ ]]; then
+        aphotic_err "${name}: [api].version '${api_version}' is not a whole number"
+        fails=$((fails + 1))
+    elif [[ "$api_version" -gt "$APHOTIC_PLUGIN_API_VERSION" ]]; then
+        aphotic_err "${name}: [api].version ${api_version} is newer than this build's plugin API (v${APHOTIC_PLUGIN_API_VERSION}) -- install will refuse it"
+        fails=$((fails + 1))
+    fi
+    while IFS= read -r use; do
+        [[ -n "$use" ]] || continue
+        if [[ "$use" == "sonar.register" && "$api_version" =~ ^[0-9]+$ && "$api_version" -lt 2 ]]; then
+            aphotic_err "${name}: sonar.register requires plugin API v2"
+            fails=$((fails + 1))
+        fi
+        _aphotic_plugin_in_list "$use" "$APHOTIC_PLUGIN_API_USES" || {
+            aphotic_warn "${name}: [api].uses '${use}' isn't part of plugin API v${APHOTIC_PLUGIN_API_VERSION} (see 'aphotic plugin api') -- the handle won't carry it"
+            warns=$((warns + 1))
+        }
+    done < <(aphotic_toml_get_array "$manifest" api uses)
+
+    # ui-surface and [ui.*] have to agree from both directions: the
+    # capability with no section installs to nothing, and a section
+    # with no capability declared is the same bug seen from the other
+    # side (see host_verdict's own comment: ui-surface never counts as
+    # working by itself).
+    local surfaces has_ui_cap="false"
+    surfaces="$(_aphotic_plugin_manifest_surfaces "$manifest")"
+    _aphotic_plugin_in_list "ui-surface" "$caps" && has_ui_cap="true"
+    if [[ -n "$surfaces" && "$has_ui_cap" == "false" ]]; then
+        aphotic_err "${name}: [ui.*] section(s) present (${surfaces//$'\n'/, }) but capabilities doesn't include 'ui-surface'"
+        fails=$((fails + 1))
+    elif [[ -z "$surfaces" && "$has_ui_cap" == "true" ]]; then
+        aphotic_err "${name}: capabilities includes 'ui-surface' but no [ui.*] section declares one"
+        fails=$((fails + 1))
+    fi
+
+    # Every file a manifest section points at: must resolve inside the
+    # plugin's own directory (no leading '/', no '..' segment -- these
+    # get concatenated straight into a symlink target or a Loader
+    # source, never re-checked at load time) and must actually exist.
+    # hooks/harness scripts aren't required to be +x yet -- install
+    # chmods hooks/ after copying, and this runs before that ever
+    # happens.
+    local -a path_checks=(
+        "ui.dashboard_tab:component" "ui.notch_tile:component"
+        "ui.settings_pane:component" "ui.workspace:component" "ui.edge_tab:component"
+        "ui.overlay:component" "ui.fullscreen-overlay:component"
+        "ui.pet_action:component" "ui.pet_action_2:component" "ui.pet_action_3:component"
+        "profile:component"
+        "action:component" "action_2:component" "action_3:component" "action_4:component" "action_5:component"
+        "cli:script"
+        "hooks:on_theme_change" "hooks:on_project_open" "hooks:on_workspace_launch"
+        "harness:wire" "harness:unwire"
+    )
+    local check section key value
+    for check in "${path_checks[@]}"; do
+        section="${check%%:*}"
+        key="${check##*:}"
+        value="$(aphotic_toml_get "$manifest" "$section" "$key")"
+        [[ -n "$value" ]] || continue
+
+        if [[ "$value" == /* || "$value" == *..* ]]; then
+            aphotic_err "${name}: [${section}].${key} = '${value}' is not a safe relative path"
+            fails=$((fails + 1))
+            continue
+        fi
+        if [[ "$section" == "ui.edge_tab" ]]; then
+            if [[ "$value" == *%* || "$value" == *:* || "$value" == *\\* || "$value" == *\#* || "$value" == *\?* ]] || ! python3 - "$dir" "$value" <<'CHECK_PATH'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1]).resolve()
+try:
+    Path(root / sys.argv[2]).resolve().relative_to(root)
+except ValueError:
+    sys.exit(1)
+CHECK_PATH
+            then
+                aphotic_err "${name}: [ui.edge_tab].component is not a safe relative path"
+                fails=$((fails + 1))
+                continue
+            fi
+        fi
+        if [[ ! -f "${dir}/${value}" ]]; then
+            aphotic_err "${name}: [${section}].${key} points at '${value}', which doesn't exist"
+            fails=$((fails + 1))
+        fi
+    done
+
+    # Informational: aphotic_require's own pattern is warn-and-no-op,
+    # never a hard install-time block, so this stays a warning even
+    # though it means the plugin does nothing useful on this machine.
+    local bin
+    while IFS= read -r bin; do
+        [[ -z "$bin" ]] && continue
+        command -v "$bin" >/dev/null 2>&1 || {
+            aphotic_warn "${name}: requires.binaries lists '${bin}', not found on this machine"
+            warns=$((warns + 1))
+        }
+    done < <(aphotic_toml_get_array "$manifest" requires binaries)
+
+    # Whether this particular build can host what's declared. Same
+    # check install runs; surfaced here so it's visible before install
+    # ever touches the shell, not after.
+    local verdict
+    verdict="$(_aphotic_plugin_host_verdict "$caps" "$surfaces")"
+    case "$verdict" in
+        ok) ;;
+        partial:*)
+            aphotic_warn "${name}: partially hosted on this build -- ${verdict#partial:} unhosted"
+            warns=$((warns + 1))
+            ;;
+        inert:*)
+            aphotic_warn "${name}: nothing this build hosts -- ${verdict#inert:} unhosted (needs a newer Aphotic)"
+            warns=$((warns + 1))
+            ;;
+    esac
+
+    # keybind and [keybind*] have to agree from both directions, same as
+    # ui-surface above. A section with no capability tag is the unhosted
+    # case the gate exists to catch, so it is an error; a capability tag
+    # with no section installs to nothing, which is worth saying but not
+    # worth refusing an install over. Every `action` has to be an id this
+    # manifest itself declares: the shell namespaces it under the plugin,
+    # so a name from somewhere else binds a combo to nothing and swallows
+    # the key for as long as the plugin is enabled.
+    local keybind_sections keybind_entries
+    keybind_sections="$(_aphotic_plugin_manifest_keybind_sections "$manifest")"
+    keybind_entries="$(_aphotic_plugin_keybinds_json "$manifest")"
+    local has_keybind_cap="false"
+    _aphotic_plugin_in_list "keybind" "$caps" && has_keybind_cap="true"
+    if [[ -n "$keybind_sections" && "$has_keybind_cap" == "false" ]]; then
+        aphotic_err "${name}: [keybind*] section(s) present (${keybind_sections//$'\n'/, }) but capabilities doesn't include 'keybind'"
+        fails=$((fails + 1))
+    elif [[ -z "$keybind_sections" && "$has_keybind_cap" == "true" ]]; then
+        aphotic_warn "${name}: capabilities includes 'keybind' but no [keybind] section declares one -- the plugin binds nothing"
+        warns=$((warns + 1))
+    fi
+
+    if [[ "$keybind_entries" != "null" ]]; then
+        local declared_actions bind_action duplicate_combo combo_error bind_combo bind_description
+        declared_actions="$(_aphotic_plugin_actions_json "$manifest")"
+        while IFS= read -r bind_action; do
+            [[ -n "$bind_action" ]] || continue
+            if [[ "$declared_actions" == "null" ]] \
+                || ! jq -e --arg id "$bind_action" 'any(.[]; .id == $id)' <<<"$declared_actions" >/dev/null; then
+                aphotic_err "${name}: [keybind].action '${bind_action}' isn't an [action] id this manifest declares"
+                fails=$((fails + 1))
+            fi
+        done < <(jq -r '.[].action' <<<"$keybind_entries")
+
+        # A combo outside the shape the shell can derive both forms from is
+        # refused at bind time -- no key to check the live bind table with,
+        # and no legacy string Hyprland would accept -- so name it here,
+        # where an author sees it before installing.
+        while IFS= read -r bind_combo; do
+            [[ -n "$bind_combo" ]] || continue
+            combo_error="$(_aphotic_plugin_combo_error "$bind_combo")"
+            if [[ -n "$combo_error" ]]; then
+                aphotic_err "${name}: [keybind].combo '${bind_combo}' ${combo_error}, so nothing can be bound to it"
+                fails=$((fails + 1))
+            fi
+        done < <(jq -r '.[].combo' <<<"$keybind_entries")
+
+        # The description is the label, and it rides inside the bind line's
+        # own field syntax. A comma in it shifts every field after it and a
+        # control character ends the line, so the shell would bind with the
+        # label dropped rather than bind that: an error here, not a warning.
+        while IFS= read -r bind_description; do
+            [[ -n "$bind_description" ]] || continue
+            if [[ "$bind_description" == *","* ]] \
+                || printf '%s' "$bind_description" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+                aphotic_err "${name}: [keybind].description '${bind_description}' has a comma or a control character, which the bind line reads as syntax"
+                fails=$((fails + 1))
+            fi
+        done < <(jq -r '.[].description' <<<"$keybind_entries")
+
+        # Two of the plugin's own sections on one combo: the second bind
+        # replaces the first, so one action silently never runs. Compared
+        # case-insensitively, the way the shell's own combo identity is.
+        while IFS= read -r duplicate_combo; do
+            [[ -n "$duplicate_combo" ]] || continue
+            aphotic_warn "${name}: [keybind] combo '${duplicate_combo}' is declared more than once -- only the first is bound"
+            warns=$((warns + 1))
+        done < <(jq -r '[.[].combo] | group_by(ascii_downcase) | map(select(length > 1)) | .[][0]' <<<"$keybind_entries")
+    fi
+
+    # engine and [engine] have to agree from both directions, same as
+    # keybind and ui-surface above. One engine per plugin: the flat reader
+    # can serve [engine_2]'s keys but the descriptor scanner reads one, so
+    # a second section is warned about rather than half-registered.
+    local engine_sections has_engine_cap="false"
+    engine_sections="$(_aphotic_plugin_manifest_engine_sections "$manifest")"
+    _aphotic_plugin_in_list "engine" "$caps" && has_engine_cap="true"
+    if [[ -n "$engine_sections" && "$has_engine_cap" == "false" ]]; then
+        aphotic_err "${name}: [engine] is declared but capabilities doesn't include 'engine'"
+        fails=$((fails + 1))
+    elif [[ -z "$engine_sections" && "$has_engine_cap" == "true" ]]; then
+        aphotic_warn "${name}: the 'engine' capability has no [engine] section declares one"
+        warns=$((warns + 1))
+    fi
+
+    local extra_engine
+    extra_engine="$(sed -n 's/^[[:space:]]*\(\[engine_[0-9]\+\]\)[[:space:]]*$/\1/p' "$manifest" | head -1)"
+    if [[ -n "$extra_engine" ]]; then
+        aphotic_warn "${name}: ${extra_engine} ignored, one engine per plugin"
+        warns=$((warns + 1))
+    fi
+
+    if [[ -n "$engine_sections" ]]; then
+        local e_id e_protocol control_verb control_value control_error engine_token
+        e_id="$(aphotic_toml_get "$manifest" engine id)"
+        e_protocol="$(aphotic_toml_get "$manifest" engine protocol)"
+        [[ -n "$e_id" ]] || { aphotic_err "${name}: [engine].id missing"; fails=$((fails + 1)); }
+        if [[ -z "$e_protocol" ]]; then
+            aphotic_err "${name}: [engine].protocol missing"
+            fails=$((fails + 1))
+        elif ! _aphotic_plugin_in_list "$e_protocol" "$APHOTIC_PLUGIN_ENGINE_PROTOCOLS"; then
+            aphotic_err "${name}: [engine].protocol '${e_protocol}' is not one this Aphotic speaks"
+            fails=$((fails + 1))
+        fi
+
+        for control_verb in start stop load unload switch; do
+            control_value="$(aphotic_toml_get "$manifest" engine.control "$control_verb")"
+            [[ -n "$control_value" ]] || continue
+            control_error="$(_aphotic_plugin_engine_verb_error "$control_value")"
+            if [[ -n "$control_error" ]]; then
+                aphotic_err "${name}: [engine.control].${control_verb} ${control_error}"
+                fails=$((fails + 1))
+                continue
+            fi
+            if [[ ( "$control_verb" == "start" || "$control_verb" == "stop" ) && "$control_value" == *"{model}"* ]]; then
+                aphotic_err "${name}: [engine.control].${control_verb} uses {model} where no model is in scope"
+                fails=$((fails + 1))
+            fi
+        done
+
+        while IFS= read -r engine_token; do
+            [[ -n "$engine_token" ]] || continue
+            if ! _aphotic_plugin_in_list "$engine_token" "$APHOTIC_PLUGIN_ENGINE_CAPABILITIES"; then
+                aphotic_warn "${name}: [engine].capabilities names '${engine_token}', which isn't a token this Aphotic speaks"
+                warns=$((warns + 1))
+                continue
+            fi
+            _aphotic_plugin_engine_capability_backed "$manifest" "$engine_token" || {
+                aphotic_err "${name}: [engine].capabilities names '${engine_token}', but the descriptor provides nothing for it"
+                fails=$((fails + 1))
+            }
+        done < <(aphotic_toml_get_array "$manifest" engine capabilities)
+    fi
+
+    # Every file a manifest section points at: must resolve inside the
+    # plugin's own directory (no leading '/', no '..' segment -- these
+    # get concatenated straight into a symlink target or a Loader
+    # source, never re-checked at load time) and must actually exist.
+    # hooks/harness scripts aren't required to be +x yet -- install
+    # chmods hooks/ after copying, and this runs before that ever
+    # happens.
+    local -a path_checks=(
+        "ui.dashboard_tab:component" "ui.notch_tile:component"
+        "ui.settings_pane:component" "ui.workspace:component" "ui.edge_tab:component"
+        "ui.overlay:component" "ui.fullscreen-overlay:component"
+        "ui.pet_action:component" "ui.pet_action_2:component" "ui.pet_action_3:component"
+        "profile:component"
+        "action:component" "action_2:component" "action_3:component" "action_4:component" "action_5:component"
+        "cli:script"
+        "hooks:on_theme_change" "hooks:on_project_open" "hooks:on_workspace_launch"
+        "harness:wire" "harness:unwire"
+    )
+    local check section key value
+    for check in "${path_checks[@]}"; do
+        section="${check%%:*}"
+        key="${check##*:}"
+        value="$(aphotic_toml_get "$manifest" "$section" "$key")"
+        [[ -n "$value" ]] || continue
+
+        if [[ "$value" == /* || "$value" == *..* ]]; then
+            aphotic_err "${name}: [${section}].${key} = '${value}' is not a safe relative path"
+            fails=$((fails + 1))
+            continue
+        fi
+        if [[ "$section" == "ui.edge_tab" ]]; then
+            if [[ "$value" == *%* || "$value" == *:* || "$value" == *\\* || "$value" == *\#* || "$value" == *\?* ]] || ! python3 - "$dir" "$value" <<'CHECK_PATH'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1]).resolve()
+try:
+    Path(root / sys.argv[2]).resolve().relative_to(root)
+except ValueError:
+    sys.exit(1)
+CHECK_PATH
+            then
+                aphotic_err "${name}: [ui.edge_tab].component is not a safe relative path"
+                fails=$((fails + 1))
+                continue
+            fi
+        fi
+        if [[ ! -f "${dir}/${value}" ]]; then
+            aphotic_err "${name}: [${section}].${key} points at '${value}', which doesn't exist"
+            fails=$((fails + 1))
+        fi
+    done
+
+    # Informational: aphotic_require's own pattern is warn-and-no-op,
+    # never a hard install-time block, so this stays a warning even
+    # though it means the plugin does nothing useful on this machine.
+    local bin
+    while IFS= read -r bin; do
+        [[ -z "$bin" ]] && continue
+        command -v "$bin" >/dev/null 2>&1 || {
+            aphotic_warn "${name}: requires.binaries lists '${bin}', not found on this machine"
+            warns=$((warns + 1))
+        }
+    done < <(aphotic_toml_get_array "$manifest" requires binaries)
+
+    # Whether this particular build can host what's declared. Same
+    # check install runs; surfaced here so it's visible before install
+    # ever touches the shell, not after.
+    local verdict
+    verdict="$(_aphotic_plugin_host_verdict "$caps" "$surfaces")"
+    case "$verdict" in
+        ok) ;;
+        partial:*)
+            aphotic_warn "${name}: partially hosted on this build -- ${verdict#partial:} unhosted"
+            warns=$((warns + 1))
+            ;;
+        inert:*)
+            aphotic_warn "${name}: nothing this build hosts -- ${verdict#inert:} unhosted (needs a newer Aphotic)"
+            warns=$((warns + 1))
+            ;;
+    esac
+
+    if [[ "$fails" -gt 0 ]]; then
+        aphotic_err "${name}: ${fails} error(s), ${warns} warning(s)"
+        return 1
+    fi
+    aphotic_ok "${name}: valid (${warns} warning(s))"
+    return 0
+}
+
+# Entries written before the registry carried display metadata have no
+# display_name, so the shell would render them as a bare id with no
+# description or category. Re-syncing them is the same work an install
+# does, just deferred; the jq test costs one fork and answers "no" for
+# every invocation after the first, so this is cheap to sit in front of
+# every subcommand.
+#
+# The shell tolerates the gap on its own (it falls back to the plugin id),
+# so a failure here is not worth interrupting a command over.
+_aphotic_plugin_registry_backfill() {
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    jq -e '(.installed // {}) | to_entries | any(.value | (has("display_name") and has("shelter")) | not)' \
+        "$APHOTIC_PLUGINS_STATE_FILE" >/dev/null 2>&1 || return 0
+
+    local name
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        _aphotic_plugin_registry_sync "$name" >/dev/null 2>&1 || true
+    done < <(jq -r '(.installed // {}) | keys[]' "$APHOTIC_PLUGINS_STATE_FILE" 2>/dev/null)
+}
+
+_aphotic_plugin_combo_error() {
+    local combo="$1" token i
+    local -a tokens=()
+
+    [[ -n "${combo//[[:space:]]/}" ]] || { echo "is empty"; return 0; }
+
+    IFS='+' read -r -a tokens <<<"$combo"
+    for ((i = 0; i < ${#tokens[@]}; i++)); do
+        token="${tokens[$i]}"
+        # Trim the spaces around a '+' -- anything else is the token's own
+        # character and fails the shape check below, the way
+        # PluginKeybindCore.js's TOKEN fails it.
+        token="${token#"${token%%[! ]*}"}"
+        token="${token%"${token##*[! ]}"}"
+        if [[ -z "$token" ]]; then
+            echo "has an empty token"
+            return 0
+        fi
+        if [[ ! "$token" =~ ^[A-Za-z0-9_:.-]+$ ]]; then
+            echo "has a token ('${token}') that isn't a key or a modifier name"
+            return 0
+        fi
+        if (( i < ${#tokens[@]} - 1 )) && ! _aphotic_plugin_in_list "${token^^}" "$APHOTIC_PLUGIN_KEYBIND_MODIFIERS"; then
+            echo "names '${token}', which isn't a modifier both Hyprland parsers know"
+            return 0
+        fi
+    done
+
+    echo ""
+}
+
+_aphotic_plugin_keybind_entry_json() {
+    local manifest="$1" section="$2" combo action description layer data
+    combo="$(aphotic_toml_get "$manifest" "$section" combo)"
+    action="$(aphotic_toml_get "$manifest" "$section" action)"
+    if [[ -z "$combo" ]] || [[ -z "$action" ]]; then
+        return 1
+    fi
+
+    description="$(aphotic_toml_get "$manifest" "$section" description)"
+    layer="$(aphotic_toml_get "$manifest" "$section" requires_layer)"
+    data="$(aphotic_toml_get "$manifest" "$section" requires_data)"
+
+    jq -n \
+        --arg action "$action" \
+        --arg combo "$combo" \
+        --arg description "${description:-}" \
+        --arg requires_layer "${layer:-}" \
+        --arg requires_data "${data:-}" \
+        '{action: $action, combo: $combo, description: $description, requires_layer: $requires_layer, requires_data: $requires_data}'
+}
+
+_aphotic_plugin_keybinds_json() {
+    local manifest="$1" entries=() entry section
+    for section in keybind keybind_2 keybind_3 keybind_4 keybind_5; do
+        if entry="$(_aphotic_plugin_keybind_entry_json "$manifest" "$section")"; then
+            entries+=("$entry")
+        fi
+    done
+
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        echo 'null'
+        return 0
+    fi
+
+    printf '%s\n' "${entries[@]}" | jq -s .
+}
+
+# The [keybind*] sections a manifest declares, by name. Validate needs to
+# see a section that contributed nothing (no combo, no action) as present
+# anyway: that is exactly the declaration whose capability tag is missing.
+_aphotic_plugin_manifest_keybind_sections() {
+    local manifest="$1"
+    [[ -f "$manifest" ]] || return 0
+    sed -n 's/^[[:space:]]*\[\(keybind\(_[2-5]\)\?\)\][[:space:]]*$/\1/p' "$manifest" | sort -u
+}
+
+# The [harness.<id>] descriptor subtables a manifest declares, by id.
+# [harness] itself (wire/unwire) never matches, only the dotted ones.
+_aphotic_plugin_manifest_harness_sections() {
+    local manifest="$1"
+    [[ -f "$manifest" ]] || return 0
+    sed -n 's/^[[:space:]]*\[harness\.\([^]]*\)\][[:space:]]*$/\1/p' "$manifest" | sort -u
+}
+
+
+aphotic_cmd_plugin() {
+    local sub="${1:-}"; shift || true
+
+    _aphotic_plugin_registry_backfill
+
+    case "$sub" in
+        list)
+            local remote="false" as_json="false" category="" refresh="false"
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --remote) remote="true"; shift ;;
+                    --json) as_json="true"; shift ;;
+                    --refresh) refresh="true"; shift ;;
+                    --category) category="${2:-}"; shift 2 ;;
+                    *) shift ;;
+                esac
+            done
+
+            aphotic_require jq || return 1
+
+            local data
+            if [[ "$remote" == "true" ]]; then
+                # Annotated and cached in one step. Filtering by category
+                # happens after, not before, so the cached file always
+                # holds the whole catalogue rather than whichever slice
+                # the last caller happened to ask for.
+                data="$(_aphotic_plugin_index_cached "$refresh")"
+                if [[ -n "$category" ]]; then
+                    data="$(echo "$data" | jq --arg c "$category" 'map(select(.category == $c))')"
+                fi
+                [[ "$as_json" == "true" ]] && { echo "$data"; return 0; }
+                echo "$data" | jq -r '.[] | "\(.name)\t\(.display_name)\t\(.version)\t\(if .host_support.verdict == "inert" then "NOT SUPPORTED" elif .host_support.verdict == "partial" then "partly supported" else "" end)\t\(.description)"' | column -t -s $'\t'
+
+                # Named rather than only marked in the table: "NOT
+                # SUPPORTED" with no reason reads as a broken plugin
+                # rather than an Aphotic that is behind its catalogue.
+                local unhosted
+                unhosted="$(echo "$data" | jq -r '.[] | select(.host_support.verdict != "ok") | "  \(.name): \(.host_support.unhosted)"')"
+                if [[ -n "$unhosted" ]]; then
+                    aphotic_warn "this Aphotic (${APHOTIC_VERSION}) has no host for parts of:"
+                    echo "$unhosted" >&2
+                    aphotic_log "'NOT SUPPORTED' plugins would install and do nothing, so 'aphotic plugin install' refuses them; update Aphotic to pick them up"
+                fi
+            else
+                data="$(_aphotic_plugin_list_installed_json)"
+                [[ "$as_json" == "true" ]] && { echo "$data"; return 0; }
+                if [[ "$(echo "$data" | jq 'length')" -eq 0 ]]; then
+                    aphotic_log "no plugins installed — see 'aphotic plugin list --remote'"
+                else
+                    echo "$data" | jq -r '.[] | "\(.name)\t\(.display_name)\t\(if .enabled then "enabled" else "disabled" end)\t\(.version)\t\(if .drifted then "stale registry entry" else "" end)"' | column -t -s $'\t'
+                    if [[ "$(echo "$data" | jq '[.[] | select(.drifted)] | length')" -gt 0 ]]; then
+                        aphotic_warn "$(echo "$data" | jq -r '[.[] | select(.drifted) | .name] | join(", ")'): installed files no longer match the registry entry the shell reads -- 'aphotic plugin update <name>' rewrites it"
+                    fi
+                fi
+            fi
+            ;;
+        install)
+            local name="" link="false"
+            for arg in "$@"; do
+                case "$arg" in
+                    --link) link="true" ;;
+                    *) name="$arg" ;;
+                esac
+            done
+            _aphotic_plugin_install "$name" "$link"
+            ;;
+        enable)
+            [[ -n "${1:-}" ]] || { aphotic_err "usage: aphotic plugin enable <name>"; return 1; }
+            aphotic_plugin_set_enabled "$1" true && aphotic_ok "enabled ${1}"
+            _aphotic_plugin_link_ui_module "$1"
+            _aphotic_plugin_wire_harness "$1" || true
+            _aphotic_plugin_harness_merge
+            ;;
+        disable)
+            [[ -n "${1:-}" ]] || { aphotic_err "usage: aphotic plugin disable <name>"; return 1; }
+            aphotic_plugin_set_enabled "$1" false && aphotic_ok "disabled ${1}"
+            _aphotic_plugin_unlink_ui_module "$1"
+            _aphotic_plugin_unwire_harness "$1" || true
+            _aphotic_plugin_harness_merge
+            ;;
+        update)
+            _aphotic_plugin_update "${1:-}"
+            ;;
+        remove)
+            _aphotic_plugin_remove "${1:-}"
+            ;;
+        validate)
+            _aphotic_plugin_validate "${1:-}"
+            ;;
+        api)
+            _aphotic_plugin_api "${1:-}"
+            ;;
+        resync)
+            # The bulk remedy drift reporting has always implied. `update`
+            # rewrites one entry by reinstalling the plugin's files; this
+            # rewrites every entry from the manifests already on disk,
+            # touching no files -- which is what a registry-schema change
+            # actually needs.
+            local synced=0 pname
+            while IFS= read -r pname; do
+                [[ -z "$pname" ]] && continue
+                _aphotic_plugin_registry_sync "$pname" && synced=$((synced + 1))
+            done < <(aphotic_plugin_names)
+            aphotic_ok "resynced ${synced} registry entries"
+            ;;
+        relink-ui-modules)
+            # Plumbing subcommand — called from install.sh's
+            # deploy_user_configs after it re-copies Configs/quickshell/
+            # aphotic over ~/.config/quickshell/aphotic (which wipes
+            # modules/plugins/* along with everything else). Also safe
+            # to run by hand if a ui-surface plugin's Dashboard tab goes
+            # missing after any manual config resync.
+            _aphotic_plugin_relink_all_ui_modules
+            aphotic_ok "relinked ui-surface plugin modules"
+            ;;
+        run-theme-hooks)
+            # Plumbing subcommand — called from cmd_theme.sh and from
+            # QML (Wallpapers.qml/Themes.qml) and wallswitcher.py after
+            # wallust finishes, never directly by a user. No args: it
+            # reads the already-fresh palette.json itself, see above.
+            _aphotic_plugin_run_theme_hooks
+            ;;
+        run-project-hooks)
+            # Plumbing subcommand — called from ProjectItem.qml's
+            # execute() (the launcher's "@" project switcher).
+            _aphotic_plugin_run_project_hooks "${1:-}"
+            ;;
+        run-workspace-hooks)
+            # Plumbing subcommand — called from WorkspaceProfilesPane.qml's
+            # launchProfile().
+            _aphotic_plugin_run_workspace_hooks "${1:-}"
+            ;;
+        trust-security-index)
+            local skip="false"
+            [[ "${1:-}" == "--yes" ]] && skip="true"
+            _aphotic_plugin_trust_security_index "$skip"
+            ;;
+        untrust-security-index)
+            _aphotic_plugin_untrust_security_index
+            ;;
+        security-index-status)
+            aphotic_require jq || return 1
+            _aphotic_plugin_security_index_status
+            ;;
+        -h|--help|"")
+            cat <<EOF
+Usage: aphotic plugin <list|install|update|enable|disable|remove|...> [args]
+
+  list [--remote] [--json] [--category <name>]
+                              List installed plugins (or --remote: what's
+                              available from APHOTIC_PLUGINS_INDEX_URL,
+                              plus the security index if trusted).
+                              --category filters by plugin.toml's
+                              [plugin].category (dev/security/mobile/
+                              ai/theming/productivity).
+  install <name> [--link]    Install from a local checkout of
+                              aphotic-plugins (APHOTIC_PLUGINS_REPO,
+                              default ~/aphotic-plugins). --link symlinks
+                              instead of copying, for plugin development.
+  update <name>|--all         Refresh an installed plugin's files from
+                              the repo, keeping its enabled/disabled
+                              state and harness wiring. --all updates
+                              every *enabled* plugin; name a disabled
+                              one explicitly to refresh it.
+  enable <name>               Re-enable an installed plugin
+  disable <name>               Disable without uninstalling
+  remove <name>                Uninstall
+  validate <dir>                Check a plugin folder's manifest and files
+                              before it's ever installed -- required fields,
+                              capability/surface agreement, every component
+                              or hook path a safe relative path that exists,
+                              no symlinks. Run this against a working tree
+                              before 'install --link' ever loads it.
+  api [--json]                  The shell runtime API version and every
+                              call a plugin may declare in [api].uses
+  resync                        Rewrite every installed plugin's registry entry
+                                from its manifest (no files touched)
+  relink-ui-modules             Re-link every enabled ui-surface plugin's
+                              QML module into the shell's config tree --
+                              run this if a plugin's Dashboard tab goes
+                              missing after a manual config resync
+                              (install.sh's --config-only already does
+                              this automatically)
+  trust-security-index         Opt into the separate security-category
+                              plugin index (warns first; see docs)
+  untrust-security-index       Revoke that opt-in
+EOF
+            ;;
+        *)
+            aphotic_err "unknown plugin subcommand: ${sub}"
+            return 1
+            ;;
+    esac
+}

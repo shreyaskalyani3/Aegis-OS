@@ -1,0 +1,408 @@
+pragma Singleton
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.services
+import qs.services.ai
+
+// Presence + usage for the bar's agent indicator/panel, one entry per
+// tracked harness (a CLI that runs a session and executes tool calls --
+// see AgentRoles.qml for the harness/provider distinction). Three
+// independent data sources feed `stats`: AgentEvents, the shared
+// `agent-events.jsonl` feed (real-time `sessionCount`/`liveSessions`
+// for any harness whose hook has fired at least once -- see
+// `_hasLiveEvents`), a much-slower pgrep reconcile
+// that only fills in `sessionCount` for a harness the tail has never
+// heard from (no hook configured -- see docs/AGENT_TRACKING.md section
+// 1's "no setup required" guarantee), and an inotify-backed FileView
+// read of the aggregate record `aphotic agent usage-update` writes
+// every 15 minutes (never parsed here -- this service only reads that
+// file).
+//
+// Ollama is deliberately NOT one of these entries: it's a provider, not a
+// harness, and a bare Ollama process has no session/command shape to show
+// in this popout. Its loaded-model state is still tracked below, but only
+// as an internal GPU-contention signal for AgentGraphService, never as a
+// Bar tab.
+//
+// Bar-tab visibility is gated on the harness's own harness-hook plugin
+// being installed+enabled (PluginRegistry.isEnabled, manifest v3 -- see
+// docs/archive/PLUGIN_SYSTEM.md's "harness-hook capability"), not on live
+// process presence -- a deliberate divergence from Agent Graph's
+// AgentRoles.hasConfiguredHarness gate (which stays presence-based) and
+// from this file's own pre-plugin-architecture behavior, where a running
+// harness showed up in the bar with zero setup. Per direct instruction
+// (2026-08-30): the bar icon set should reflect what the user has
+// explicitly opted into via the plugin system, the same as any other
+// plugin-contributed surface (e.g. Agent Graph's Dashboard tab), not
+// what merely happens to be running right now.
+Singleton {
+    id: root
+
+    readonly property var _uiMeta: ({
+        "claude": { icon: "smart_toy", processName: "claude", launchCmd: ["claude"], pluginName: "claude-hooks" },
+        "codex": { icon: "terminal", processName: "codex", launchCmd: ["codex"], pluginName: "codex-hooks" },
+        "opencode": { icon: "terminal", processName: "opencode", launchCmd: ["opencode"], pluginName: "opencode-hooks" },
+        "omp": { icon: "terminal", processName: "omp", launchCmd: ["omp"], pluginName: "pi-hooks" },
+        "pi": { icon: "terminal", processName: "pi", launchCmd: ["pi"], pluginName: "pi-hooks" }
+    })
+
+    // Set of active harness tabs: ids/enablement come from AgentRoles (the
+    // single-sourced role schema) AND from whether that harness's own
+    // harness-hook plugin is installed+enabled; icon/pgrep-name/launch
+    // command/plugin name are Bar-specific UI metadata, not a
+    // classification concern. A harness with no _uiMeta entry (e.g.
+    // Gemini CLI -- no known package/binary in this repo yet) is skipped
+    // rather than shown with dead detection.
+    readonly property var providers: AgentRoles.harnesses
+        .filter(h => root._uiMeta[h.id] && PluginRegistry.isEnabled(root._uiMeta[h.id].pluginName))
+        .map(h => ({
+            id: h.id,
+            label: h.label,
+            icon: root._uiMeta[h.id].icon,
+            processName: root._uiMeta[h.id].processName,
+            launchCmd: root._uiMeta[h.id].launchCmd
+        }))
+
+    // The ai layer says the machine has the AI pillar installed; a
+    // non-empty `providers` says the user opted a harness's hook plugin
+    // in. Both, or this service has nothing anyone will look at -- so
+    // neither the reconcile timer nor the shared event feed runs.
+    readonly property bool active: InstallProfile.aiEnabled && root.providers.length > 0
+
+    property var stats: providers.map(() => ({
+        sessionCount: 0,
+        todayTokens: 0,
+        tokensByModel: [],
+        availability: "unavailable",
+        liveSessions: []
+    }))
+
+    // Ollama's loaded-model state, tracked independently of the harness
+    // `providers`/`stats` pair above -- AgentGraphService reads this to
+    // demote render tier when the GPU is busy serving a local model.
+    // Derived from AiProviders' single background /api/ps poll rather than
+    // a second 5s `ollama ps` subprocess of its own: that CLI call ignored
+    // AiConfig.ollamaHost, so it only ever reported a *local* Ollama, and
+    // it needed the ollama binary in PATH to say anything at all.
+    readonly property var ollamaLoadedModels: AiProviders.ollamaRunningModels.map(m => m.name)
+    readonly property var llamaSwapLoadedModels: AiProviders.llamaSwapRunningModels.map(m => m.name)
+
+    // { harnessId: { sessionId: {id, event, tool, updatedAt} } }, built
+    // entirely from the event tail below -- one entry per still-open
+    // session, removed on that session's `session_end`.
+    property var _liveByHarness: ({})
+    // { harnessId: true } once that harness's hook has written at least
+    // one event -- gates the pgrep reconcile timer below out of ever
+    // overwriting a harness the tail is already authoritative for.
+    property var _hasLiveEvents: ({})
+
+    readonly property string selected: Settings.agentSelectedProvider
+    readonly property int selectedIndex: providers.findIndex(p => p.id === root.selected)
+
+    function cycle(): void {
+        const next = (root.selectedIndex + 1) % root.providers.length;
+        Settings.agentSelectedProvider = root.providers[next].id;
+    }
+
+    function launchSelected(): void {
+        const provider = root.providers[root.selectedIndex];
+        if (!provider)
+            return;
+        Quickshell.execDetached(["kitty", "-e", ...provider.launchCmd]);
+    }
+
+    // The same record `stats` is built from, kept ungated. `stats` only
+    // ever covers a harness whose hook plugin the user enabled, but the
+    // token counts are read out of transcripts on disk and are just as
+    // true for a harness that never fired a hook -- so a surface that
+    // wants "how much has this provider used today" asks here instead of
+    // indexing `stats` and getting a zero for the wrong reason.
+    property var _usageById: ({})
+
+    // Transcript scans cover Claude and Codex. A harness the scan cannot
+    // read (OpenCode keeps no transcript to scan) reports usage as v2
+    // records on the event stream instead, so those are summed here and
+    // served by the same shape. In memory only: it rebuilds as sessions
+    // emit, and the scan file stays authoritative for whatever it covers.
+    property var _streamUsage: ({})
+    property string _streamUsageDay: ""
+
+    function usageOf(providerId: string): var {
+        const usage = root._usageById[providerId];
+        const stream = root._streamUsage[providerId];
+        if (!(usage?.availability === "available") && stream)
+            return {
+                availability: "available",
+                todayTokens: stream.todayTokens,
+                tokensByModel: stream.tokensByModel
+            };
+        return {
+            availability: usage?.availability ?? "unavailable",
+            todayTokens: usage?.todayTokens ?? 0,
+            tokensByModel: usage?.tokensByModel ?? []
+        };
+    }
+
+    // One usage record = one step's token delta. Summed the same way the
+    // transcript scan sums its transcripts (input plus output, cache
+    // excluded) so a harness's number means the same thing whichever
+    // source answered.
+    function _noteStreamUsage(record: var): void {
+        const harness = record.harness || "";
+        if (!harness)
+            return;
+        const scanned = root._usageById[harness];
+        if (scanned?.availability === "available")
+            return;
+        const today = new Date().toDateString();
+        if (today !== root._streamUsageDay) {
+            root._streamUsageDay = today;
+            root._streamUsage = {};
+        }
+        const entry = Object.assign({}, root._streamUsage[harness] ?? { todayTokens: 0, tokensByModel: [] });
+        const delta = (record.inputTokens ?? 0) + (record.outputTokens ?? 0);
+        entry.todayTokens += delta;
+        if (record.model && delta > 0) {
+            const byModel = entry.tokensByModel.slice();
+            const at = byModel.findIndex((m) => m.model === record.model);
+            if (at === -1)
+                byModel.push({ model: record.model, tokens: delta });
+            else
+                byModel[at] = { model: byModel[at].model, tokens: byModel[at].tokens + delta };
+            entry.tokensByModel = byModel;
+        }
+        root._streamUsage = Object.assign({}, root._streamUsage, { [harness]: entry });
+        root._setStat(root._findIndex(harness), {
+            availability: "available",
+            todayTokens: entry.todayTokens,
+            tokensByModel: entry.tokensByModel
+        });
+    }
+
+    // A `quota` record off the stream: the named windows the harness
+    // reported, keyed by harness id next to the file-backed ones. Both
+    // writers merge into the same map so a Claude statusLine reload keeps
+    // a live Codex session's windows and vice versa; one shared capture
+    // age covers both, the same approximation as before stream quotas.
+    function _noteStreamQuota(record: var): void {
+        const harness = record.harness || "";
+        const windows = record.quota;
+        if (!harness || !windows || typeof windows !== "object")
+            return;
+        root._quotaById = Object.assign({}, root._quotaById, {
+            [harness]: { windows: windows }
+        });
+        const at = record.t ? Math.floor(record.t / 1000) : 0;
+        if (at > root._quotaCapturedAt)
+            root._quotaCapturedAt = at;
+    }
+
+    // Quota windows for one provider: `{ fiveHour, sevenDay, spendLimit,
+    // context }`, each `{ usedPercent, resetsAt }`, and any of them
+    // absent when the harness did not report it. Empty until a session
+    // runs -- the numbers only exist while one is live to state them.
+    property var _quotaById: ({})
+    property int _quotaCapturedAt: 0
+
+    readonly property int quotaCapturedAt: root._quotaCapturedAt
+
+    // Past this, the record describes a window that has probably rolled
+    // over since. Claude Code rewrites its status line continuously
+    // during a session and not at all between them, so age is the only
+    // signal that the numbers went stale.
+    readonly property int quotaMaxAgeSeconds: 1200
+
+    function quotaOf(providerId: string): var {
+        return root._quotaById[providerId]?.windows ?? ({});
+    }
+
+    function _findIndex(providerId: string): int {
+        return root.providers.findIndex(p => p.id === providerId);
+    }
+
+    function _setStat(index: int, patch: var): void {
+        if (index < 0)
+            return;
+        const next = root.stats.slice();
+        next[index] = Object.assign({}, next[index], patch);
+        root.stats = next;
+    }
+
+    // One record off AgentEvents' shared feed in,
+    // `stats[harness].{sessionCount, liveSessions}` out. Replaces both
+    // the old `ls`+`cat` directory poll (AGF-08) and, for any harness
+    // that reaches here at least once, the pgrep poll below (AGF-07).
+    // Harnesses without a statusLine slot (Codex, OpenCode) report their
+    // quota windows as `quota` records on the same feed instead.
+    function _ingestSessionRecord(record: var): void {
+        const harness = record.harness || "claude";
+        if (record.event === "usage")
+            root._noteStreamUsage(record);
+        else if (record.event === "quota")
+            root._noteStreamQuota(record);
+        if (!root._hasLiveEvents[harness])
+            root._hasLiveEvents = Object.assign({}, root._hasLiveEvents, { [harness]: true });
+
+        const sessions = Object.assign({}, root._liveByHarness[harness] ?? {});
+        if (record.event === "session_end") {
+            delete sessions[record.sessionId];
+        } else {
+            sessions[record.sessionId] = {
+                id: record.sessionId,
+                event: record.event,
+                tool: record.tool ?? "",
+                updatedAt: record.timestamp ?? ""
+            };
+        }
+        root._liveByHarness = Object.assign({}, root._liveByHarness, { [harness]: sessions });
+
+        const list = Object.values(sessions);
+        root._setStat(root._findIndex(harness), { liveSessions: list, sessionCount: list.length });
+    }
+
+    function _reconcilePgrepCount(providerId: string, n: int): void {
+        // The event tail is authoritative the moment a harness's hook has
+        // fired once -- never let a slow, coarser pgrep sample stomp a
+        // real-time count with a stale one.
+        if (root._hasLiveEvents[providerId])
+            return;
+        root._setStat(root._findIndex(providerId), { sessionCount: isNaN(n) ? 0 : n });
+    }
+
+    Process {
+        id: claudePgrep
+        stdout: StdioCollector {
+            onStreamFinished: root._reconcilePgrepCount("claude", parseInt(text.trim(), 10))
+        }
+    }
+
+    Process {
+        id: codexPgrep
+        stdout: StdioCollector {
+            onStreamFinished: root._reconcilePgrepCount("codex", parseInt(text.trim(), 10))
+        }
+    }
+
+    Process {
+        id: opencodePgrep
+        stdout: StdioCollector {
+            onStreamFinished: root._reconcilePgrepCount("opencode", parseInt(text.trim(), 10))
+        }
+    }
+
+    // Presence reconcile, not the primary signal (AGF-07): the event
+    // tail below drives `sessionCount` in real time for any harness with
+    // a hook wired. This only exists to keep section 1 of
+    // docs/AGENT_TRACKING.md's "no setup required" promise for a harness
+    // that never fires a hook event at all -- correctness there doesn't
+    // need 5s freshness, so this fires 12x slower than it used to.
+    // Pi and OMP have no reconcile entry: Pi runs as a plain node process
+    // (comm "node", never "pi") and OMP's comm doesn't match `pgrep -x
+    // omp`, so a process-name count would report zero for a running
+    // session; both always emit hook events when wired, so the tail is
+    // their only presence source.
+    Timer {
+        id: agentReconcile
+
+        interval: 60000
+        running: root.active
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            if (root._findIndex("claude") !== -1)
+                claudePgrep.exec(["pgrep", "-x", "-c", "claude"]);
+            if (root._findIndex("codex") !== -1)
+                codexPgrep.exec(["pgrep", "-x", "-c", "codex"]);
+            if (root._findIndex("opencode") !== -1)
+                opencodePgrep.exec(["pgrep", "-x", "-c", "opencode"]);
+        }
+    }
+
+    ActivityProbe {
+        name: "agents.reconcile"
+        kind: "process"
+        timer: agentReconcile
+    }
+
+    // Quota windows from two writers into one map: the harness's own
+    // statusLine command (agent_statusline.py, Claude Code's slot) writes
+    // this file on its own cadence, and harnesses with no statusLine
+    // slot (Codex) report `quota` records on the event feed instead
+    // (_noteStreamQuota). Different cadence and different truth: the
+    // usage record counts tokens off transcripts, these carry the share
+    // of an allowance a live session itself reports.
+    FileView {
+        id: quotaFile
+        path: `${Quickshell.env("HOME")}/.local/state/aphotic/agent-quota.json`
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                const data = JSON.parse(text());
+                if (data.schemaVersion !== 1)
+                    return;
+                root._quotaById = Object.assign({}, root._quotaById, data.providers ?? ({}));
+                const at = data.capturedAt ?? 0;
+                if (at > root._quotaCapturedAt)
+                    root._quotaCapturedAt = at;
+            } catch (e) {
+                // Same rule as the usage record: a torn or missing file
+                // leaves the last-known windows alone rather than
+                // blanking bars the user was reading a second ago.
+            }
+        }
+    }
+
+    FileView {
+        id: usageFile
+        path: `${Quickshell.env("HOME")}/.local/state/aphotic/agent-usage.json`
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                const data = JSON.parse(text());
+                if (data.schemaVersion !== 1)
+                    return;
+                root._usageById = data.providers ?? ({});
+                for (const p of root.providers) {
+                    const usage = data.providers?.[p.id];
+                    if (!usage)
+                        continue;
+                    // A scan that says unavailable would stomp live stream
+                    // numbers with zeros every reload; the stream keeps
+                    // the stat until the scan has real data.
+                    if (root._streamUsage[p.id] && usage.availability !== "available")
+                        continue;
+                    root._setStat(root._findIndex(p.id), {
+                        availability: usage.availability ?? "unavailable",
+                        todayTokens: usage.todayTokens ?? 0,
+                        tokensByModel: usage.tokensByModel ?? []
+                    });
+                }
+            } catch (e) {
+                // Missing/invalid record -- leave last-known stats as-is
+                // rather than resetting to zero (spec: never show a false
+                // zero for a real outage).
+            }
+        }
+    }
+
+    // Live per-session activity comes off AgentEvents, the single
+    // shared reader of `agent-events.jsonl` (services/ai/AgentEvents.qml)
+    // -- this file used to run a `tail -F` of its own beside the
+    // agent-graph plugin's, two processes on one file. The hold follows
+    // the bar's own tab list: no harness tab, nothing to keep fresh, no
+    // tail.
+    Connections {
+        target: AgentEvents
+
+        function onRecord(event): void {
+            root._ingestSessionRecord(event);
+        }
+    }
+
+    onActiveChanged: AgentEvents.hold("bar-agents", root.active)
+    Component.onCompleted: AgentEvents.hold("bar-agents", root.active)
+}

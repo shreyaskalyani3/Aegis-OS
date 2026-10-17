@@ -1,0 +1,153 @@
+pragma Singleton
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.services.ai
+
+// Non-secret AI Chat settings, persisted to
+// ~/.config/aphotic/ai-config.json (same FileView load/save pattern as
+// services/Settings.qml). Real API keys live in AiKeys.qml's separate,
+// chmod-600 file instead -- see docs/COMMAND_CENTER.md §4.
+Singleton {
+    id: root
+
+    readonly property string configPath: `${Quickshell.env("HOME")}/.config/aphotic/ai-config.json`
+
+    // Blank by default -- deliberately NOT a real address. Every machine's
+    // Ollama host is different (or absent entirely); baking in one user's
+    // LAN IP would silently point everyone else's shell at somebody
+    // else's server. See ollamaHostConfigured / the AI Chat tab's warning.
+    property string activeProvider: "ollama"
+    property string ollamaHost: ""
+    property string ollamaModel: ""
+    // No loopback fallback, unlike ollamaHost: llama-swap has no standard
+    // port and nothing installs it, so an unset host means "not in use".
+    property string llamaSwapHost: ""
+    property string lmStudioHost: ""
+    property string inferenceMode: "auto"
+
+    // Set by install.sh's lib/install/assistant.sh (NVIDIA-gated, opt-in),
+    // never by the shell itself -- there's no QML-side "install" action,
+    // only reinstall/uninstall of the already-pulled model (see AiPane.qml).
+    property bool assistantEnabled: false
+    property string assistantModel: ""
+    property string assistantInstalledAt: ""
+
+    readonly property bool ollamaHostConfigured: root.ollamaHost.length > 0
+    readonly property bool llamaSwapHostConfigured: root.llamaSwapHost.length > 0
+    readonly property bool lmStudioHostConfigured: root.lmStudioHost.length > 0
+
+    property bool _loaded: false
+
+    function _save(): void {
+        if (!root._loaded)
+            return;
+        configWriter.setText(JSON.stringify({
+            activeProvider: root.activeProvider,
+            ollamaHost: root.ollamaHost,
+            ollamaModel: root.ollamaModel,
+            llamaSwapHost: root.llamaSwapHost,
+            lmStudioHost: root.lmStudioHost,
+            inferenceMode: root.inferenceMode,
+            assistantEnabled: root.assistantEnabled,
+            assistantModel: root.assistantModel,
+            assistantInstalledAt: root.assistantInstalledAt
+        }, null, 2));
+    }
+
+    // Corrected here rather than at each of the eight read sites: a config
+    // file naming a provider that is no longer offered -- Codex, or Ollama
+    // on a shell with the AI layer off -- would otherwise leave every chat
+    // surface pointing at a pill that does not exist, and send down a
+    // branch for a backend that isn't there. Re-entrant by design: the
+    // corrected value resolves to itself, so this settles in one pass.
+    onActiveProviderChanged: {
+        root.activeProvider = AiProviders.chatProviderOr(root.activeProvider);
+        root._save();
+    }
+    onOllamaHostChanged: root._save()
+    onOllamaModelChanged: root._save()
+    onLlamaSwapHostChanged: root._save()
+    onLmStudioHostChanged: root._save()
+    onInferenceModeChanged: root._save()
+    onAssistantEnabledChanged: root._save()
+    onAssistantModelChanged: root._save()
+    onAssistantInstalledAtChanged: root._save()
+
+    FileView {
+        id: configFile
+
+        path: root.configPath
+        watchChanges: true
+        onLoaded: {
+            try {
+                const data = JSON.parse(text());
+                if (typeof data.activeProvider === "string")
+                    root.activeProvider = data.activeProvider;
+                if (typeof data.ollamaHost === "string")
+                    root.ollamaHost = data.ollamaHost;
+                if (typeof data.ollamaModel === "string")
+                    root.ollamaModel = data.ollamaModel;
+                if (typeof data.llamaSwapHost === "string")
+                    root.llamaSwapHost = data.llamaSwapHost;
+                if (typeof data.lmStudioHost === "string")
+                    root.lmStudioHost = data.lmStudioHost;
+                if (data.inferenceMode === "auto" || data.inferenceMode === "off")
+                    root.inferenceMode = data.inferenceMode;
+                if (typeof data.assistantEnabled === "boolean")
+                    root.assistantEnabled = data.assistantEnabled;
+                if (typeof data.assistantModel === "string")
+                    root.assistantModel = data.assistantModel;
+                if (typeof data.assistantInstalledAt === "string")
+                    root.assistantInstalledAt = data.assistantInstalledAt;
+            } catch (e) {
+                // No config file yet, or malformed -- keep defaults above.
+            }
+            // No saved host yet -- fall back to OLLAMA_BASE_URL if the
+            // environment sets one (matches Ollama's own tooling
+            // convention), then to the local loopback default
+            // (127.0.0.1:11434, Ollama's own default bind address) rather
+            // than staying blank forever. This is NOT the same class of
+            // default the comment above warns against -- that was about
+            // never hardcoding a specific REMOTE machine's LAN address
+            // (which would silently point every install at one person's
+            // server); loopback is always safe, it only ever means "this
+            // machine's own Ollama, if one happens to be running," and
+            // AiProviders' own reachability check already handles "set
+            // but nothing's actually listening" gracefully. Real bug this
+            // fixes: the `ai` layer installs and starts ollama.service
+            // unconditionally, and install.sh's Aphotic Assistant setup
+            // pulls a real model onto it -- but nothing ever told THIS
+            // config file about the host that's already running, so
+            // ollamaHostConfigured stayed false forever and both the
+            // Ollama provider AND the Assistant (assistantAvailable
+            // requires ollamaHostConfigured too) silently never became
+            // available despite everything being installed and running.
+            if (!root.ollamaHost)
+                root.ollamaHost = Quickshell.env("OLLAMA_BASE_URL") ?? "http://127.0.0.1:11434";
+            root._loaded = true;
+        }
+        onLoadFailed: error => {
+            if (!root.ollamaHost)
+                root.ollamaHost = Quickshell.env("OLLAMA_BASE_URL") ?? "http://127.0.0.1:11434";
+            root._loaded = true;
+        }
+    }
+
+    FileView {
+        id: configWriter
+
+        path: root.configPath
+        printErrors: false
+    }
+
+    Process {
+        id: mkConfigDir
+        command: ["mkdir", "-p", `${Quickshell.env("HOME")}/.config/aphotic`]
+        onExited: configFile.reload()
+    }
+
+    Component.onCompleted: mkConfigDir.running = true
+}

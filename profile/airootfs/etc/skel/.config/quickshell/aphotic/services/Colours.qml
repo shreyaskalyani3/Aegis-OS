@@ -1,0 +1,316 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2023-2026 Trevin Tindall (T-Crypt) and Aphotic-Hypr contributors
+//
+// Aphotic theme engine, shell side
+// Copyright (C) 2023-2026 Trevin Tindall. Licensed GPL-3.0-or-later.
+//
+// Reads what the colour backend produced and exposes it as the palette
+// every surface binds to, including the clamp that keeps a wallpaper
+// derived palette inside its theme's anchor.
+
+pragma Singleton
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.services
+import "StatusColours.js" as StatusColours
+
+// Static file, NOT wallust-templated -- it used to be regenerated
+// wholesale on every theme apply (Task 8), which made a *tracked git
+// source file* something ordinary desktop use rewrote constantly: it was
+// dirty in the working tree after every theme switch, and `aphotic update`
+// (`git pull`) hit a real checkout conflict against that machine-local
+// drift. The raw palette now lives in ~/.local/state/aphotic/palette.json
+// (wallust's plugin_palette template, see Configs/wallust/wallust.toml and
+// colors-plugin-palette.json) -- the same file the plugin system already
+// reads -- and this file just reads it too, at runtime, via the FileView
+// below. See docs/IN_FLIGHT.md item 3 for the full writeup.
+//
+// wallust has no native Material You role generation, so under wallust
+// ANSI-style color0-15 are mapped onto M3 role names by convention
+// (color4=blue->primary, color1=red->error, color2=green->tertiary) --
+// same mapping the old per-theme template used, just resolved here
+// instead of at template-render time.
+//
+// matugen does generate real M3 roles, so its snapshot stamps itself
+// "engine": "matugen" and carries a `roles` object wallust's never has
+// (see Configs/matugen/config.toml and themes/THEME_SPEC.md's
+// [engine].name). _role() below is the branch: under matugen those role
+// values win outright, and under wallust every property falls back to
+// exactly the ANSI-derived value it has always used, so a wallust theme
+// resolves byte-for-byte as before.
+//
+// "on" (text/foreground) roles are NOT derived by blindly darkening the
+// accent color — some wallust palettes produce dark, desaturated accents,
+// and darkening an already-dark color further produces near-invisible
+// text (this was a real bug: illegible text on some themes). contrastOn()
+// picks whichever fixed text color gives the higher real WCAG contrast
+// ratio against whatever it's paired with (relLuminance/contrastRatio
+// below), not a brightness-threshold guess -- a plain luminance-vs-0.55
+// check can rate a saturated mid-tone color (a purple wallpaper's accent,
+// for example) as "light enough" for dark text while the pairing is
+// still hard to read. mutedOn() applies the same real-ratio check to the
+// secondary/muted text blend so it never drops below WCAG AA (4.5:1)
+// regardless of wallpaper.
+Singleton {
+    id: root
+
+    readonly property bool light: false
+
+    // WCAG relative luminance (not the old 0.299/0.587/0.114 "perceptual"
+    // weights) -- linearizes each sRGB channel with the real gamma curve
+    // before weighting, which is what an actual contrast-ratio calculation
+    // requires. The old formula was a brightness estimate, not a contrast
+    // measure, so it could rate a color as "light enough" for dark text
+    // while that pairing was still hard to read -- e.g. a saturated
+    // mid-tone purple wallpaper accent, exactly the case that prompted
+    // this rewrite.
+    function relLuminance(c: color): real {
+        function chan(v) {
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * chan(c.r) + 0.7152 * chan(c.g) + 0.0722 * chan(c.b);
+    }
+
+    // WCAG contrast ratio between two colors, 1 (identical) to 21 (black
+    // on white).
+    function contrastRatio(a: color, b: color): real {
+        const la = relLuminance(a);
+        const lb = relLuminance(b);
+        const lighter = Math.max(la, lb);
+        const darker = Math.min(la, lb);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    readonly property color _lightText: "#f5f1ea"
+    readonly property color _darkText: "#14120f"
+
+    // Picks whichever of the two fixed text colors gives the higher real
+    // contrast ratio against c, instead of guessing from c's own
+    // brightness alone -- guarantees the winner is the actually-more-
+    // readable option for any hue/saturation, not just bright-vs-dark.
+    function contrastOn(c: color): color {
+        const lightRatio = contrastRatio(c, _lightText);
+        const darkRatio = contrastRatio(c, _darkText);
+        return lightRatio >= darkRatio ? _lightText : _darkText;
+    }
+
+    // Same pick as contrastOn, but only used once the ratio against onC
+    // (the "full contrast" text color already chosen for this surface)
+    // drops below the WCAG AA floor for normal text -- keeps the muted/
+    // secondary look everywhere it's already legible, and only steps in
+    // where blending would have made it fail outright.
+    readonly property real minBodyContrast: 4.5
+
+    function mutedOn(surface: color, onSurface: color, amount: real): color {
+        const blended = Qt.tint(onSurface, Qt.alpha(surface, amount));
+        return contrastRatio(surface, blended) >= minBodyContrast ? blended : contrastOn(surface);
+    }
+
+    // Several bar modules (Clock, Media, StatusIcons, ActiveWindow) use a
+    // raw accent role (m3primary/m3secondary/m3tertiary) directly as their
+    // icon+text colour, for per-module visual variety rather than flat
+    // neutral text everywhere. That's fine as long as the accent itself
+    // reads clearly against the dark pill it sits on -- but wallust can
+    // hand back a dark, desaturated accent for some wallpapers (this was a
+    // real bug: near-illegible dark-green title text on the HackTheBox
+    // theme), and unlike onPrimary/onTertiary/onSurface, nothing was
+    // contrast-checking the accent against the surface it's actually
+    // rendered on. legibleAccent leaves already-legible accents untouched
+    // (preserving the intended per-module hue) and only pulls a failing
+    // one toward the winning contrastOn() text colour, just enough to
+    // clear the same WCAG AA floor mutedOn() already enforces elsewhere.
+    function legibleAccent(accent: color, surface: color): color {
+        if (contrastRatio(accent, surface) >= minBodyContrast)
+            return accent;
+        return Qt.tint(accent, Qt.alpha(contrastOn(surface), 0.6));
+    }
+
+    // Raw resolved palette, read once at load and again on every future
+    // theme apply (watchChanges catches wallust's rewrite of the target
+    // file). Empty object until the first successful load -- the ?? "..."
+    // fallbacks below are the same literal defaults the old Task 2
+    // hand-hardcoded stand-in used, so a fresh install with no theme
+    // applied yet still renders something coherent instead of black.
+    property var _raw: ({})
+
+    FileView {
+        id: paletteFile
+
+        path: `${Quickshell.env("HOME")}/.local/state/aphotic/palette.json`
+        watchChanges: true
+        onFileChanged: {
+            reload();
+            watchChanges = false;
+            watchChanges = true;
+        }
+        onLoaded: {
+            try {
+                root._raw = JSON.parse(text());
+            } catch (e) {
+                root._raw = {};
+            }
+        }
+        onLoadFailed: root._raw = {}
+    }
+
+    // The watch is re-armed after each change in case a rename drops it;
+    // this 5 s reload is the safety net if an external write is missed.
+    Timer {
+        id: paletteSafetyReload
+
+        interval: 5000
+        running: true
+        repeat: true
+        onTriggered: paletteFile.reload()
+    }
+
+    ActivityProbe {
+        name: "theme.palette-reload"
+        kind: "file"
+        timer: paletteSafetyReload
+    }
+
+    function _rawColor(key: string, fallback: string): color {
+        return root._raw?.colors?.[key] ?? fallback;
+    }
+
+    readonly property string engine: root._raw?.engine ?? "wallust"
+
+    function _role(name: string, fallback: color): color {
+        return root.engine === "matugen" ? (root._raw?.roles?.[name] ?? fallback) : fallback;
+    }
+
+    readonly property QtObject palette: QtObject {
+        // Settings' Personalization pane can override just the primary
+        // accent -- purely additive on top of the wallust-derived value,
+        // never touches the wallust pipeline itself, and (unlike when
+        // this whole file was regenerated per-theme) nothing can silently
+        // discard this check anymore since Colours.qml itself is no
+        // longer template output.
+        readonly property color m3primary: Settings.accentColorOverride.length > 0 ? Settings.accentColorOverride : root._role("primary", root._rawColor("color4", "#5A6089"))
+        // The override replaces the engine's own primary, so matugen's
+        // matching onPrimary no longer describes it -- fall back to the
+        // measured pick for whatever the user chose.
+        readonly property color m3onPrimary: Settings.accentColorOverride.length > 0 ? root.contrastOn(m3primary) : root._role("onPrimary", root.contrastOn(m3primary))
+        readonly property color m3primaryOnSurface: root.legibleAccent(m3primary, m3surfaceContainerHigh)
+        readonly property color m3secondary: root._role("secondary", root._rawColor("color7", "#F9EEDA"))
+        readonly property color m3secondaryOnSurface: root.legibleAccent(m3secondary, m3surfaceContainerHigh)
+        readonly property color m3secondaryContainer: root._role("secondaryContainer", Qt.tint(m3surfaceContainerHigh, Qt.alpha(m3secondary, 0.24)))
+        readonly property color m3onSecondaryContainer: root._role("onSecondaryContainer", root.legibleAccent(m3secondary, m3secondaryContainer))
+        readonly property color m3tertiary: root._role("tertiary", root._rawColor("color2", "#4B836F"))
+        readonly property color m3onTertiary: root._role("onTertiary", root.contrastOn(m3tertiary))
+        readonly property color m3tertiaryOnSurface: root.legibleAccent(m3tertiary, m3surfaceContainerHigh)
+        readonly property color m3error: root._role("error", root.status.error)
+        readonly property color m3onError: root._role("onError", root.contrastOn(m3error))
+        readonly property color m3onSurface: root._role("onSurface", root.contrastOn(m3surfaceContainer))
+        readonly property color m3onSurfaceVariant: root._role("onSurfaceVariant", root.mutedOn(m3surfaceContainer, m3onSurface, 0.35))
+        readonly property color m3outlineVariant: root._role("outlineVariant", root._rawColor("color8", "#535355"))
+        // surfaceContainer/surfaceContainerHigh aren't ANSI slots -- under
+        // wallust they're background darken(0.05)/lighten(0.12), computed
+        // wallust-side (see colors-plugin-palette.json) so there's one
+        // color-math implementation instead of a second one ported into
+        // QML/JS; under matugen they're the real M3 roles of the same name.
+        // Both engines write them at the same top level, so no branch here.
+        readonly property color m3surfaceContainer: root._raw?.surfaceContainer ?? "#000000"
+        readonly property color m3surfaceContainerHigh: root._raw?.surfaceContainerHigh ?? "#1F1F1F"
+        readonly property color m3shadow: "#000000"
+    }
+
+    // Error, warning and success with a guaranteed hue band and WCAG AA
+    // contrast against both surface containers. The ANSI slot only seeds
+    // the shade: wallust fills color1/2/3 from the wallpaper's pixels, so
+    // on a blue wallpaper "red" can come back blue. See StatusColours.js.
+    function _status(kind: string, seed: string): color {
+        return StatusColours.derive(kind, seed, [String(root.palette.m3surfaceContainer), String(root.palette.m3surfaceContainerHigh)]);
+    }
+
+    readonly property QtObject status: QtObject {
+        readonly property color error: root._status("error", root.engine === "matugen" ? String(root._raw?.roles?.error ?? "") : String(root._rawColor("color1", "#BC7541")))
+        readonly property color onError: root.contrastOn(error)
+        readonly property color warning: root._status("warning", root.engine === "matugen" ? "" : String(root._rawColor("color3", "#E0A030")))
+        readonly property color onWarning: root.contrastOn(warning)
+        readonly property color success: root._status("success", root.engine === "matugen" ? String(root._raw?.roles?.tertiary ?? "") : String(root._rawColor("color2", "#4B836F")))
+        readonly property color onSuccess: root.contrastOn(success)
+    }
+
+    // Signal style tones: lifted a little off the base surface (often pure
+    // black) so shell surfaces read as layered dark glass, not holes.
+    readonly property QtObject signalStyle: QtObject {
+        readonly property color bar: Qt.alpha(Qt.tint(root.palette.m3surfaceContainer, Qt.alpha(root.palette.m3onSurface, 0.055)), 0.9)
+        readonly property color surface: Qt.tint(root.palette.m3surfaceContainer, Qt.alpha(root.palette.m3onSurface, 0.07))
+        readonly property color raised: Qt.tint(root.palette.m3surfaceContainer, Qt.alpha(root.palette.m3onSurface, 0.11))
+        // Translucent panel tone: the compositor blurs what shows through.
+        readonly property color glass: Qt.alpha(surface, 0.84)
+        readonly property color hover: Qt.alpha(root.palette.m3onSurface, 0.06)
+        readonly property color hairline: Qt.alpha(root.palette.m3outlineVariant, 0.38)
+        readonly property color accentLine: root.palette.m3primary
+        readonly property color base: Qt.tint(root.palette.m3surfaceContainer, Qt.alpha(root.palette.m3onSurface, 0.035))
+        readonly property color raisedHi: Qt.tint(root.palette.m3surfaceContainer, Qt.alpha(root.palette.m3onSurface, 0.16))
+        // Light catching the top edge of a card, for depth without shadows.
+        readonly property color edgeLight: Qt.alpha(root.palette.m3onSurface, 0.09)
+        readonly property list<color> tints: [root.palette.m3primary, root.palette.m3tertiary, root.palette.m3secondary, root.palette.m3error]
+
+        function tint(index: int): color {
+            return tints[Math.abs(index) % tints.length];
+        }
+    }
+
+    readonly property QtObject tPalette: QtObject {
+        readonly property color m3surfaceContainer: root.layer(root.palette.m3surfaceContainer, 1)
+    }
+
+    // Semantic colour roles. These are the only names callers use now; the
+    // m3* names below stay internal to this file because the palette
+    // generator emits them. Exact values here, no visual change.
+    readonly property color ink: root.palette.m3onSurface
+    readonly property color inkMuted: root.palette.m3onSurfaceVariant
+    readonly property color surface: root.palette.m3surfaceContainer
+    readonly property color raised: root.palette.m3surfaceContainerHigh
+    readonly property color glass: root.signalStyle.glass
+    readonly property color hairline: root.signalStyle.hairline
+    readonly property color edgeLight: root.signalStyle.edgeLight
+    readonly property color signal: root.signalStyle.accentLine
+    readonly property color warn: root.status.warning
+    readonly property color alert: root.palette.m3error
+    readonly property color onSignal: root.palette.m3onPrimary
+    readonly property color signalOnSurface: root.palette.m3primaryOnSurface
+    readonly property color signalSecondary: root.palette.m3secondary
+    readonly property color signalSecondaryOnSurface: root.palette.m3secondaryOnSurface
+    readonly property color signalTertiary: root.palette.m3tertiary
+    readonly property color signalTertiaryOnSurface: root.palette.m3tertiaryOnSurface
+    readonly property color onSignalTertiary: root.palette.m3onTertiary
+    readonly property color onAlert: root.palette.m3onError
+    readonly property color chip: root.palette.m3secondaryContainer
+    readonly property color chipInk: root.palette.m3onSecondaryContainer
+    readonly property color outline: root.palette.m3outlineVariant
+    readonly property color shadow: root.palette.m3shadow
+    readonly property color surfaceLift: root.tPalette.m3surfaceContainer
+
+    // Real M3-style elevation: blend a small amount of the primary accent
+    // into the base surface color, more at higher layerIndex. Previously a
+    // no-op (`return c`) — the bar's surfaces all rendered at the exact
+    // same flat tone as the raw wallust background, which is why they
+    // barely stood out from the desktop behind them on some wallpapers.
+    // Resource posture (services/ResourcePosture.qml) as a palette
+    // role, so every surface that shows it agrees and the wallpaper
+    // palette stays in charge of the hue. Pressure borrows the tertiary
+    // accent -- noticed, not wrong; contention and a pending negotiation
+    // use error. Anything else keeps the caller's own colour.
+    function posture(level: string, rest: color): color {
+        switch (level) {
+        case "pressure":
+            return root.palette.m3tertiary;
+        case "contention":
+        case "negotiating":
+            return root.palette.m3error;
+        default:
+            return rest;
+        }
+    }
+
+    function layer(c: color, layerIndex: var): color {
+        const amount = Math.min(0.16, (layerIndex ?? 1) * 0.05);
+        return Qt.tint(c, Qt.alpha(palette.m3primary, amount));
+    }
+}

@@ -1,0 +1,1102 @@
+pragma Singleton
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.config
+import "BarLayout.js" as BarLayout
+
+// Runtime user-toggleable settings, persisted to
+// ~/.local/state/aphotic/settings.json (a sibling of theme.json, same
+// FileView load/save pattern as services/Themes.qml) so the settings
+// popout's toggles survive a shell restart instead of resetting to
+// Config.qml's compile-time defaults every time.
+Singleton {
+    id: root
+
+    readonly property string statePath: `${Quickshell.env("HOME")}/.local/state/aphotic/settings.json`
+
+    property bool twelveHourClock: GlobalConfig.services.useTwelveHourClock
+    property bool showClockDate: Config.bar.clock.showDate
+    // "always" (always shown), "autohide" (collapses to a thin edge sliver,
+    // reveals on hover -- the old barPersistent:false behavior, now a
+    // proper named mode instead of just "not always visible"), or "hidden"
+    // (collapses to nothing, no hover reveal at all -- for someone who
+    // wants it gone gone).
+    property string barVisibility: Config.bar.persistent ? "always" : "autohide"
+    property bool desktopClockEnabled: Config.background.desktopClock.enabled
+    property bool barPositionRight: false
+    property bool barCompact: false
+    // True = docked top/bottom (entries flow left-to-right), false =
+    // docked left/right; carries the old barVertical key's inverted meaning.
+    property bool barHorizontal: true
+    property bool barPositionBottom: false
+    // Structural shape of the bar; the corner treatment is barCorners.
+    // Capsule is the first-install layout; legacy skins migrate on load.
+    property string barLayout: "capsule"
+    // sharp | soft | round, resolved to a radius in BarLayout.cornerRadius().
+    property string barCorners: "sharp"
+    // Layouts whose one-time first-selection position default was
+    // applied, so re-selecting never clobbers a user's own position.
+    property var barStyleDefaultsApplied: ["capsule"]
+
+    readonly property string barStyle: barLayout
+
+    // Which built-in bar widgets render, and in what order: an ordered
+    // [{ id, enabled }] array, same shape as Config.qml's own defaults.
+    // Lives here rather than staying a compile-time Config value so it can
+    // be hand-edited in settings.json without touching QML. Once written,
+    // the persisted list wins over Config's default -- the same tradeoff
+    // workspaceProfiles already makes.
+    property var barEntries: Config.bar.entries.values
+    // The status-icon cluster's own ordered list, one level down: it is a
+    // single "statusIcons" bar entry whose contents split into pills at
+    // each "groupDivider".
+    property var barStatusIcons: Config.bar.statusIcons.values
+
+    // The command palette's ordered slots: [{ id, enabled }] over action
+    // ids (services/Actions.qml), same shape and same persistence as
+    // barEntries. A slot naming an action that does not resolve right now
+    // is KEPT rather than pruned -- it is usually a plugin the user
+    // disabled for the afternoon, and silently rewriting their list on
+    // the way past would lose the slot for good.
+    property var paletteEntries: Config.palette.entries.values
+
+    property bool dockAutoHide: false
+    // Array of desktop-entry ids (DesktopEntry.id, e.g. "firefox") pinned
+    // to the Dock style regardless of whether they're currently running.
+    property var dockPinnedApps: []
+    // Per-app icon overrides: [{ name | regex, flags, icon, kind }] --
+    // same matcher shape as GlobalConfig's windowIcons (Icons.matchIconConfig
+    // reads both), plus `kind` ("glyph" | "image", omitted means auto) so a
+    // value like "terminal", which exists in both Material Symbols and the
+    // icon theme, can be pinned to the one that was meant.
+    property var customAppIcons: []
+    // Icon-proximity magnification on Dock's app row. Only engages in
+    // horizontal placement; side placement has no dock layout to magnify along.
+    property bool dockMagnification: true
+    property bool taskbarGrouping: true
+    property bool minimalShowDnd: true
+
+    // Capsule style. capsuleAnimations is the master switch for every
+    // transition the style owns -- with it off the capsule still changes
+    // state, it just steps rather than eases, and the animated artwork
+    // mask (the one shader in the style) is skipped entirely.
+    property bool capsuleMedia: true
+    property bool capsuleShapedArt: true
+    property bool capsuleExpandOnHover: true
+    property bool capsuleAnimations: true
+
+    // Flow's shell-activity layer. Off by default: it is the only thing
+    // in Flow that measures Aphotic instead of the machine, and it costs
+    // a small periodic read while it is on.
+    property bool flowShellActivity: false
+
+    // Single entry point for changing the bar layout, shared by the
+    // Settings tab, the CLI (`aphotic bar style`), and the IPC handler.
+    function setBarStyle(name: string): void {
+        if (!BarLayout.LAYOUTS.includes(name))
+            return;
+
+        if (!root.barStyleDefaultsApplied.includes(name)) {
+            root.barStyleDefaultsApplied = [...root.barStyleDefaultsApplied, name];
+            if (name === "dock") {
+                root.barHorizontal = true;
+                root.barPositionBottom = true;
+            } else if (name === "minimal") {
+                root.barHorizontal = true;
+                root.barPositionBottom = false;
+            } else if (name === "taskbar") {
+                root.barHorizontal = true;
+                root.barPositionBottom = true;
+            } else if (name === "capsule") {
+                root.barHorizontal = true;
+                root.barPositionBottom = false;
+            }
+        }
+
+        root.barLayout = name;
+    }
+
+    function cycleBarStyle(): void {
+        root.setBarStyle(BarLayout.next(root.barStyle));
+    }
+
+    // Sonar and Shelves are discovery features, off until asked for.
+    property bool sonarEnabled: false
+    property bool sonarGhosts: false
+    property var shelfOutputs: ({})
+
+    // Two optional touches, both off. They add an outline response and a
+    // one-shot trace to existing events; neither owns motion of its own.
+    property bool shelfLaunchEcho: false
+    property bool shelfTabAcknowledge: false
+    // Notch exposure of registered shelf tabs. Off means the notch's tile
+    // list is unchanged whatever is installed.
+    property bool shelfNotchTabs: false
+
+    property string agentSelectedProvider: "claude"
+    property bool agentGraphEnabled: true
+    // Node budget and layout tick rate for the agent graph surface, never
+    // its visual treatment -- every tier renders the same look. "auto"
+    // resolves from the detected GPU and demotes a tier while Ollama holds
+    // models resident (see the agent-graph plugin's AgentGraphService.qml,
+    // docs/archive/PLUGIN_SYSTEM.md manifest v3); "lite",
+    // "standard" and "full" pin it. Defaults to "auto" rather than "full"
+    // for the same reason depthEffects defaults to "subtle": nobody's
+    // machine should pick up load from an upgrade it never opted into.
+    property string agentGraphQuality: "auto"
+    property string agentGraphAccent: ""
+    property bool agentGraphGroupByParent: false
+    // How much of the event log the agent graph replays when it starts
+    // following it. 0 means start live and show only what happens from
+    // here forward. Trading history for a lighter surface is the user's
+    // call, not a workaround: the replay cost itself is bounded by the
+    // graph's own rebuild coalescing.
+    property int agentGraphHistoryLines: 150
+    property string ggufModelsDir: `${Quickshell.env("HOME")}/Models/gguf`
+
+    property bool intelligenceEnabled: true
+    // "" = inherit AiConfig.activeProvider/ollamaModel for new sessions --
+    // non-empty overrides it, same "" = default convention as
+    // accentColorOverride above. Only affects sessions created after the
+    // change; existing sessions keep whatever provider/model they were
+    // created with.
+    property string intelligenceDefaultProvider: ""
+    property string intelligenceDefaultModel: ""
+    property int intelligenceMaxSessions: 50
+    // 0 = never auto-prune by age.
+    property int intelligenceAutoPruneDays: 30
+
+    // Settings -> System's scheduled package-update check (advisory only,
+    // never auto-applies -- see aphotic-package-check.service). "off" is
+    // the shipped default; the systemd timer itself stays installed but
+    // disabled until a user opts in here.
+    property string packageCheckFrequency: "off" // "off" | "daily" | "weekly"
+
+    // Keyboard layout configuration -- persisted to ~/.config/hypr/custom.lua
+    // (the user-override file that install.sh never clobbers). These only
+    // matter if the user has explicitly set them via the Language pane;
+    // leaving them empty keeps hyprland.lua's own defaults intact.
+    property string kbLayout: ""
+    property string kbVariant: ""
+    property string kbOptions: ""
+    property string kbModel: ""
+    property string kbRules: ""
+    // Additional layouts for multi-language switching (array of xkb codes
+    // appended to kb_layout, resulting in e.g. "us,de,fr"). Empty =
+    // single layout only.
+    property var additionalKbLayouts: []
+
+    property bool assistantWelcomeShown: false
+
+    // Suppresses notification popups only -- notifications still land in
+    // Notifs.list (history), see services/Notifs.qml. Auto-engaged/released
+    // by services/DoNotDisturb.qml's Pomodoro connection; persisted here so
+    // a mid-DND SUPER+B shell restart doesn't silently drop it.
+    property bool dndEnabled: false
+
+    // Advances the wallpaper within the active theme on a Timer (see
+    // services/WallpaperCycle.qml) -- interval in minutes.
+    property bool wallpaperAutoCycleEnabled: false
+    property int wallpaperAutoCycleInterval: 15
+    // Which layout SUPER+W opens the full-screen picker in. Coverflow
+    // is what the picker has always been, so it stays the default.
+    readonly property var wallpaperPickerLayouts: ["coverflow", "grid", "dock"]
+    property string wallpaperPickerLayout: "coverflow"
+    // Owned by the live-wallpaper plugin (see its [owns] table). Kept here
+    // rather than in plugin state for the same reason agentGraph*'s keys
+    // are: one settings file, one schema, one place a user's preferences
+    // survive a plugin being reinstalled.
+    property bool liveWallpaperPauseOnBattery: true
+    property bool liveWallpaperPauseWhenOccluded: true
+    property bool liveWallpaperMuted: true
+
+    // "" = auto-detect via IP geolocation (services/Weather.qml), non-empty
+    // = geocoded via Open-Meteo's geocoding API (city/place name or
+    // "lat,lon" both work since it's passed straight through as the query).
+    property string weatherLocation: ""
+    // "celsius" or "fahrenheit".
+    property string weatherUnits: "celsius"
+
+    property bool osdEnabled: Config.osd.enabled
+    property int osdHideDelay: Config.osd.hideDelay
+    property bool osdEnableBrightness: Config.osd.enableBrightness
+    property bool osdEnableMicrophone: Config.osd.enableMicrophone
+
+    // The phone stack. All nine off, and only `phoneBridge` does anything
+    // yet: it is the flag the device bridge reads before it looks for a
+    // phone, and the gate both the shelf tab and the notch tile read
+    // through services/Phone.qml.
+    property bool phoneBridge: Config.phone.bridge
+    property bool phoneMirror: Config.phone.mirror
+    property bool phoneCalls: Config.phone.calls
+    property bool phoneAlarms: Config.phone.alarms
+    property bool phoneIcons: Config.phone.icons
+    property bool phoneCamera: Config.phone.camera
+    property bool phoneMic: Config.phone.mic
+    property bool phoneLocalSend: Config.phone.localSend
+    property bool phoneMessages: Config.phone.messages
+
+    property real notifExpireTimeout: GlobalConfig.notifs.defaultExpireTimeout
+
+    // "" = use the active theme's own accent (Colours.qml's hardcoded
+    // m3primary); non-empty overrides it. Purely additive -- doesn't touch
+    // the wallust/theme pipeline at all.
+    property string accentColorOverride: ""
+    // Same "" = theme default, non-empty = override convention as
+    // accentColorOverride above, one per status-bar icon that would
+    // otherwise always just inherit the bar's blanket secondaryOnSurface
+    // tint with no way to set it apart.
+    property string statusIconBluetoothColor: ""
+    property string statusIconWifiColor: ""
+    property string statusIconPowerProfileColor: ""
+    property string statusIconPerformanceColor: ""
+    property string statusIconHostInfoColor: ""
+    property string statusIconPomodoroColor: ""
+    property string statusIconDndColor: ""
+
+    // "Aphotic Depth" visual identity -- glow breathing + marine-snow
+    // particles layered on top of the existing wallust theme (see
+    // components/effects/BioluminescentGlow.qml, components/DepthLayer.qml,
+    // services/DepthFx.qml). "off" disables both entirely (today's static
+    // look); "subtle" (the first-install default) runs a reduced tier;
+    // "full" is the complete treatment. Defaulting to "subtle" rather than
+    // "full" so nobody's GPU load jumps on an upgrade without an explicit
+    // opt-in to the strongest tier.
+    property string depthEffects: "subtle"
+
+    property string cursorTheme: "Bibata-Modern-Ice"
+    property int cursorSize: 20
+    // Papirus family, not an arbitrary icon theme, matches cmd_theme.sh's
+    // papirus-folders per-theme accent recoloring (see startup.lua's old
+    // comment) -- picking a non-Papirus theme here just loses that
+    // recoloring, it isn't blocked outright.
+    property string iconTheme: "Papirus-Dark"
+    // adw-gtk3-dark, not Dracula/stock Adwaita-dark -- see _applyGtkTheme()
+    // below for why.
+    property string gtkTheme: "adw-gtk3-dark"
+    // Gate for an Aphotic theme's own icon_theme/cursor_theme/gtk_theme pin
+    // (theme.toml's [icons]/[gtk] tables, applied in Wallpapers.qml's
+    // setWallpaper -- see themes/THEME_SPEC.md). false = a theme switch is
+    // free to follow its pin for this property; flipped to true the moment
+    // the matching PersonalizationPane picker is used manually, after
+    // which theme switches never touch it again. A fresh install with no
+    // manual picks yet quietly follows whichever theme is active.
+    property bool iconThemeUserSet: false
+    property bool cursorThemeUserSet: false
+    property bool gtkThemeUserSet: false
+
+    // Idle behavior, backed by hypridle (~/.config/hypr/hypridle.conf,
+    // fully generated here -- see _applyIdleConfig -- no repo-tracked
+    // template needed, same as settings.json/theme.json). All timeouts in
+    // seconds.
+    property bool idleLockEnabled: true
+    property int idleLockTimeout: 600
+    property int idleScreenOffTimeout: 630
+    property bool idleSuspendEnabled: false
+    property int idleSuspendTimeout: 1800
+
+    // The screensaver timeout is deliberately its own number rather than
+    // a fraction of the lock timeout. They answer different questions --
+    // one is "show me something", the other is "keep other people out" --
+    // and a user who wants the desktop to go pretty after five minutes
+    // should not have to shorten the timeout that protects the session to
+    // get it. Dismissing the screensaver is real input, so it resets the
+    // lock countdown the same way any other keystroke does.
+    //
+    // What actually appears is whatever plugin registers a
+    // `fullscreen-overlay` surface with an `idle` trigger. With none
+    // installed the timeout fires into an IPC call that mounts nothing,
+    // which is the correct amount of screensaver for a shell that has no
+    // screensaver.
+    property bool screensaverEnabled: true
+    property int screensaverTimeout: 300
+
+    // Root directories the launcher's "@" project-switcher mode scans for
+    // git repos (each immediate/one-level-deep child dir containing a
+    // .git). Empty means "not configured yet" -- Launcher.qml falls back
+    // to ~/Projects and ~/repos itself rather than writing a default here.
+    property var projectRoots: []
+
+    // "list" (default, the original vertical row layout) or "grid" (a
+    // Rofi-drun-style icon grid) -- only affects the app-search mode
+    // (Launcher.qml's default, no prefix), every other prefix mode
+    // (clipboard/emoji/windows/theme/wallpaper/project) always renders
+    // as a list regardless of this setting.
+    property string launcherStyle: "list"
+
+    // Named, one-key launch groups: [{ name: string, entries: [{ command:
+    // string, workspace: int }] }]. Not a live session snapshot -- Hyprland/
+    // X11 apps don't support that -- just a fixed replay list dispatched via
+    // `hyprctl dispatch exec [workspace N] <command>` per entry.
+    property var workspaceProfiles: []
+
+    // Raw-openvpn profile state (see commands/cmd_vpn.sh) -- user runtime
+    // state, not an install-time profile/layer choice, so it lives here
+    // rather than a new [network.vpn] block in a toml (ROADMAP_FEATURES.md
+    // PART C's resolved config-location decision). vpnConfigPath empty =
+    // not configured. vpnAutoConnect is read by `aphotic vpn autostart`,
+    // called from startup.lua -- Settings.qml itself never shells out to
+    // openvpn (that needs root; connect/disconnect stay CLI-only, this is
+    // just the config the CLI reads).
+    property string vpnConfigPath: ""
+    property bool vpnAutoConnect: false
+
+    // The full layout keeps the narrower Signal width it always had under Signal.
+    readonly property real barInnerWidth: barStyle === "minimal" ? Tokens.sizes.bar.minimalInnerWidth : Tokens.sizes.bar.innerWidth * (barCompact ? 0.85 : 1) * (barStyle === "full" ? 0.78 : 1)
+
+    property bool _loaded: false
+    property bool _writePending: false
+
+    function _saveState(): void {
+        if (!root._loaded)
+            return;
+        root._writePending = true;
+        stateWriter.setText(JSON.stringify({
+            twelveHourClock: root.twelveHourClock,
+            showClockDate: root.showClockDate,
+            barVisibility: root.barVisibility,
+            desktopClockEnabled: root.desktopClockEnabled,
+            barPositionRight: root.barPositionRight,
+            barCompact: root.barCompact,
+            barHorizontal: root.barHorizontal,
+            barPositionBottom: root.barPositionBottom,
+            barLayout: root.barLayout,
+            barCorners: root.barCorners,
+            barStyleDefaultsApplied: root.barStyleDefaultsApplied,
+            dockAutoHide: root.dockAutoHide,
+            sonarEnabled: root.sonarEnabled,
+            sonarGhosts: root.sonarGhosts,
+            shelfOutputs: root.shelfOutputs,
+            shelfLaunchEcho: root.shelfLaunchEcho,
+            shelfTabAcknowledge: root.shelfTabAcknowledge,
+            shelfNotchTabs: root.shelfNotchTabs,
+            dockPinnedApps: root.dockPinnedApps,
+            customAppIcons: root.customAppIcons,
+            dockMagnification: root.dockMagnification,
+            taskbarGrouping: root.taskbarGrouping,
+            minimalShowDnd: root.minimalShowDnd,
+            capsuleMedia: root.capsuleMedia,
+            capsuleShapedArt: root.capsuleShapedArt,
+            capsuleExpandOnHover: root.capsuleExpandOnHover,
+            capsuleAnimations: root.capsuleAnimations,
+            flowShellActivity: root.flowShellActivity,
+            agentSelectedProvider: root.agentSelectedProvider,
+            agentGraphEnabled: root.agentGraphEnabled,
+            agentGraphQuality: root.agentGraphQuality,
+            agentGraphAccent: root.agentGraphAccent,
+            agentGraphGroupByParent: root.agentGraphGroupByParent,
+            agentGraphHistoryLines: root.agentGraphHistoryLines,
+            ggufModelsDir: root.ggufModelsDir,
+            assistantWelcomeShown: root.assistantWelcomeShown,
+            dndEnabled: root.dndEnabled,
+            wallpaperAutoCycleEnabled: root.wallpaperAutoCycleEnabled,
+            wallpaperAutoCycleInterval: root.wallpaperAutoCycleInterval,
+            wallpaperPickerLayout: root.wallpaperPickerLayout,
+            liveWallpaperPauseOnBattery: root.liveWallpaperPauseOnBattery,
+            liveWallpaperPauseWhenOccluded: root.liveWallpaperPauseWhenOccluded,
+            liveWallpaperMuted: root.liveWallpaperMuted,
+            weatherLocation: root.weatherLocation,
+            weatherUnits: root.weatherUnits,
+            osdEnabled: root.osdEnabled,
+            osdHideDelay: root.osdHideDelay,
+            osdEnableBrightness: root.osdEnableBrightness,
+            osdEnableMicrophone: root.osdEnableMicrophone,
+            phoneBridge: root.phoneBridge,
+            phoneMirror: root.phoneMirror,
+            phoneCalls: root.phoneCalls,
+            phoneAlarms: root.phoneAlarms,
+            phoneIcons: root.phoneIcons,
+            phoneCamera: root.phoneCamera,
+            phoneMic: root.phoneMic,
+            phoneLocalSend: root.phoneLocalSend,
+            phoneMessages: root.phoneMessages,
+            notifExpireTimeout: root.notifExpireTimeout,
+            accentColorOverride: root.accentColorOverride,
+            statusIconBluetoothColor: root.statusIconBluetoothColor,
+            statusIconWifiColor: root.statusIconWifiColor,
+            statusIconPowerProfileColor: root.statusIconPowerProfileColor,
+            statusIconPerformanceColor: root.statusIconPerformanceColor,
+            statusIconHostInfoColor: root.statusIconHostInfoColor,
+            statusIconPomodoroColor: root.statusIconPomodoroColor,
+            statusIconDndColor: root.statusIconDndColor,
+            depthEffects: root.depthEffects,
+            cursorTheme: root.cursorTheme,
+            cursorSize: root.cursorSize,
+            iconTheme: root.iconTheme,
+            gtkTheme: root.gtkTheme,
+            iconThemeUserSet: root.iconThemeUserSet,
+            cursorThemeUserSet: root.cursorThemeUserSet,
+            gtkThemeUserSet: root.gtkThemeUserSet,
+            idleLockEnabled: root.idleLockEnabled,
+            idleLockTimeout: root.idleLockTimeout,
+            idleScreenOffTimeout: root.idleScreenOffTimeout,
+            idleSuspendEnabled: root.idleSuspendEnabled,
+            idleSuspendTimeout: root.idleSuspendTimeout,
+            screensaverEnabled: root.screensaverEnabled,
+            screensaverTimeout: root.screensaverTimeout,
+            projectRoots: root.projectRoots,
+            launcherStyle: root.launcherStyle,
+            workspaceProfiles: root.workspaceProfiles,
+            barEntries: root.barEntries,
+            barStatusIcons: root.barStatusIcons,
+            paletteEntries: root.paletteEntries,
+            vpnConfigPath: root.vpnConfigPath,
+            vpnAutoConnect: root.vpnAutoConnect,
+            intelligenceEnabled: root.intelligenceEnabled,
+            intelligenceDefaultProvider: root.intelligenceDefaultProvider,
+            intelligenceDefaultModel: root.intelligenceDefaultModel,
+            intelligenceMaxSessions: root.intelligenceMaxSessions,
+            intelligenceAutoPruneDays: root.intelligenceAutoPruneDays,
+            packageCheckFrequency: root.packageCheckFrequency,
+            kbLayout: root.kbLayout,
+            kbVariant: root.kbVariant,
+            kbOptions: root.kbOptions,
+            kbModel: root.kbModel,
+            kbRules: root.kbRules,
+            additionalKbLayouts: root.additionalKbLayouts
+        }, null, 2));
+    }
+
+    // Generates ~/.config/hypr/hypridle.conf from the properties above and
+    // (re)starts the hypridle.service user unit so the change takes
+    // effect immediately -- hypridle has no live-reload, only a restart
+    // picks up a config change. `enable` is idempotent, safe to call every
+    // time. Idle-triggered locking goes through the shell's own IPC
+    // (aphotic shell lock engage -> Lock.qml's real Quickshell
+    // WlSessionLock screen), not swaylock -- the swaylock BINARY is still
+    // used elsewhere (the session menu's own Lock button, see
+    // SessionContent.qml, deliberately not switched over yet), but the
+    // idle path specifically goes through the Quickshell lock screen.
+    // Pam.qml separately reuses swaylock's PAM service name
+    // (/etc/pam.d/swaylock, package-provided) for its own auth.
+    function _applyIdleConfig(): void {
+        const lockCmd = "qs -c aphotic ipc call lock engage";
+        const lines = [
+            "general {",
+            `    lock_cmd = ${lockCmd}`,
+            `    before_sleep_cmd = ${lockCmd}`,
+            "    after_sleep_cmd = hyprctl dispatch dpms on",
+            "}"
+        ];
+        if (root.idleLockEnabled) {
+            lines.push("listener {", `    timeout = ${root.idleLockTimeout}`, `    on-timeout = ${lockCmd}`, "}");
+            lines.push("listener {", `    timeout = ${root.idleScreenOffTimeout}`, "    on-timeout = hyprctl dispatch dpms off", "    on-resume = hyprctl dispatch dpms on", "}");
+        }
+        if (root.idleSuspendEnabled)
+            lines.push("listener {", `    timeout = ${root.idleSuspendTimeout}`, "    on-timeout = systemctl suspend", "}");
+
+        // The screensaver listener, ahead of the lock listener above. Only
+        // emitted when it would actually fire first -- a screensaver
+        // scheduled at or after the lock is a surface nobody ever sees,
+        // and writing it anyway would just be a timer that never wins.
+        // on-resume covers the case where the dismissing input never
+        // reached the surface (another output woke, an inhibitor
+        // released, the shell restarted under it).
+        const screensaverCmd = "qs -c aphotic ipc call idle";
+        if (root.screensaverEnabled && (!root.idleLockEnabled || root.screensaverTimeout < root.idleLockTimeout))
+            lines.push("listener {", `    timeout = ${root.screensaverTimeout}`, `    on-timeout = ${screensaverCmd} engage`, `    on-resume = ${screensaverCmd} dismiss`, "}");
+
+        // A screensaver launcher some upstream distributions ship used to
+        // fire from their own hypridle.conf, which this function's output
+        // replaces -- silently dropping it is not something this installer
+        // should do. The `command -v` gate makes it a no-op anywhere the
+        // binary does not exist, so the same generated file is correct
+        // everywhere. Suppressed once Aphotic's own screensaver is on,
+        // because two screensavers racing the same timeout is worse than
+        // either of them.
+        if (!root.screensaverEnabled)
+            lines.push("listener {", "    timeout = 150", "    on-timeout = command -v omarchy-launch-screensaver >/dev/null 2>&1 && omarchy-launch-screensaver", "}");
+
+        const confPath = `${Quickshell.env("HOME")}/.config/hypr/hypridle.conf`;
+        const script = root.idleLockEnabled || root.idleSuspendEnabled || root.screensaverEnabled ? `mkdir -p "$(dirname '${confPath}')" && cat > '${confPath}' <<'APHOTIC_HYPRIDLE_EOF'\n${lines.join("\n")}\nAPHOTIC_HYPRIDLE_EOF\nsystemctl --user enable hypridle.service >/dev/null 2>&1; systemctl --user restart hypridle.service` : "systemctl --user disable --now hypridle.service >/dev/null 2>&1";
+        idleApplyProc.command = ["sh", "-c", script];
+        idleApplyProc.running = true;
+    }
+
+    Process {
+        id: idleApplyProc
+    }
+
+    // xkb codes are letters, digits and a handful of separators; anything
+    // else is a typo at best and a way out of the Lua string literal at
+    // worst, since these values are typed by hand in the Language pane.
+    function _xkbSafe(value: string): string {
+        return value.trim().toLowerCase().replace(/[^a-z0-9_,:+.-]/g, "");
+    }
+
+    // Writes the keyboard layout to ~/.config/hypr/keyboard.lua and applies
+    // it to the running compositor live. keyboard.lua persists the choice
+    // across restarts; hyprland.lua requires it just before custom.lua, so
+    // the user's own overrides still win. The live step uses the Lua
+    // parser's runtime API because a plain config reload does not re-probe
+    // already-attached keyboard devices -- and `hyprctl keyword` is refused
+    // outright under the Lua parser ("keyword can't work with non-legacy
+    // parsers"), exactly as StateSnapshot.qml already documents for monitors.
+    // switchxkblayout then forces every keyboard onto the first (newly
+    // redefined) layout group.
+    //
+    // All five keys are always emitted, empty where unset, so clearing a
+    // variant or switch key actually clears it live instead of leaving the
+    // previous value applied.
+    function _applyKbLayout(): void {
+        if (!root._loaded)
+            return;
+
+        // Untouched pane: leave hyprland.lua's own input block (and any
+        // hand-written kb_* in custom.lua) alone rather than stamping our
+        // defaults over it on every shell start.
+        if (root.kbLayout.length === 0 && root.kbVariant.length === 0 && root.kbOptions.length === 0 && root.kbModel.length === 0 && root.kbRules.length === 0 && root.additionalKbLayouts.length === 0)
+            return;
+
+        const layouts = [root.kbLayout, ...root.additionalKbLayouts].map(root._xkbSafe).filter(s => s.length > 0);
+        const keys = [
+            `kb_layout  = "${layouts.length > 0 ? layouts.join(",") : "us"}"`,
+            `kb_variant = "${root._xkbSafe(root.kbVariant)}"`,
+            `kb_model   = "${root._xkbSafe(root.kbModel)}"`,
+            `kb_options = "${root._xkbSafe(root.kbOptions)}"`,
+            `kb_rules   = "${root._xkbSafe(root.kbRules)}"`
+        ];
+
+        const header = "-- Generated by Aphotic's Settings > Language pane. Edit the layout\n-- there, not here: this file is rewritten in full on every change.";
+        const persisted = `${header}\n\nhl.config({\n    input = {\n${keys.map(k => `        ${k},`).join("\n")}\n    },\n})`;
+        const confPath = `${Quickshell.env("HOME")}/.config/hypr/keyboard.lua`;
+
+        // The heredoc delimiter must sit alone on its own line, so the apply
+        // step goes on its own line after it rather than in an && chain.
+        const script = `mkdir -p '${Quickshell.env("HOME")}/.config/hypr'
+cat > '${confPath}' <<'APHOTIC_KB_EOF'
+${persisted}
+APHOTIC_KB_EOF
+hyprctl eval 'hl.config({ input = { ${keys.join(", ")} } })' >/dev/null 2>&1
+hyprctl switchxkblayout all 0 >/dev/null 2>&1`;
+
+        kbApplyProc.exec(["sh", "-c", script]);
+    }
+
+    Process {
+        id: kbApplyProc
+    }
+
+    // Applies the current cursor/icon theme to the running session --
+    // both the live compositor (hyprctl) and GTK apps (gsettings/dconf,
+    // which already persists itself, but Hyprland's own cursor needs
+    // reapplying every session since it's a runtime IPC call, not a
+    // persisted setting). Fired once after initial load (whatever the
+    // resolved value turned out to be) and again on every live change,
+    // replacing the old unconditional hardcoded calls in startup.lua --
+    // this is now the single source of truth instead of two places
+    // fighting over it on every reboot.
+    //
+    // Split into two independent Process/functions (was one shared
+    // Process running all 4 commands for any of cursorTheme/cursorSize/
+    // iconTheme changing) -- a cursor pick used to also gsettings-set
+    // the icon theme every time, and a rapid second click (theme pick,
+    // or a size +/- bump) landing while the first script was still
+    // mid-flight silently no-opped, since `running = true` on an
+    // already-running Process doesn't restart it with the new command.
+    // `exec()` always (re)launches immediately, so a newer pick preempts
+    // an in-flight one instead of being dropped.
+    function _applyCursor(): void {
+        cursorApplyProc.exec(["sh", "-c", `hyprctl setcursor '${root.cursorTheme}' ${root.cursorSize}; gsettings set org.gnome.desktop.interface cursor-theme '${root.cursorTheme}'; gsettings set org.gnome.desktop.interface cursor-size ${root.cursorSize}`]);
+    }
+
+    function _applyIconTheme(): void {
+        iconApplyProc.exec(["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", root.iconTheme]);
+    }
+
+    // gsettings only reaches GTK apps -- Qt apps read their icon theme from
+    // qt5ct/qt6ct's own conf file instead, so it needs its own sync path.
+    // Both files have exactly one `icon_theme=` line each; a plain sed -i
+    // is the same pattern cmd_sddm.sh already uses for this class of flat
+    // single-key config file. Qt apps only re-read this on next launch, not
+    // live, unlike GTK's gsettings-watched keys.
+    function _applyQtIconTheme(): void {
+        const home = Quickshell.env("HOME");
+        const script = `for f in "${home}/.config/qt5ct/qt5ct.conf" "${home}/.config/qt6ct/qt6ct.conf"; do [ -f "$f" ] && sed -i "s/^icon_theme=.*/icon_theme=${root.iconTheme}/" "$f"; done`;
+        qtIconThemeApplyProc.exec(["sh", "-c", script]);
+    }
+
+    // adw-gtk3-dark specifically, not Dracula or GTK's own bundled
+    // Adwaita-dark -- see startup.lua's old comment (now redundant, this
+    // is the real single source of truth): Dracula hardcodes its own
+    // palette outright, and stock Adwaita-dark's SCSS-compiled headerbar/
+    // window chrome ignores @define-color overrides, so only adw-gtk3-dark
+    // actually reflects wallust's live recoloring (Configs/wallust/
+    // templates/gtk.css). Was previously set once at Hyprland startup only
+    // -- nothing reasserted it afterward, so an external tool (nwg-look,
+    // lxappearance) changing it just stuck until next relogin, the same
+    // class of bug cursor/icon theme already got fixed for above.
+    function _applyGtkTheme(): void {
+        gtkThemeApplyProc.exec(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", root.gtkTheme]);
+    }
+
+    Process {
+        id: cursorApplyProc
+    }
+
+    Process {
+        id: iconApplyProc
+    }
+
+    Process {
+        id: qtIconThemeApplyProc
+    }
+
+    Process {
+        id: gtkThemeApplyProc
+    }
+
+    onTwelveHourClockChanged: root._saveState()
+    onSonarEnabledChanged: root._saveState()
+    onSonarGhostsChanged: root._saveState()
+    onShelfOutputsChanged: root._saveState()
+    onShelfLaunchEchoChanged: root._saveState()
+    onShelfTabAcknowledgeChanged: root._saveState()
+    onShelfNotchTabsChanged: root._saveState()
+    onShowClockDateChanged: root._saveState()
+    onBarVisibilityChanged: root._saveState()
+    onDesktopClockEnabledChanged: root._saveState()
+    onBarPositionRightChanged: root._saveState()
+    onBarCompactChanged: root._saveState()
+    onBarHorizontalChanged: root._saveState()
+    onBarPositionBottomChanged: root._saveState()
+    onBarLayoutChanged: root._saveState()
+    onBarCornersChanged: root._saveState()
+    onBarStyleDefaultsAppliedChanged: root._saveState()
+    onDockAutoHideChanged: root._saveState()
+    onDockPinnedAppsChanged: root._saveState()
+    onCustomAppIconsChanged: root._saveState()
+    onDockMagnificationChanged: root._saveState()
+    onTaskbarGroupingChanged: root._saveState()
+    onMinimalShowDndChanged: root._saveState()
+    onCapsuleMediaChanged: root._saveState()
+    onCapsuleShapedArtChanged: root._saveState()
+    onCapsuleExpandOnHoverChanged: root._saveState()
+    onCapsuleAnimationsChanged: root._saveState()
+    onGgufModelsDirChanged: root._saveState()
+    onAssistantWelcomeShownChanged: root._saveState()
+    onDndEnabledChanged: root._saveState()
+    onWallpaperAutoCycleEnabledChanged: root._saveState()
+    onWallpaperAutoCycleIntervalChanged: root._saveState()
+    onWallpaperPickerLayoutChanged: root._saveState()
+    onLiveWallpaperPauseOnBatteryChanged: root._saveState()
+    onLiveWallpaperPauseWhenOccludedChanged: root._saveState()
+    onLiveWallpaperMutedChanged: root._saveState()
+    onWeatherLocationChanged: root._saveState()
+    onWeatherUnitsChanged: root._saveState()
+    onOsdEnabledChanged: root._saveState()
+    onOsdHideDelayChanged: root._saveState()
+    onOsdEnableBrightnessChanged: root._saveState()
+    onOsdEnableMicrophoneChanged: root._saveState()
+    onPhoneBridgeChanged: root._saveState()
+    onPhoneMirrorChanged: root._saveState()
+    onPhoneCallsChanged: root._saveState()
+    onPhoneAlarmsChanged: root._saveState()
+    onPhoneIconsChanged: root._saveState()
+    onPhoneCameraChanged: root._saveState()
+    onPhoneMicChanged: root._saveState()
+    onPhoneLocalSendChanged: root._saveState()
+    onPhoneMessagesChanged: root._saveState()
+    onNotifExpireTimeoutChanged: root._saveState()
+    onAccentColorOverrideChanged: root._saveState()
+    onStatusIconBluetoothColorChanged: root._saveState()
+    onStatusIconWifiColorChanged: root._saveState()
+    onStatusIconPowerProfileColorChanged: root._saveState()
+    onStatusIconPerformanceColorChanged: root._saveState()
+    onStatusIconHostInfoColorChanged: root._saveState()
+    onStatusIconPomodoroColorChanged: root._saveState()
+    onStatusIconDndColorChanged: root._saveState()
+    onDepthEffectsChanged: root._saveState()
+    onCursorThemeChanged: {
+        root._saveState();
+        root._applyCursor();
+    }
+    onCursorSizeChanged: {
+        root._saveState();
+        root._applyCursor();
+    }
+    onIconThemeChanged: {
+        root._saveState();
+        root._applyIconTheme();
+        root._applyQtIconTheme();
+    }
+    onGtkThemeChanged: {
+        root._saveState();
+        root._applyGtkTheme();
+    }
+    onIconThemeUserSetChanged: root._saveState()
+    onCursorThemeUserSetChanged: root._saveState()
+    onGtkThemeUserSetChanged: root._saveState()
+    onIdleLockEnabledChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onIdleLockTimeoutChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onIdleScreenOffTimeoutChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onIdleSuspendEnabledChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onIdleSuspendTimeoutChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onScreensaverEnabledChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onScreensaverTimeoutChanged: {
+        root._saveState();
+        root._applyIdleConfig();
+    }
+    onProjectRootsChanged: root._saveState()
+    onLauncherStyleChanged: root._saveState()
+    onWorkspaceProfilesChanged: root._saveState()
+    onBarEntriesChanged: root._saveState()
+    onBarStatusIconsChanged: root._saveState()
+    onPaletteEntriesChanged: root._saveState()
+    onVpnConfigPathChanged: root._saveState()
+    onVpnAutoConnectChanged: root._saveState()
+    onIntelligenceEnabledChanged: root._saveState()
+    onIntelligenceDefaultProviderChanged: root._saveState()
+    onIntelligenceDefaultModelChanged: root._saveState()
+    onIntelligenceMaxSessionsChanged: root._saveState()
+    onIntelligenceAutoPruneDaysChanged: root._saveState()
+    onKbLayoutChanged: {
+        root._saveState();
+        root._applyKbLayout();
+    }
+    onKbVariantChanged: {
+        root._saveState();
+        root._applyKbLayout();
+    }
+    onKbOptionsChanged: {
+        root._saveState();
+        root._applyKbLayout();
+    }
+    onKbModelChanged: {
+        root._saveState();
+        root._applyKbLayout();
+    }
+    onKbRulesChanged: {
+        root._saveState();
+        root._applyKbLayout();
+    }
+    onAdditionalKbLayoutsChanged: {
+        root._saveState();
+        root._applyKbLayout();
+    }
+
+    FileView {
+        id: stateFile
+
+        path: root.statePath
+        watchChanges: true
+        onLoaded: {
+            if (root._writePending) {
+                root._writePending = false;
+                return;
+            }
+            try {
+                const data = JSON.parse(text());
+                if (typeof data.twelveHourClock === "boolean")
+                    root.twelveHourClock = data.twelveHourClock;
+                if (typeof data.showClockDate === "boolean")
+                    root.showClockDate = data.showClockDate;
+                if (typeof data.barVisibility === "string")
+                    root.barVisibility = data.barVisibility;
+                else if (typeof data.barPersistent === "boolean")
+                    // Migrate the old boolean (pre-auto-hide) settings.json
+                    // shape -- true meant always-visible, false meant the
+                    // sliver/hover-reveal behavior that's now named
+                    // "autohide" instead of just "not persistent".
+                    root.barVisibility = data.barPersistent ? "always" : "autohide";
+                if (typeof data.desktopClockEnabled === "boolean")
+                    root.desktopClockEnabled = data.desktopClockEnabled;
+                if (typeof data.barPositionRight === "boolean")
+                    root.barPositionRight = data.barPositionRight;
+                if (typeof data.barCompact === "boolean")
+                    root.barCompact = data.barCompact;
+                if (typeof data.barHorizontal === "boolean")
+                    root.barHorizontal = data.barHorizontal;
+                else if (typeof data.barVertical === "boolean")
+                    // Migrate the pre-rename key -- `barVertical` was a
+                    // misnomer (true actually meant horizontal placement,
+                    // see the property declaration above), so the stored
+                    // boolean carries over unchanged under the new name.
+                    root.barHorizontal = data.barVertical;
+                if (typeof data.barPositionBottom === "boolean")
+                    root.barPositionBottom = data.barPositionBottom;
+                const bl = BarLayout.migrate(data);
+                root.barLayout = bl.layout;
+                root.barCorners = bl.corners;
+                if (Array.isArray(data.barStyleDefaultsApplied))
+                    root.barStyleDefaultsApplied = data.barStyleDefaultsApplied;
+                if (typeof data.dockAutoHide === "boolean")
+                    root.dockAutoHide = data.dockAutoHide;
+                if (typeof data.sonarEnabled === "boolean")
+                    root.sonarEnabled = data.sonarEnabled;
+                if (typeof data.sonarGhosts === "boolean")
+                    root.sonarGhosts = data.sonarGhosts;
+                if (data.shelfOutputs && typeof data.shelfOutputs === "object" && !Array.isArray(data.shelfOutputs))
+                    root.shelfOutputs = data.shelfOutputs;
+                if (typeof data.shelfLaunchEcho === "boolean")
+                    root.shelfLaunchEcho = data.shelfLaunchEcho;
+                if (typeof data.shelfTabAcknowledge === "boolean")
+                    root.shelfTabAcknowledge = data.shelfTabAcknowledge;
+                if (typeof data.shelfNotchTabs === "boolean")
+                    root.shelfNotchTabs = data.shelfNotchTabs;
+                if (Array.isArray(data.dockPinnedApps))
+                    root.dockPinnedApps = data.dockPinnedApps;
+                if (Array.isArray(data.customAppIcons))
+                    root.customAppIcons = data.customAppIcons;
+                if (typeof data.dockMagnification === "boolean")
+                    root.dockMagnification = data.dockMagnification;
+                if (typeof data.taskbarGrouping === "boolean")
+                    root.taskbarGrouping = data.taskbarGrouping;
+                if (typeof data.minimalShowDnd === "boolean")
+                    root.minimalShowDnd = data.minimalShowDnd;
+                if (typeof data.capsuleMedia === "boolean")
+                    root.capsuleMedia = data.capsuleMedia;
+                if (typeof data.capsuleShapedArt === "boolean")
+                    root.capsuleShapedArt = data.capsuleShapedArt;
+                if (typeof data.capsuleExpandOnHover === "boolean")
+                    root.capsuleExpandOnHover = data.capsuleExpandOnHover;
+                if (typeof data.capsuleAnimations === "boolean")
+                    root.capsuleAnimations = data.capsuleAnimations;
+                if (typeof data.flowShellActivity === "boolean")
+                    root.flowShellActivity = data.flowShellActivity;
+                if (typeof data.agentSelectedProvider === "string" && ["claude", "codex", "opencode"].includes(data.agentSelectedProvider))
+                    root.agentSelectedProvider = data.agentSelectedProvider;
+                if (typeof data.agentGraphEnabled === "boolean")
+                    root.agentGraphEnabled = data.agentGraphEnabled;
+                if (typeof data.agentGraphQuality === "string" && ["auto", "lite", "standard", "full"].includes(data.agentGraphQuality))
+                    root.agentGraphQuality = data.agentGraphQuality;
+                if (typeof data.agentGraphAccent === "string")
+                    root.agentGraphAccent = data.agentGraphAccent;
+                if (typeof data.agentGraphGroupByParent === "boolean")
+                    root.agentGraphGroupByParent = data.agentGraphGroupByParent;
+                if (typeof data.agentGraphHistoryLines === "number" && data.agentGraphHistoryLines >= 0)
+                    root.agentGraphHistoryLines = Math.min(2000, Math.floor(data.agentGraphHistoryLines));
+                if (typeof data.ggufModelsDir === "string" && data.ggufModelsDir.length > 0)
+                    root.ggufModelsDir = data.ggufModelsDir;
+                if (typeof data.assistantWelcomeShown === "boolean")
+                    root.assistantWelcomeShown = data.assistantWelcomeShown;
+                if (typeof data.dndEnabled === "boolean")
+                    root.dndEnabled = data.dndEnabled;
+                if (typeof data.wallpaperAutoCycleEnabled === "boolean")
+                    root.wallpaperAutoCycleEnabled = data.wallpaperAutoCycleEnabled;
+                if (typeof data.wallpaperAutoCycleInterval === "number")
+                    root.wallpaperAutoCycleInterval = data.wallpaperAutoCycleInterval;
+                if (root.wallpaperPickerLayouts.includes(data.wallpaperPickerLayout))
+                    root.wallpaperPickerLayout = data.wallpaperPickerLayout;
+                if (typeof data.liveWallpaperPauseOnBattery === "boolean")
+                    root.liveWallpaperPauseOnBattery = data.liveWallpaperPauseOnBattery;
+                if (typeof data.liveWallpaperPauseWhenOccluded === "boolean")
+                    root.liveWallpaperPauseWhenOccluded = data.liveWallpaperPauseWhenOccluded;
+                if (typeof data.liveWallpaperMuted === "boolean")
+                    root.liveWallpaperMuted = data.liveWallpaperMuted;
+                if (typeof data.weatherLocation === "string")
+                    root.weatherLocation = data.weatherLocation;
+                if (typeof data.weatherUnits === "string" && ["celsius", "fahrenheit"].includes(data.weatherUnits))
+                    root.weatherUnits = data.weatherUnits;
+                if (typeof data.osdEnabled === "boolean")
+                    root.osdEnabled = data.osdEnabled;
+                if (typeof data.osdHideDelay === "number")
+                    root.osdHideDelay = data.osdHideDelay;
+                if (typeof data.osdEnableBrightness === "boolean")
+                    root.osdEnableBrightness = data.osdEnableBrightness;
+                if (typeof data.osdEnableMicrophone === "boolean")
+                    root.osdEnableMicrophone = data.osdEnableMicrophone;
+                if (typeof data.phoneBridge === "boolean")
+                    root.phoneBridge = data.phoneBridge;
+                if (typeof data.phoneMirror === "boolean")
+                    root.phoneMirror = data.phoneMirror;
+                if (typeof data.phoneCalls === "boolean")
+                    root.phoneCalls = data.phoneCalls;
+                if (typeof data.phoneAlarms === "boolean")
+                    root.phoneAlarms = data.phoneAlarms;
+                if (typeof data.phoneIcons === "boolean")
+                    root.phoneIcons = data.phoneIcons;
+                if (typeof data.phoneCamera === "boolean")
+                    root.phoneCamera = data.phoneCamera;
+                if (typeof data.phoneMic === "boolean")
+                    root.phoneMic = data.phoneMic;
+                if (typeof data.phoneLocalSend === "boolean")
+                    root.phoneLocalSend = data.phoneLocalSend;
+                if (typeof data.phoneMessages === "boolean")
+                    root.phoneMessages = data.phoneMessages;
+                if (typeof data.notifExpireTimeout === "number")
+                    root.notifExpireTimeout = data.notifExpireTimeout;
+                if (typeof data.accentColorOverride === "string")
+                    root.accentColorOverride = data.accentColorOverride;
+                if (typeof data.statusIconBluetoothColor === "string")
+                    root.statusIconBluetoothColor = data.statusIconBluetoothColor;
+                if (typeof data.statusIconWifiColor === "string")
+                    root.statusIconWifiColor = data.statusIconWifiColor;
+                if (typeof data.statusIconPowerProfileColor === "string")
+                    root.statusIconPowerProfileColor = data.statusIconPowerProfileColor;
+                if (typeof data.statusIconPerformanceColor === "string")
+                    root.statusIconPerformanceColor = data.statusIconPerformanceColor;
+                if (typeof data.statusIconHostInfoColor === "string")
+                    root.statusIconHostInfoColor = data.statusIconHostInfoColor;
+                if (typeof data.statusIconPomodoroColor === "string")
+                    root.statusIconPomodoroColor = data.statusIconPomodoroColor;
+                if (typeof data.statusIconDndColor === "string")
+                    root.statusIconDndColor = data.statusIconDndColor;
+                if (typeof data.depthEffects === "string" && ["off", "subtle", "full"].includes(data.depthEffects))
+                    root.depthEffects = data.depthEffects;
+                if (typeof data.cursorTheme === "string")
+                    root.cursorTheme = data.cursorTheme;
+                if (typeof data.cursorSize === "number")
+                    root.cursorSize = data.cursorSize;
+                if (typeof data.iconTheme === "string")
+                    root.iconTheme = data.iconTheme;
+                if (typeof data.gtkTheme === "string")
+                    root.gtkTheme = data.gtkTheme;
+                if (typeof data.iconThemeUserSet === "boolean")
+                    root.iconThemeUserSet = data.iconThemeUserSet;
+                if (typeof data.cursorThemeUserSet === "boolean")
+                    root.cursorThemeUserSet = data.cursorThemeUserSet;
+                if (typeof data.gtkThemeUserSet === "boolean")
+                    root.gtkThemeUserSet = data.gtkThemeUserSet;
+                if (typeof data.idleLockEnabled === "boolean")
+                    root.idleLockEnabled = data.idleLockEnabled;
+                if (typeof data.idleLockTimeout === "number")
+                    root.idleLockTimeout = data.idleLockTimeout;
+                if (typeof data.idleScreenOffTimeout === "number")
+                    root.idleScreenOffTimeout = data.idleScreenOffTimeout;
+                if (typeof data.idleSuspendEnabled === "boolean")
+                    root.idleSuspendEnabled = data.idleSuspendEnabled;
+                if (typeof data.idleSuspendTimeout === "number")
+                    root.idleSuspendTimeout = data.idleSuspendTimeout;
+                if (typeof data.screensaverEnabled === "boolean")
+                    root.screensaverEnabled = data.screensaverEnabled;
+                if (typeof data.screensaverTimeout === "number")
+                    root.screensaverTimeout = data.screensaverTimeout;
+                if (Array.isArray(data.projectRoots))
+                    root.projectRoots = data.projectRoots;
+                if (typeof data.launcherStyle === "string")
+                    root.launcherStyle = data.launcherStyle;
+                if (Array.isArray(data.workspaceProfiles))
+                    root.workspaceProfiles = data.workspaceProfiles;
+                if (Array.isArray(data.barEntries))
+                    root.barEntries = data.barEntries;
+                if (Array.isArray(data.barStatusIcons))
+                    root.barStatusIcons = data.barStatusIcons;
+                if (Array.isArray(data.paletteEntries))
+                    root.paletteEntries = data.paletteEntries;
+                if (typeof data.vpnConfigPath === "string")
+                    root.vpnConfigPath = data.vpnConfigPath;
+                if (typeof data.vpnAutoConnect === "boolean")
+                    root.vpnAutoConnect = data.vpnAutoConnect;
+                if (typeof data.intelligenceEnabled === "boolean")
+                    root.intelligenceEnabled = data.intelligenceEnabled;
+                if (typeof data.intelligenceDefaultProvider === "string")
+                    root.intelligenceDefaultProvider = data.intelligenceDefaultProvider;
+                if (typeof data.intelligenceDefaultModel === "string")
+                    root.intelligenceDefaultModel = data.intelligenceDefaultModel;
+                if (typeof data.intelligenceMaxSessions === "number")
+                    root.intelligenceMaxSessions = data.intelligenceMaxSessions;
+                if (typeof data.intelligenceAutoPruneDays === "number")
+                    root.intelligenceAutoPruneDays = data.intelligenceAutoPruneDays;
+                if (typeof data.packageCheckFrequency === "string" && ["off", "daily", "weekly"].includes(data.packageCheckFrequency))
+                    root.packageCheckFrequency = data.packageCheckFrequency;
+                if (typeof data.kbLayout === "string")
+                    root.kbLayout = data.kbLayout;
+                if (typeof data.kbVariant === "string")
+                    root.kbVariant = data.kbVariant;
+                if (typeof data.kbOptions === "string")
+                    root.kbOptions = data.kbOptions;
+                if (typeof data.kbModel === "string")
+                    root.kbModel = data.kbModel;
+                if (typeof data.kbRules === "string")
+                    root.kbRules = data.kbRules;
+                if (Array.isArray(data.additionalKbLayouts))
+                    root.additionalKbLayouts = data.additionalKbLayouts;
+            } catch (e) {
+                // No state file yet, or malformed -- keep the Config.qml/
+                // GlobalConfig.qml defaults already set above.
+            }
+            root._loaded = true;
+            // Whether the values above came from the state file or are
+            // just the compile-time defaults, apply them now -- this is
+            // what makes cursor/icon theme survive a reboot instead of
+            // startup.lua's old hardcoded calls silently overwriting
+            // whatever was chosen here on the next boot.
+            root._applyCursor();
+            root._applyIconTheme();
+            root._applyQtIconTheme();
+            root._applyGtkTheme();
+            root._applyIdleConfig();
+            root._applyKbLayout();
+        }
+        onLoadFailed: error => {
+            root._loaded = true;
+            root._applyCursor();
+            root._applyIconTheme();
+            root._applyQtIconTheme();
+            root._applyGtkTheme();
+            root._applyIdleConfig();
+            root._applyKbLayout();
+        }
+    }
+
+    FileView {
+        id: stateWriter
+
+        path: root.statePath
+        printErrors: false
+    }
+
+    Process {
+        id: mkStateDir
+        command: ["mkdir", "-p", `${Quickshell.env("HOME")}/.local/state/aphotic`]
+        onExited: stateFile.reload()
+    }
+
+    // `aphotic bar style <name>` and any future keybind/IPC quick-swap
+    // both go through this rather than writing settings.json directly.
+    IpcHandler {
+        function setStyle(name: string): void {
+            root.setBarStyle(name);
+        }
+
+        function cycleStyle(): void {
+            root.cycleBarStyle();
+        }
+
+        function setCorners(name: string): void {
+            if (BarLayout.CORNERS.includes(name))
+                root.barCorners = name;
+        }
+
+        // Compatibility alias for old callers: the legacy skins are the
+        // full layout wearing a specific corner treatment.
+        function setSkin(name: string): void {
+            if (name === "signal") {
+                root.barLayout = "full";
+                root.barCorners = "sharp";
+            } else if (name === "square") {
+                root.barLayout = "full";
+                root.barCorners = "soft";
+            } else if (name === "pill") {
+                root.barLayout = "full";
+                root.barCorners = "round";
+            }
+        }
+
+        target: "bar"
+    }
+
+    Component.onCompleted: mkStateDir.running = true
+}

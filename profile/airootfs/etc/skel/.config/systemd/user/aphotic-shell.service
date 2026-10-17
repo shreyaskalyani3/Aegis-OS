@@ -1,0 +1,40 @@
+[Unit]
+Description=Aphotic Quickshell desktop shell
+After=graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+# Fires only once systemd gives up, i.e. StartLimitBurst above is
+# exceeded and the unit enters `failed` -- a single crash that restarts
+# cleanly never reaches it. That is the whole trigger for the recovery
+# surface: no polling, no watchdog, no second supervisor.
+#
+# This belongs in [Unit], not [Service] -- systemd silently ignores an
+# OnFailure= under [Service] ("Unknown key 'OnFailure' in section
+# [Service], ignoring"), so the recovery surface never fired on any
+# install until this moved.
+OnFailure=aphotic-recovery.service
+
+[Service]
+Type=simple
+# The systemd user manager's own PATH doesn't include ~/.local/bin (that
+# only gets added by shell rc files, which this unit never sources) --
+# any QML Process/execDetached call shelling out to the `aphotic` CLI
+# (SystemPane.qml's doctor check, Wallpapers.qml's sddm sync, etc.) would
+# otherwise fail to even start the process, silently, with neither
+# stdout nor stderr ever firing. Prepending it here fixes every such
+# call site at once instead of hardcoding an absolute path in each one.
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/qs -c aphotic
+Restart=on-failure
+RestartSec=2
+
+# Every failed exit is recorded so `aphotic recovery` can say how often
+# and how recently the shell died -- systemd's own restart counter is
+# reset by anything that touches the unit, and the journal alone does not
+# survive a machine that is rebooting to try again. Leading `-` because a
+# recorder that fails must not itself put the unit into a failed state.
+ExecStopPost=-/bin/sh -c 'exec %h/.local/bin/aphotic recovery record "$SERVICE_RESULT" "$EXIT_STATUS"'
+
+[Install]
+WantedBy=graphical-session.target

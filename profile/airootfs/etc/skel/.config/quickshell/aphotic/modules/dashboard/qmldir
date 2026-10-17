@@ -1,0 +1,15 @@
+module qs.modules.dashboard
+AiChatTab 1.0 AiChatTab.qml
+CommandCenterTabBar 1.0 CommandCenterTabBar.qml
+Dashboard 1.0 Dashboard.qml
+DashCalendar 1.0 DashCalendar.qml
+DashDateTime 1.0 DashDateTime.qml
+DashMedia 1.0 DashMedia.qml
+DashPomodoro 1.0 DashPomodoro.qml
+DashQuickToggles 1.0 DashQuickToggles.qml
+DashWeather 1.0 DashWeather.qml
+DashboardContent 1.0 DashboardContent.qml
+DashboardTab 1.0 DashboardTab.qml
+DashboardWindow 1.0 DashboardWindow.qml
+DashWallpapersTab 1.0 DashWallpapersTab.qml
+WorkspacesTab 1.0 WorkspacesTab.qml

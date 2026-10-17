@@ -1,0 +1,278 @@
+// BackgroundWindow.qml -- per-screen wallpaper + optional desktop clock overlay
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Wayland
+import qs.components
+import qs.config
+import qs.services
+
+PanelWindow {
+    id: root
+
+    required property var modelData
+    screen: modelData
+
+    required property ScreenState screenState
+
+    readonly property string currentWallpaper: Wallpapers.current
+
+    visible: Config.background.enabled && Config.background.wallpaperEnabled
+
+    WlrLayershell.namespace: "aphotic-background"
+    WlrLayershell.layer: WlrLayer.Background
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
+    color: "black"
+
+    anchors.top: true
+    anchors.bottom: true
+    anchors.left: true
+    anchors.right: true
+
+    Item {
+        id: backgroundContent
+
+        anchors.fill: parent
+
+        // "Descent" intro: the shell surfaces into view rather than just
+        // appearing, echoing light fading in from depth on first map. Any
+        // input skips straight to the settled state -- this is a mood-
+        // setting flourish, not something that should ever make someone
+        // wait to start using their desktop.
+        //
+        // Uses an explicit, stoppable Animation rather than a Behavior:
+        // a Behavior can't be reliably snapped to its end value mid-flight
+        // (disabling it just freezes wherever the animation currently is),
+        // which would make "skippable" a lie the moment input arrives
+        // partway through the ~650ms transition.
+        property bool introSkipped: false
+
+        opacity: 0
+        scale: 1.04
+        transformOrigin: Item.Center
+
+        function skipIntro(): void {
+            if (backgroundContent.introSkipped)
+                return;
+            backgroundContent.introSkipped = true;
+            descentAnim.stop();
+            backgroundContent.opacity = 1;
+            backgroundContent.scale = 1;
+        }
+
+        ParallelAnimation {
+            id: descentAnim
+
+            NumberAnimation {
+                target: backgroundContent
+                property: "opacity"
+                to: 1
+                duration: Tokens.anim.durations.expressiveSlowSpatial
+                easing: Tokens.anim.expressiveSlowSpatial
+            }
+            NumberAnimation {
+                target: backgroundContent
+                property: "scale"
+                to: 1
+                duration: Tokens.anim.durations.expressiveSlowSpatial
+                easing: Tokens.anim.expressiveSlowSpatial
+            }
+        }
+
+        Timer {
+            interval: 16
+            running: true
+            onTriggered: {
+                if (!backgroundContent.introSkipped)
+                    descentAnim.start();
+            }
+        }
+
+        HoverHandler {
+            enabled: !backgroundContent.introSkipped
+            onPointChanged: backgroundContent.skipIntro()
+        }
+
+        TapHandler {
+            enabled: !backgroundContent.introSkipped
+            acceptedButtons: Qt.AllButtons
+            onTapped: backgroundContent.skipIntro()
+        }
+
+        // Desktop right-click menu -- TapHandler (not MouseArea) so it
+        // observes without grabbing the button, leaving normal
+        // left-click-through-to-desktop behaviour untouched.
+        property bool menuOpen: false
+        property real menuX: 0
+        property real menuY: 0
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: eventPoint => {
+                backgroundContent.menuX = eventPoint.position.x;
+                backgroundContent.menuY = eventPoint.position.y;
+                backgroundContent.menuOpen = true;
+            }
+        }
+
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            enabled: backgroundContent.menuOpen
+            onTapped: backgroundContent.menuOpen = false
+        }
+
+        Loader {
+            id: contextMenuLoader
+
+            // Above the wallpaper/clock siblings below regardless of
+            // declaration order (QML stacks same-parent children by
+            // declaration order otherwise, and this is declared first).
+            z: 100
+            active: backgroundContent.menuOpen
+            asynchronous: false
+
+            sourceComponent: DesktopContextMenu {
+                screenState: root.screenState
+                menuX: backgroundContent.menuX
+                menuY: backgroundContent.menuY
+                onDismissed: backgroundContent.menuOpen = false
+            }
+        }
+
+        Loader {
+            id: wallpaperDisplay
+
+            anchors.fill: parent
+            asynchronous: true
+            active: Config.background.wallpaperEnabled
+
+            sourceComponent: Wallpaper {
+                source: root.currentWallpaper
+            }
+        }
+
+        // Plugin-owned background surfaces (manifest v3.8). Declared after
+        // the still wallpaper and before the clock so a plugin paints over
+        // the wallpaper but never over the desktop furniture. Core owns
+        // this window and its static geometry; the plugin ships a plain
+        // Item, exactly as [ui.overlay] does.
+        //
+        // No plugin id appears here, and none may: the registry answers
+        // surfacesFor("background") and this only knows that background
+        // surfaces exist.
+        Repeater {
+            model: PluginRegistry.surfacesFor("background")
+
+            Loader {
+                id: backgroundSurface
+
+                required property var modelData
+
+                anchors.fill: parent
+                asynchronous: true
+                source: backgroundSurface.modelData.componentUrl
+            }
+        }
+
+        Loader {
+            id: clockLoader
+
+            asynchronous: true
+            active: Settings.desktopClockEnabled
+
+            anchors.margins: Tokens.padding.large * 2
+            anchors.leftMargin: Tokens.padding.large * 2 + Tokens.sizes.bar.innerWidth + Config.border.thickness
+
+            state: Config.background.desktopClock.position
+
+            states: [
+                State {
+                    name: "top-left"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                    }
+                },
+                State {
+                    name: "top-center"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.top: parent.top
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                },
+                State {
+                    name: "top-right"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                    }
+                },
+                State {
+                    name: "middle-left"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                    }
+                },
+                State {
+                    name: "middle-center"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                },
+                State {
+                    name: "middle-right"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: parent.right
+                    }
+                },
+                State {
+                    name: "bottom-left"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                    }
+                },
+                State {
+                    name: "bottom-center"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                },
+                State {
+                    name: "bottom-right"
+                    AnchorChanges {
+                        target: clockLoader
+                        anchors.bottom: parent.bottom
+                        anchors.right: parent.right
+                    }
+                }
+            ]
+
+            transitions: Transition {
+                AnchorAnimation {
+                    duration: Tokens.anim.durations.expressiveDefaultSpatial
+                    easing: Tokens.anim.expressiveDefaultSpatial
+                }
+            }
+
+            sourceComponent: DesktopClock {
+                wallpaper: backgroundContent
+                absX: clockLoader.x
+                absY: clockLoader.y
+            }
+        }
+    }
+}

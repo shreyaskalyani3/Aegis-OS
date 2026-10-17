@@ -1,0 +1,483 @@
+#!/usr/bin/env bash
+# lib/aphotic/globalcontrol.sh
+# Shared environment + helper functions for the aphotic CLI.
+# Sourced by bin/aphotic — not meant to be executed directly.
+# Naming/role mirrors HyDE's lib/hyde/globalcontrol.sh.
+
+# ---- XDG-compliant paths ---------------------------------------------
+APHOTIC_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/aphotic"
+APHOTIC_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/aphotic"
+APHOTIC_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/aphotic"
+APHOTIC_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/aphotic"
+
+APHOTIC_CONFIG_FILE="${APHOTIC_CONFIG_HOME}/shell.json"
+APHOTIC_BACKUP_DIR="${APHOTIC_STATE_HOME}/backups"
+
+# Recovery + safe mode (docs/playbooks/safe-mode-recovery.md). The shell
+# reads safe-mode.json directly (services/SafeMode.qml watches it); the
+# other two are written here and read by `aphotic recovery`.
+APHOTIC_SAFE_MODE_FILE="${APHOTIC_STATE_HOME}/safe-mode.json"
+APHOTIC_RECOVERY_STATE_FILE="${APHOTIC_STATE_HOME}/recovery.json"
+APHOTIC_CHANGE_LOG="${APHOTIC_STATE_HOME}/changes.log"
+
+# Where the Aphotic-Hypr dots repo lives. Overridable via env for dev/CI.
+# Otherwise it's the checkout this script runs from, so a clone under any
+# name or letter case works.
+if [[ -z "${APHOTIC_DOTS_DIR:-}" ]]; then
+    _aphotic_self_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../.." 2>/dev/null && pwd)"
+    if [[ -n "$_aphotic_self_root" && -f "$_aphotic_self_root/VERSION" ]]; then
+        APHOTIC_DOTS_DIR="$_aphotic_self_root"
+    else
+        APHOTIC_DOTS_DIR="$HOME/Aphotic-Hypr"
+    fi
+    unset _aphotic_self_root
+fi
+
+# The shell and helper scripts can't see where the CLI lives, so they read
+# the repo through this link. Kept current on every run.
+APHOTIC_DOTS_LINK="${XDG_DATA_HOME:-$HOME/.local/share}/aphotic/dots"
+
+# Read from the repo's VERSION file so `aphotic doctor` reflects the
+# actual checked-out commit's version, not a string that drifts from it.
+if [[ -f "$APHOTIC_DOTS_DIR/VERSION" ]]; then
+    APHOTIC_VERSION="$(<"$APHOTIC_DOTS_DIR/VERSION")"
+else
+    APHOTIC_VERSION="unknown (repo not found at \$APHOTIC_DOTS_DIR: $APHOTIC_DOTS_DIR)"
+fi
+
+QUICKSHELL_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/aphotic"
+
+# Plugin system (see docs/PLUGIN_SYSTEM.md). Installed plugins are plain
+# directories under here, each with its own plugin.toml -- same
+# "directory + manifest" shape as ~/.config/awww/<theme>/theme.toml.
+APHOTIC_PLUGINS_DIR="${APHOTIC_DATA_HOME}/plugins"
+APHOTIC_PLUGINS_STATE_FILE="${APHOTIC_STATE_HOME}/plugins.json"
+# Where `aphotic plugin install` looks for a local checkout of the
+# aphotic-plugins repo. Override for a dev checkout elsewhere.
+APHOTIC_PLUGINS_REPO="${APHOTIC_PLUGINS_REPO:-$HOME/aphotic-plugins}"
+# git-clonable, matches the org/repo APHOTIC_PLUGINS_INDEX_URL reads its
+# index.json from below -- `aphotic plugin install` clones here on first
+# use (see _aphotic_plugin_sync_repo in cmd_plugin.sh) rather than
+# requiring a manual clone beforehand.
+APHOTIC_PLUGINS_GIT_URL="${APHOTIC_PLUGINS_GIT_URL:-https://github.com/T-Crypt/aphotic-plugins.git}"
+APHOTIC_PLUGINS_INDEX_URL="${APHOTIC_PLUGINS_INDEX_URL:-https://raw.githubusercontent.com/T-Crypt/aphotic-plugins/main/index.json}"
+# Security-category plugins (Bloodhound, Caido, ...) live in a SEPARATE
+# index, not merged into the main one -- mirrors the exploit layer's
+# BlackArch precedent (lib/install/blackarch.sh's ensure_blackarch_repo):
+# an explicit trust step before this kind of content is even visible,
+# not just before it installs. See aphotic_plugins_security_index_trusted
+# below and cmd_plugin.sh's trust-security-index subcommand.
+APHOTIC_PLUGINS_SECURITY_INDEX_URL="${APHOTIC_PLUGINS_SECURITY_INDEX_URL:-https://raw.githubusercontent.com/T-Crypt/aphotic-plugins-security/main/index.json}"
+
+# Community theme index (see themes/THEME_SPEC.md and cmd_theme.sh's
+# `download`/`update`/`remove`). Same clone/pull-a-repo shape as the
+# plugin block above, but a theme is just a directory + theme.toml with
+# no enable/disable state -- "is this theme downloaded" is answered by
+# APHOTIC_AWWW_DIR itself, so unlike APHOTIC_PLUGINS_STATE_FILE there's
+# no state file to track here.
+APHOTIC_THEMES_REPO="${APHOTIC_THEMES_REPO:-$HOME/aphotic-themes}"
+APHOTIC_THEMES_GIT_URL="${APHOTIC_THEMES_GIT_URL:-https://github.com/T-Crypt/aphotic-themes.git}"
+APHOTIC_THEMES_INDEX_URL="${APHOTIC_THEMES_INDEX_URL:-https://raw.githubusercontent.com/T-Crypt/aphotic-themes/main/index.json}"
+
+# one-time migration: noctis -> aphotic config path
+_APHOTIC_OLD_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/noctis"
+if [[ -d "$_APHOTIC_OLD_CONFIG_HOME" ]] && [[ ! -e "$APHOTIC_CONFIG_HOME" ]]; then
+    mv "$_APHOTIC_OLD_CONFIG_HOME" "$APHOTIC_CONFIG_HOME"
+    echo "[aphotic] migrated config from ${_APHOTIC_OLD_CONFIG_HOME}" >&2
+fi
+
+mkdir -p "$APHOTIC_CONFIG_HOME" "$APHOTIC_STATE_HOME" "$APHOTIC_DATA_HOME" \
+         "$APHOTIC_RUNTIME_DIR" "$APHOTIC_BACKUP_DIR" "$APHOTIC_PLUGINS_DIR"
+
+# Only the installed CLI moves the link, so running a second checkout (or its
+# tests) leaves the live shell alone.
+if [[ "$(readlink -f "$HOME/.local/bin/aphotic" 2>/dev/null)" == "$APHOTIC_DOTS_DIR/"* \
+      && "$(readlink "$APHOTIC_DOTS_LINK" 2>/dev/null)" != "$APHOTIC_DOTS_DIR" ]]; then
+    ln -sfn "$APHOTIC_DOTS_DIR" "$APHOTIC_DOTS_LINK" 2>/dev/null || true
+fi
+
+export APHOTIC_VERSION APHOTIC_CONFIG_HOME APHOTIC_STATE_HOME APHOTIC_DATA_HOME \
+       APHOTIC_RUNTIME_DIR APHOTIC_CONFIG_FILE APHOTIC_BACKUP_DIR APHOTIC_DOTS_DIR \
+       APHOTIC_SAFE_MODE_FILE APHOTIC_RECOVERY_STATE_FILE APHOTIC_CHANGE_LOG \
+       QUICKSHELL_CONFIG_DIR APHOTIC_PLUGINS_DIR APHOTIC_PLUGINS_STATE_FILE \
+       APHOTIC_PLUGINS_REPO APHOTIC_PLUGINS_GIT_URL APHOTIC_PLUGINS_INDEX_URL APHOTIC_PLUGINS_SECURITY_INDEX_URL \
+       APHOTIC_THEMES_REPO APHOTIC_THEMES_GIT_URL APHOTIC_THEMES_INDEX_URL
+
+# ---- logging -----------------------------------------------------------
+_APHOTIC_DIM=$'\e[2m'; _APHOTIC_R=$'\e[0m'
+_APHOTIC_CYAN=$'\e[36m'; _APHOTIC_RED=$'\e[31m'
+_APHOTIC_GREEN=$'\e[32m'; _APHOTIC_YELLOW=$'\e[33m'
+
+aphotic_log()  { printf '%s[aphotic]%s %s\n' "$_APHOTIC_CYAN" "$_APHOTIC_R" "$*"; }
+aphotic_ok()   { printf '%s[ ok ]%s %s\n'   "$_APHOTIC_GREEN" "$_APHOTIC_R" "$*"; }
+aphotic_warn() { printf '%s[warn]%s %s\n'   "$_APHOTIC_YELLOW" "$_APHOTIC_R" "$*" >&2; }
+aphotic_err()  { printf '%s[fail]%s %s\n'   "$_APHOTIC_RED" "$_APHOTIC_R" "$*" >&2; }
+
+# ---- small utilities -----------------------------------------------------
+aphotic_confirm() {
+    local prompt="${1:-Are you sure?}" reply
+    read -r -p "${prompt} [y/N] " reply
+    [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+# Verify a dependency exists on PATH; used by `aphotic doctor` and by
+# individual commands that need to fail fast with a clear message.
+aphotic_require() {
+    command -v "$1" >/dev/null 2>&1 || { aphotic_err "missing dependency: $1"; return 1; }
+}
+
+# The one way a state file gets rewritten. mktemp's default $TMPDIR (/tmp,
+# a tmpfs) is a different filesystem from ~/.local/state, so `mv` from
+# there is a copy followed by an unlink -- another process can read the
+# file mid-copy. The shell watches plugins.json, theme.json and
+# safe-mode.json with a FileView and has nothing to fall back on when a
+# read lands halfway, so a rewrite must land as a rename: stage the new
+# content in the target's own directory. `$@` is the writer, whose stdout
+# becomes the new content; the target is replaced only if it succeeds.
+#   aphotic_write_atomic "$APHOTIC_PLUGINS_STATE_FILE" jq --arg n "$name" '...' "$APHOTIC_PLUGINS_STATE_FILE"
+aphotic_write_atomic() {
+    local target="$1"; shift
+    local dir tmp
+    dir="$(dirname "$target")"
+    tmp="$(mktemp "${dir}/.$(basename "$target").XXXXXX")" || return 1
+    if "$@" > "$tmp"; then
+        mv "$tmp" "$target"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
+# JSON getter/setter helpers around APHOTIC_CONFIG_FILE, used by
+# cmd_config.sh. Requires jq. Kept here so every command can reuse them.
+aphotic_json_get() {
+    local key="$1"
+    [[ -f "$APHOTIC_CONFIG_FILE" ]] || { echo "null"; return 0; }
+    jq -r --arg k "$key" 'getpath($k | split("."))' "$APHOTIC_CONFIG_FILE"
+}
+
+aphotic_json_set() {
+    local key="$1" value="$2"
+    aphotic_require jq || return 1
+    [[ -f "$APHOTIC_CONFIG_FILE" ]] || echo '{}' > "$APHOTIC_CONFIG_FILE"
+    aphotic_write_atomic "$APHOTIC_CONFIG_FILE" \
+        jq --arg k "$key" --arg v "$value" 'setpath($k | split("."); $v)' \
+        "$APHOTIC_CONFIG_FILE"
+}
+
+# ---- minimal TOML reader -------------------------------------------------
+# Shared by cmd_theme.sh (theme.toml) and cmd_plugin.sh (plugin.toml).
+# Deliberately minimal — flat key = "value" pairs only, no arrays-of-
+# tables, no multi-line strings — mirrors the hand-written parser in
+# Themes.qml. See _aphotic_toml_get_array below for the one array shape
+# plugin.toml actually needs (capabilities, requires.binaries).
+#   _aphotic_toml_get "$dir/theme.toml" wallpaper default
+aphotic_toml_get() {
+    local file="$1" section="$2" key="$3"
+    [[ -f "$file" ]] || return 1
+    awk -v section="[$section]" -v key="$key" '
+        $0 == section { insec=1; next }
+        /^\[/ { insec=0 }
+        insec && $0 ~ "^[[:space:]]*"key"[[:space:]]*=" {
+            sub(/^[^=]*=[[:space:]]*/, "");
+            gsub(/^"|"$/, "");
+            print;
+            exit
+        }
+    ' "$file"
+}
+
+# Same shape, for `key = ["a", "b", "c"]` — prints one value per line.
+# Only handles a single-line bracketed list of quoted strings, matching
+# the only array shape plugin.toml uses.
+aphotic_toml_get_array() {
+    local file="$1" section="$2" key="$3"
+    [[ -f "$file" ]] || return 1
+    awk -v section="[$section]" -v key="$key" '
+        $0 == section { insec=1; next }
+        /^\[/ { insec=0 }
+        insec && $0 ~ "^[[:space:]]*"key"[[:space:]]*=" {
+            sub(/^[^=]*=[[:space:]]*\[/, "");
+            sub(/\][[:space:]]*$/, "");
+            print;
+            exit
+        }
+    ' "$file" | tr ',' '\n' | sed -e 's/^[[:space:]]*"\?//' -e 's/"\?[[:space:]]*$//' -e '/^$/d'
+}
+
+# ---- colour engines -------------------------------------------------------
+# theme.toml's [engine].name selects which engine renders a theme's
+# palette (themes/THEME_SPEC.md); this is the matugen side, shared by
+# cmd_theme.sh's apply path and cmd_scheme.sh's regenerate path. Templates
+# and output targets come from ~/.config/matugen/config.toml.
+#
+# --prefer is not optional: matugen refuses to choose between an image's
+# candidate source colours without a terminal to prompt on, which is every
+# call made from here.
+aphotic_matugen_run() {
+    local image="$1" scheme="${2:-}" style="${3:-}" contrast="${4:-}"
+
+    if ! command -v matugen >/dev/null 2>&1; then
+        aphotic_warn "matugen not found, skipping palette regeneration"
+        return 1
+    fi
+
+    local cmd=(matugen image "$image" --prefer saturation -q)
+    [[ -n "$scheme" ]] && cmd+=(-t "$scheme")
+    [[ -n "$style" ]] && cmd+=(-m "$style")
+    [[ -n "$contrast" ]] && cmd+=(--contrast "$contrast")
+    "${cmd[@]}"
+}
+
+# ---- shell daemon process management --------------------------------------
+# Anchored on the command itself. `pgrep -f "qs -c aphotic"` matches any
+# process whose command line merely *contains* that string, which includes
+# the scripts that call these helpers -- `pkill -f "qs -c aphotic"` in
+# cmd_reload killed its own caller that way, live.
+APHOTIC_SHELL_PATTERN='^(/[^ ]*/)?qs -c aphotic$'
+
+aphotic_shell_pids() {
+    pgrep -f "$APHOTIC_SHELL_PATTERN" 2>/dev/null || true
+}
+
+aphotic_shell_running() {
+    [[ -n "$(aphotic_shell_pids)" ]]
+}
+
+# Quickshell does not reap its Process children when the daemon takes a
+# SIGTERM: `nmcli monitor`, `dbus-monitor` and the agent-events `tail`s
+# reparent to init and one fresh set accumulates per restart. Counted on a
+# machine using the manual path (no aphotic-shell.service): 121 strays
+# holding 1.0 GiB RSS, the oldest 13 h. Only the quiet ones survive -- a
+# `tail -F` on a file that keeps growing dies of SIGPIPE first, which is
+# why the leak read as smaller than it was. A machine on the service path
+# has none of this: systemd's KillMode=control-group already takes the
+# whole cgroup down (verified on the dev VM: 0 strays).
+#
+# The group is only safe to signal when the daemon leads it. Started from
+# a terminal it inherits that terminal's job group, and `kill -- -PGID`
+# there would take the user's own shell down with it -- so the group kill
+# is gated on leadership, and aphotic_shell_start uses setsid to make that
+# true for anything it launches.
+aphotic_shell_stop() {
+    local pid pgid child
+    local -a stragglers
+    for pid in "$@"; do
+        [[ -n "$pid" ]] || continue
+        pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+        if [[ -n "$pgid" && "$pgid" == "$pid" ]]; then
+            kill -TERM -- "-${pgid}" 2>/dev/null || true
+            continue
+        fi
+        # Not a group leader (started from a terminal, or by an older
+        # aphotic that did not setsid), so the group is not ours to
+        # signal. Collect the children first -- once the parent is gone
+        # they reparent to init and there is nothing left to find them by.
+        stragglers=()
+        while IFS= read -r child; do
+            [[ -n "$child" ]] && stragglers+=("$child")
+        done < <(pgrep -P "$pid" 2>/dev/null)
+        kill -TERM "$pid" 2>/dev/null || true
+        [[ ${#stragglers[@]} -gt 0 ]] && kill -TERM "${stragglers[@]}" 2>/dev/null
+    done
+    return 0
+}
+
+aphotic_shell_start() {
+    local log="${1:-/dev/null}"
+    setsid qs -c aphotic >>"$log" 2>&1 &
+    disown
+}
+
+# ---- safe mode + change journal -------------------------------------------
+# Safe mode is one flag in one small file. PluginRegistry.qml holds every
+# plugin back while it is set, so the shell comes up as core-only -- which
+# is the state a machine needs to reach when a plugin is what stops it
+# starting. Written here, watched live by services/SafeMode.qml, so
+# turning it on does not require the shell to be running and turning it
+# off does not require a restart.
+aphotic_safe_mode_active() {
+    [[ -f "$APHOTIC_SAFE_MODE_FILE" ]] || return 1
+    jq -e '.active // false' "$APHOTIC_SAFE_MODE_FILE" >/dev/null 2>&1
+}
+
+aphotic_safe_mode_set() {
+    local active="$1" reason="${2:-}"
+    aphotic_require jq || return 1
+    aphotic_write_atomic "$APHOTIC_SAFE_MODE_FILE" \
+        jq -n --argjson active "$active" --arg reason "$reason" --arg since "$(date -Iseconds)" \
+        '{active: $active, reason: $reason, since: $since}'
+}
+
+aphotic_safe_mode_reason() {
+    [[ -f "$APHOTIC_SAFE_MODE_FILE" ]] || return 0
+    jq -r '.reason // ""' "$APHOTIC_SAFE_MODE_FILE" 2>/dev/null
+}
+
+# What changed, and when. `aphotic recovery` reads this to name a likely
+# culprit when the crash output does not name one itself -- a shell that
+# stopped starting right after a plugin went in is the common case, and
+# nothing else on the machine records that ordering.
+aphotic_record_change() {
+    local kind="$1" detail="${2:-}"
+    printf '%s\t%s\t%s\n' "$(date -Iseconds)" "$kind" "$detail" >> "$APHOTIC_CHANGE_LOG" 2>/dev/null || return 0
+    # Bounded: this is a breadcrumb trail, not an audit log.
+    if [[ "$(wc -l < "$APHOTIC_CHANGE_LOG" 2>/dev/null || echo 0)" -gt 400 ]]; then
+        aphotic_write_atomic "$APHOTIC_CHANGE_LOG" tail -n 200 "$APHOTIC_CHANGE_LOG"
+    fi
+    return 0
+}
+
+# ---- plugin helpers -------------------------------------------------------
+# List installed plugin directory names (each has a plugin.toml).
+aphotic_plugin_names() {
+    local d
+    [[ -d "$APHOTIC_PLUGINS_DIR" ]] || return 0
+    for d in "$APHOTIC_PLUGINS_DIR"/*/; do
+        [[ -f "${d}plugin.toml" ]] && basename "$d"
+    done
+}
+
+# Enabled by default; explicitly listed in the state file's "disabled"
+# array to turn one off. Matches Config.qml's enabled-flag-per-entry
+# convention more loosely than mirroring it exactly, since most installed
+# plugins are expected to want to just work once installed.
+aphotic_plugin_is_enabled() {
+    local name="$1"
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || return 0
+    ! jq -e --arg n "$name" '.disabled // [] | index($n) != null' "$APHOTIC_PLUGINS_STATE_FILE" >/dev/null 2>&1
+}
+
+# ---- plugin CLI extension (C-15) ------------------------------------------
+# A plugin can contribute a command, either top-level (`aphotic foo`) or as
+# a subcommand of an existing one (`aphotic ai fit`):
+#
+#   capabilities = ["cli"]
+#   [cli]
+#   command = "ai"
+#   subcommand = "fit"
+#   script = "cli/ai_fit.sh"
+#   summary = "one line, shown in that command's --help"
+#
+# Resolution is by declaration, never by name: core asks which plugin
+# provides `ai fit`, not whether some particular plugin is installed. That
+# is the whole point -- removing the plugin removes the subcommand, and no
+# core file names either. Omit `subcommand` for a top-level command.
+#
+# Prints "<plugin>\t<script path>" for the first enabled plugin whose [cli]
+# block matches, and fails if none does.
+aphotic_plugin_cli_resolve() {
+    local command="$1" subcommand="${2:-}"
+    local name dir manifest caps script
+
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        aphotic_plugin_is_enabled "$name" || continue
+
+        dir="${APHOTIC_PLUGINS_DIR}/${name}"
+        manifest="${dir}/plugin.toml"
+        caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+        grep -qx "cli" <<<"$caps" || continue
+
+        [[ "$(aphotic_toml_get "$manifest" cli command)" == "$command" ]] || continue
+        [[ "$(aphotic_toml_get "$manifest" cli subcommand)" == "$subcommand" ]] || continue
+
+        script="$(aphotic_toml_get "$manifest" cli script)"
+        [[ -n "$script" && -r "${dir}/${script}" ]] || continue
+
+        printf '%s\t%s\n' "$name" "${dir}/${script}"
+        return 0
+    done < <(aphotic_plugin_names)
+    return 1
+}
+
+# Run a resolved plugin command. Sourced in a subshell rather than
+# executed, so it gets the same helpers a core cmd_*.sh is sourced with
+# (aphotic_err, aphotic_require, the XDG paths) while the subshell keeps it
+# from leaking state back into the dispatcher.
+#
+# Callers resolve first and dispatch second rather than treating a failure
+# here as "no such command" -- otherwise a plugin command that legitimately
+# exits non-zero is indistinguishable from one that does not exist.
+aphotic_plugin_cli_run() {
+    local script="$1"; shift
+    ( source "$script" "$@" )
+}
+
+# "<name>\t<summary>\t<plugin>" per plugin-provided top-level command, so
+# `aphotic --help` lists them beside the built-ins instead of leaving them
+# discoverable only by already knowing the name.
+aphotic_plugin_cli_top_level() {
+    local name dir manifest caps cmd
+
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        aphotic_plugin_is_enabled "$name" || continue
+
+        dir="${APHOTIC_PLUGINS_DIR}/${name}"
+        manifest="${dir}/plugin.toml"
+        caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+        grep -qx "cli" <<<"$caps" || continue
+        [[ -z "$(aphotic_toml_get "$manifest" cli subcommand)" ]] || continue
+
+        cmd="$(aphotic_toml_get "$manifest" cli command)"
+        [[ -n "$cmd" ]] || continue
+        printf '%s\t%s\t%s\n' "$cmd" "$(aphotic_toml_get "$manifest" cli summary)" "$name"
+    done < <(aphotic_plugin_names)
+}
+
+# One "  <name>  <summary>" line per plugin-provided subcommand of
+# `command`, for a core command to append to its own --help. Prints
+# nothing when no plugin extends it.
+aphotic_plugin_cli_help() {
+    local command="$1"
+    local name dir manifest caps sub summary
+
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        aphotic_plugin_is_enabled "$name" || continue
+
+        dir="${APHOTIC_PLUGINS_DIR}/${name}"
+        manifest="${dir}/plugin.toml"
+        caps="$(aphotic_toml_get_array "$manifest" plugin capabilities)"
+        grep -qx "cli" <<<"$caps" || continue
+        [[ "$(aphotic_toml_get "$manifest" cli command)" == "$command" ]] || continue
+
+        sub="$(aphotic_toml_get "$manifest" cli subcommand)"
+        [[ -n "$sub" ]] || continue
+        summary="$(aphotic_toml_get "$manifest" cli summary)"
+        printf '  %-26s %s (from %s)\n' "$sub" "$summary" "$name"
+    done < <(aphotic_plugin_names)
+}
+
+aphotic_plugin_set_enabled() {
+    local name="$1" enabled="$2"
+    aphotic_require jq || return 1
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || echo '{"disabled": []}' > "$APHOTIC_PLUGINS_STATE_FILE"
+    if [[ "$enabled" == "true" ]]; then
+        aphotic_write_atomic "$APHOTIC_PLUGINS_STATE_FILE" \
+            jq --arg n "$name" '.disabled = ((.disabled // []) - [$n])' "$APHOTIC_PLUGINS_STATE_FILE"
+    else
+        aphotic_write_atomic "$APHOTIC_PLUGINS_STATE_FILE" \
+            jq --arg n "$name" '.disabled = ((.disabled // []) + [$n] | unique)' "$APHOTIC_PLUGINS_STATE_FILE"
+    fi
+    aphotic_record_change "plugin-$([[ "$enabled" == "true" ]] && echo enabled || echo disabled)" "$name"
+}
+
+# Whether the user has explicitly opted into seeing/installing
+# security-category plugins from APHOTIC_PLUGINS_SECURITY_INDEX_URL.
+# False (untrusted) unless this flag has been set -- see
+# cmd_plugin.sh's trust-security-index subcommand for the confirmation
+# gate that sets it.
+aphotic_plugins_security_index_trusted() {
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || return 1
+    jq -e '.security_index_trusted // false' "$APHOTIC_PLUGINS_STATE_FILE" >/dev/null 2>&1
+}
+
+aphotic_plugins_set_security_index_trusted() {
+    local trusted="$1"
+    aphotic_require jq || return 1
+    [[ -f "$APHOTIC_PLUGINS_STATE_FILE" ]] || echo '{"disabled": []}' > "$APHOTIC_PLUGINS_STATE_FILE"
+    aphotic_write_atomic "$APHOTIC_PLUGINS_STATE_FILE" \
+        jq --argjson t "$trusted" '.security_index_trusted = $t' "$APHOTIC_PLUGINS_STATE_FILE"
+}

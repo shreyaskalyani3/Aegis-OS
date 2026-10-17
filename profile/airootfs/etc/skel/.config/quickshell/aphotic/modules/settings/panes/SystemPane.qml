@@ -1,0 +1,527 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+import qs.config
+import qs.components
+import qs.services
+
+ColumnLayout {
+    id: root
+
+    readonly property string dotsDir: InstallProfile.dotsDir
+
+    property string doctorOutput: qsTr("Running aphotic doctor…")
+    property string packageCheckOutput: ""
+    property bool packageCheckRunning: false
+    property string pendingUpdatesOutput: ""
+    property bool pendingUpdatesRunning: false
+
+    property string profileName: ""
+    property string profileLayers: ""
+    property string aurHelper: ""
+    property string aphoticVersion: ""
+    property string promptTool: ""
+
+    function displayTemp(temp: real): string {
+        return temp > 0 ? `${Math.ceil(Config.services.useFahrenheitPerformance ? temp * 1.8 + 32 : temp)}°${Config.services.useFahrenheitPerformance ? "F" : "C"}` : qsTr("N/A");
+    }
+
+    spacing: Tokens.spacing.largeIncreased
+
+    Component.onCompleted: {
+        doctorProc.running = true;
+        tomlFile.reload();
+        versionFile.reload();
+        zshrcFile.reload();
+    }
+
+    // aphotic.toml is a small, fixed-shape file (see install.sh) -- plain
+    // regexes on the raw text instead of a real TOML parser/dependency.
+    FileView {
+        id: tomlFile
+        path: `${root.dotsDir}/aphotic.toml`
+        onLoaded: {
+            const t = text();
+            root.profileName = (t.match(/profile\s*=\s*"([^"]*)"/) ?? [])[1] ?? qsTr("unknown");
+            root.profileLayers = (t.match(/layers\s*=\s*\[([^\]]*)\]/) ?? [])[1]?.replace(/["\s]/g, "") ?? "";
+            root.aurHelper = (t.match(/aur_helper\s*=\s*"([^"]*)"/) ?? [])[1] ?? qsTr("none");
+        }
+        onLoadFailed: {
+            root.profileName = qsTr("unknown");
+            root.aurHelper = qsTr("unknown");
+        }
+    }
+
+    FileView {
+        id: versionFile
+        path: `${root.dotsDir}/VERSION`
+        onLoaded: root.aphoticVersion = text().trim()
+        onLoadFailed: root.aphoticVersion = qsTr("unknown")
+    }
+
+    // Detects which prompt tool the deployed .zshrc actually sources --
+    // this repo ships both powerlevel10k and a starship package/config,
+    // but only one is actually wired into .zshrc at a time.
+    FileView {
+        id: zshrcFile
+        path: `${Quickshell.env("HOME")}/.zshrc`
+        onLoaded: {
+            const t = text();
+            const p10kActive = /^\s*(source|\.)\s+.*powerlevel10k/m.test(t);
+            const starshipActive = /^\s*eval\s+"\$\(starship init/m.test(t);
+            root.promptTool = starshipActive ? "Starship" : p10kActive ? "Powerlevel10k" : qsTr("none detected");
+        }
+        onLoadFailed: root.promptTool = qsTr("unknown")
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.medium
+
+        StyledText {
+            Layout.fillWidth: true
+            text: qsTr("System")
+            font: Tokens.font.title.large
+        }
+
+        StyledRect {
+            Layout.preferredHeight: 28
+            Layout.preferredWidth: refreshLabel.implicitWidth + Tokens.padding.medium * 2
+            radius: Tokens.rounding.full
+            color: Colours.surfaceLift
+
+            StyledText {
+                id: refreshLabel
+                anchors.centerIn: parent
+                text: qsTr("Refresh")
+                color: Colours.inkMuted
+                font: Tokens.font.label.small
+            }
+
+            Interact {
+                anchors.fill: parent
+                radius: parent.radius
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    doctorProc.running = true;
+                    tomlFile.reload();
+                    versionFile.reload();
+                    zshrcFile.reload();
+                }
+            }
+        }
+    }
+
+    // Only on screen while safe mode is on. Without it the mode is
+    // invisible from inside the shell -- every plugin surface is simply
+    // absent, which reads as breakage rather than as a state someone
+    // chose. This is the way out that does not require remembering a
+    // command.
+    SettingsGroup {
+        Layout.fillWidth: true
+        visible: SafeMode.active
+
+        SettingsRow {
+            icon: "shield"
+            label: qsTr("Safe mode is on")
+            description: SafeMode.reason ? qsTr("Plugins are held back: %1").arg(SafeMode.reason) : qsTr("Plugins are held back. Nothing has been uninstalled.")
+
+            StyledRect {
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: leaveSafeModeLabel.implicitWidth + Tokens.padding.large * 2
+                radius: Tokens.rounding.full
+                color: Colours.chip
+
+                StyledText {
+                    id: leaveSafeModeLabel
+                    anchors.centerIn: parent
+                    text: qsTr("Leave safe mode")
+                    color: Colours.chipInk
+                    font: Tokens.font.label.medium
+                }
+
+                Interact {
+                    anchors.fill: parent
+                    radius: parent.radius
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: SafeMode.leave()
+                }
+            }
+        }
+    }
+
+    StyledText {
+        text: qsTr("Overview")
+        color: Colours.inkMuted
+        font: Tokens.font.label.medium
+    }
+
+    SettingsGroup {
+        Layout.fillWidth: true
+
+        SettingsRow {
+            icon: "palette"
+            label: qsTr("Theme")
+            description: Themes.activeWallpaper.length > 0 ? qsTr("%1 — %2").arg(Themes.activeThemeInfo?.displayName ?? Themes.activeTheme).arg(Themes.activeWallpaper) : (Themes.activeThemeInfo?.displayName ?? Themes.activeTheme)
+        }
+
+        SettingsRow {
+            icon: "layers"
+            label: qsTr("Install profile")
+            description: root.profileLayers.length > 0 ? qsTr("%1 (layers: %2)").arg(root.profileName).arg(root.profileLayers) : root.profileName
+        }
+
+        SettingsRow {
+            icon: "terminal"
+            label: qsTr("Shell")
+            description: qsTr("zsh — %1 prompt").arg(root.promptTool)
+        }
+
+        SettingsRow {
+            icon: "dns"
+            label: qsTr("Aphotic shell daemon")
+            description: qsTr("Running — aphotic %1").arg(root.aphoticVersion)
+        }
+
+        SettingsRow {
+            icon: "download"
+            label: qsTr("AUR helper")
+            description: root.aurHelper
+        }
+    }
+
+    StyledText {
+        Layout.topMargin: Tokens.spacing.small
+        text: qsTr("Hardware")
+        color: Colours.inkMuted
+        font: Tokens.font.label.medium
+    }
+
+    SettingsGroup {
+        Layout.fillWidth: true
+
+        SettingsRow {
+            icon: "memory"
+            label: qsTr("CPU")
+            description: SystemUsage.cpuName
+            StyledText {
+                text: qsTr("%1% · %2").arg(Math.round(SystemUsage.cpuPerc * 100)).arg(root.displayTemp(SystemUsage.cpuTemp))
+                color: Colours.inkMuted
+                font: Tokens.font.body.small
+            }
+        }
+
+        SettingsRow {
+            icon: "developer_board"
+            label: qsTr("GPU")
+            description: SystemUsage.gpuDetected ? SystemUsage.gpuName : qsTr("Not detected")
+            StyledText {
+                visible: SystemUsage.gpuDetected
+                text: SystemUsage.gpuStatsAvailable ? qsTr("%1% · %2").arg(Math.round(SystemUsage.gpuPerc * 100)).arg(root.displayTemp(SystemUsage.gpuTemp)) : qsTr("N/A")
+                color: Colours.inkMuted
+                font: Tokens.font.body.small
+            }
+        }
+
+        SettingsRow {
+            icon: "developer_board"
+            label: qsTr("Memory")
+            description: {
+                const used = SystemUsage.formatKib(SystemUsage.memUsed);
+                const total = SystemUsage.formatKib(SystemUsage.memTotal);
+                return qsTr("%1 %2 / %3 %4").arg(used.value.toFixed(1)).arg(used.unit).arg(total.value.toFixed(1)).arg(total.unit);
+            }
+            StyledText {
+                text: qsTr("%1%").arg(Math.round(SystemUsage.memPerc * 100))
+                color: Colours.inkMuted
+                font: Tokens.font.body.small
+            }
+        }
+
+        Repeater {
+            model: ScriptModel {
+                values: SystemUsage.disks
+            }
+
+            SettingsRow {
+                id: diskRow
+
+                required property var modelData
+
+                icon: "hard_drive"
+                label: diskRow.modelData.mount
+                description: {
+                    const used = SystemUsage.formatKib(diskRow.modelData.used);
+                    const total = SystemUsage.formatKib(diskRow.modelData.total);
+                    return qsTr("%1 %2 / %3 %4").arg(used.value.toFixed(1)).arg(used.unit).arg(total.value.toFixed(1)).arg(total.unit);
+                }
+
+                StyledText {
+                    text: qsTr("%1%").arg(Math.round(diskRow.modelData.perc * 100))
+                    color: Colours.inkMuted
+                    font: Tokens.font.body.small
+                }
+            }
+        }
+    }
+
+    StyledText {
+        Layout.topMargin: Tokens.spacing.small
+        text: qsTr("Doctor")
+        color: Colours.inkMuted
+        font: Tokens.font.label.medium
+    }
+
+    StyledRect {
+        Layout.fillWidth: true
+        // Sized to the text's own wrapped height (fixed height clipped
+        // the bottom of longer doctor output instead of containing it) --
+        // the outer pane already scrolls as a whole, so this just needs
+        // to be exactly as tall as its content, not a guessed constant.
+        Layout.preferredHeight: doctorText.implicitHeight + Tokens.padding.medium * 2
+        radius: Tokens.rounding.large
+        color: Colours.surfaceLift
+
+        StyledText {
+            id: doctorText
+
+            anchors.fill: parent
+            anchors.margins: Tokens.padding.medium
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            font: Tokens.font.mono.small
+            color: Colours.ink
+            text: root.doctorOutput
+        }
+    }
+
+    Process {
+        id: doctorProc
+        command: ["aphotic", "doctor"]
+        stdout: StdioCollector {
+            onStreamFinished: root.doctorOutput = text.trim()
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0)
+                    root.doctorOutput = text.trim();
+            }
+        }
+    }
+
+    RowLayout {
+        Layout.topMargin: Tokens.spacing.small
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.medium
+
+        StyledText {
+            Layout.fillWidth: true
+            text: qsTr("Package check")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        StyledText {
+            visible: root.packageCheckRunning
+            text: qsTr("Checking against Arch + AUR… this can take a minute or two")
+            color: Colours.inkMuted
+            font: Tokens.font.label.small
+        }
+
+        StyledRect {
+            Layout.preferredHeight: 28
+            Layout.preferredWidth: checkLabel.implicitWidth + Tokens.padding.medium * 2
+            radius: Tokens.rounding.full
+            color: Colours.surfaceLift
+            opacity: root.packageCheckRunning ? 0.5 : 1
+
+            StyledText {
+                id: checkLabel
+                anchors.centerIn: parent
+                text: root.packageCheckRunning ? qsTr("Running…") : qsTr("Check packages")
+                color: Colours.inkMuted
+                font: Tokens.font.label.small
+            }
+
+            Interact {
+                anchors.fill: parent
+                radius: parent.radius
+                disabled: root.packageCheckRunning
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                enabled: !root.packageCheckRunning
+                onClicked: {
+                    root.packageCheckRunning = true;
+                    root.packageCheckOutput = "";
+                    packageCheckProc.running = true;
+                }
+            }
+        }
+    }
+
+    StyledText {
+        visible: root.packageCheckOutput.length > 0
+        Layout.fillWidth: true
+        wrapMode: Text.Wrap
+        textFormat: Text.PlainText
+        font: Tokens.font.mono.small
+        color: Colours.ink
+        text: root.packageCheckOutput
+    }
+
+    // Distinct from "Package check" above -- that verifies Aphotic's own
+    // profiles/*.toml package list still resolves against upstream repos
+    // (a maintainer/CI concern). This is advisory-only for the user's own
+    // system: are there pending pacman/AUR updates. Never applies
+    // anything itself, matching every other "surface, don't act"
+    // convention already in this codebase (Resource Engine, the AI
+    // triage guardrail) -- applying is still a manual `sudo pacman -Syu`/
+    // AUR-helper call the notification text spells out.
+    SettingsGroup {
+        Layout.fillWidth: true
+        Layout.topMargin: Tokens.spacing.medium
+
+        SettingsPresetRow {
+            searchId: "updateCheck"
+            icon: "update"
+            label: qsTr("Pending update check")
+            presets: [{
+                    value: "off",
+                    label: qsTr("Off")
+                }, {
+                    value: "daily",
+                    label: qsTr("Daily")
+                }, {
+                    value: "weekly",
+                    label: qsTr("Weekly")
+                }]
+            value: Settings.packageCheckFrequency
+            onSelected: value => {
+                Settings.packageCheckFrequency = value;
+                packageCheckTimerProc.command = ["aphotic", "packages", "set-timer", value];
+                packageCheckTimerProc.running = true;
+            }
+        }
+
+        StyledText {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            text: qsTr("Notifies (Hyprland banner) when official or AUR updates are pending -- never installs them. \"Check now\" below runs the same check immediately, printed here instead of as a notification.")
+            color: Colours.inkMuted
+            font: Tokens.font.label.small
+        }
+
+        RowLayout {
+            Layout.topMargin: Tokens.spacing.small
+            Layout.fillWidth: true
+            spacing: Tokens.spacing.medium
+
+            StyledText {
+                Layout.fillWidth: true
+                visible: root.pendingUpdatesRunning
+                text: qsTr("Checking…")
+                color: Colours.inkMuted
+                font: Tokens.font.label.small
+            }
+
+            StyledRect {
+                Layout.preferredHeight: 28
+                Layout.preferredWidth: pendingCheckLabel.implicitWidth + Tokens.padding.medium * 2
+                radius: Tokens.rounding.full
+                color: Colours.surfaceLift
+                opacity: root.pendingUpdatesRunning ? 0.5 : 1
+
+                StyledText {
+                    id: pendingCheckLabel
+                    anchors.centerIn: parent
+                    text: qsTr("Check now")
+                    color: Colours.inkMuted
+                    font: Tokens.font.label.small
+                }
+
+                Interact {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    disabled: root.pendingUpdatesRunning
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !root.pendingUpdatesRunning
+                    onClicked: {
+                        root.pendingUpdatesRunning = true;
+                        root.pendingUpdatesOutput = "";
+                        pendingUpdatesProc.running = true;
+                    }
+                }
+            }
+        }
+
+        StyledText {
+            visible: root.pendingUpdatesOutput.length > 0
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            font: Tokens.font.mono.small
+            color: Colours.ink
+            text: root.pendingUpdatesOutput
+        }
+    }
+
+    Process {
+        id: pendingUpdatesProc
+        command: ["aphotic", "packages", "check"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.pendingUpdatesOutput = text.trim().length > 0 ? text.trim() : qsTr("No pending updates.");
+                root.pendingUpdatesRunning = false;
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0)
+                    root.pendingUpdatesOutput = text.trim();
+                root.pendingUpdatesRunning = false;
+            }
+        }
+    }
+
+    // Fire-and-forget -- enabling/disabling a --user timer is near-
+    // instant and this pane has nowhere meaningful to show its own
+    // success/failure beyond what journalctl --user already covers.
+    Process {
+        id: packageCheckTimerProc
+    }
+
+    // Every package referenced across profiles/*.toml gets two live HTTP
+    // lookups (Arch repos + AUR) with a deliberate throttle between them
+    // -- genuinely slow (a minute or more), which is exactly why this is
+    // an explicit on-demand button rather than something that runs on
+    // every pane open the way `aphotic doctor` does.
+    Process {
+        id: packageCheckProc
+        command: ["python3", `${root.dotsDir}/scripts/check-packages.py`]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.packageCheckOutput = text.trim();
+                root.packageCheckRunning = false;
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0)
+                    root.packageCheckOutput = text.trim();
+                root.packageCheckRunning = false;
+            }
+        }
+    }
+}

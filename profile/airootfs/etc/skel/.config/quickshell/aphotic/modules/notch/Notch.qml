@@ -1,0 +1,370 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Shapes
+import QtQuick.Effects
+import Quickshell
+import qs.config
+import qs.components
+import qs.services
+
+StyledRect {
+    id: root
+
+    property QtObject _sonarTarget: Loader {
+        active: Settings.sonarEnabled
+        sourceComponent: EchoTarget {
+            target: root
+            targetId: "core:notch"
+            label: qsTr("Command notch")
+            action: ""
+            bindDescription: ""
+            plugin: ""
+            eligible: true
+        }
+    }
+
+    // Which edge the bar is docked to, and which way this has to open to
+    // get away from it. Supplied by NotchWindow, which anchors the layer
+    // surface to the same edge.
+    property bool dockHorizontal: true
+    property bool growsPositive: true
+
+    required property ScreenState screenState
+
+    // Processes and the palette are the base shell's own tiles and the
+    // only two this file knows the names of. Every other tile is a
+    // plugin's notch surface, supplied by PluginRegistry and gated by
+    // that plugin's own manifest -- its profile layer enabled AND the
+    // plugin installed and enabled.
+    // Neither condition met means the tile is absent, not present and
+    // empty. Adding, removing or rotating a tile is a plugin install,
+    // with no edit here. See docs/PLUGIN_LAYER_MODEL.md.
+    readonly property var pluginTiles: PluginRegistry.surfacesFor("notch")
+
+    // Shelf tabs the user opted to expose here, and only the ones whose
+    // manifest declared notch compatibility. Same registered content the
+    // shelf edge mounts, through the same ShelfTabView, and no tile of its
+    // own: the notch keeps its resting shape and its switcher count grows
+    // only because a plugin asked to be here.
+    readonly property var shelfTiles: ShelfTabs.notchTabs.map(t => ({
+        plugin: t.plugin,
+        id: "shelf-tab:" + t.id,
+        label: t.label,
+        icon: t.icon,
+        componentUrl: "",
+        tab: t
+    }))
+
+    // The base shell's own tiles. Processes and the palette are core: the
+    // notch ships with the base layer and every install has them, which is
+    // what makes the palette a settings question (which actions are in it)
+    // rather than an install one (whether it exists at all). The phone tile
+    // is core too, and absent while the bridge has nothing in reach, so an
+    // install that never turned the phone stack on has the two tiles it
+    // always had.
+    readonly property var tiles: [
+        {
+            plugin: "",
+            id: "processes",
+            icon: "monitoring",
+            label: qsTr("Processes"),
+            componentUrl: ""
+        },
+        {
+            plugin: "",
+            id: "palette",
+            icon: "bolt",
+            label: qsTr("Commands"),
+            componentUrl: ""
+        },
+        ...(Phone.available ? [{
+            plugin: "",
+            id: "phone",
+            icon: "smartphone",
+            label: qsTr("Phone"),
+            componentUrl: ""
+        }] : [])
+    ].concat(root.pluginTiles).concat(root.shelfTiles)
+
+    // Kept as a condition rather than assumed: core ships two tiles
+    // today, but a build with the palette or Processes taken out has one
+    // and nothing to switch between, and the switcher strip should be
+    // gone entirely rather than sitting there as a single dead segment.
+    readonly property bool switchable: root.tiles.length > 1
+
+    readonly property var activeTile: root.tiles.find(t => t.id === root.shownTileId) ?? null
+
+    onTilesChanged: {
+        if (!root.tiles.some(t => t.id === root.shownTileId))
+            root.shownTileId = "processes";
+        if (root.tileId !== "" && !root.tiles.some(t => t.id === root.tileId))
+            root.tileId = "processes";
+    }
+    readonly property bool processesLive: root.expanded && root.shownTileId === "processes"
+
+    // A plugin tile may expose `property bool attention` to say it has
+    // something the user needs to act on. NotchBody reads that duck-typed
+    // off whichever tiles happen to be loaded, so the collapsed strip can
+    // show that a tile is asking for attention without this file knowing
+    // what any of them are about.
+    readonly property var attentionIds: body.attentionIds
+    readonly property bool attention: root.attentionIds.length > 0
+
+    property string tileId: ""
+    readonly property bool expanded: root.tileId !== ""
+
+    // Which tile the expanded body is BUILT for, kept latched past a
+    // collapse so the body still reports a real implicitHeight while the
+    // close animation plays -- reading it off `tileId` instead would
+    // collapse the target to zero on the first frame and cut the
+    // animation short. Same reasoning as popouts/Wrapper.qml's
+    // showContent.
+    property string shownTileId: "processes"
+
+    readonly property real contentWidth: Config.notch.expandedWidth - Tokens.padding.large * 2
+
+    function cycle(): void {
+        if (root.expanded && !root.switchable)
+            return;
+        const i = root.tiles.findIndex(t => t.id === root.tileId);
+        root.tileId = root.tiles[(i + 1) % root.tiles.length].id;
+    }
+
+    function collapse(): void {
+        root.tileId = "";
+    }
+
+    // Something taking the keyboard on this screen collapses the hub, so
+    // a launcher or dashboard never opens beside an expanded tile.
+    Connections {
+        target: root.screenState
+
+        function onEngagedChanged(): void {
+            if (root.screenState.engaged)
+                root.collapse();
+        }
+    }
+
+    onTileIdChanged: {
+        if (root.tileId !== "")
+            root.shownTileId = root.tileId;
+    }
+
+    // ---- Geometry -------------------------------------------------------
+    //
+    // Everything is expressed against the docked edge: `along` runs beside
+    // it, `grow` away from it. The open panel is the same rectangle in all
+    // four orientations, so only which of the two axes carries which
+    // progress changes.
+    readonly property real collapsedAlong: Config.notch.collapsedWidth
+    readonly property real collapsedThick: Config.notch.collapsedHeight
+    readonly property real collapsedW: root.dockHorizontal ? root.collapsedAlong : root.collapsedThick
+    readonly property real collapsedH: root.dockHorizontal ? root.collapsedThick : root.collapsedAlong
+
+    // Springs to the shown tile's size, so switching tiles settles into
+    // the new height instead of stepping to it. Bound to the body, which
+    // lays out at a constant contentWidth -- nothing here feeds back into
+    // the enclosing PanelWindow's geometry.
+    property real panelHeight: Math.min(body.implicitHeight + Tokens.padding.large * 2, Config.notch.maxHeight)
+
+    Behavior on panelHeight {
+        SpringAnimation {
+            spring: 4
+            damping: 0.7
+            mass: 0.9
+            epsilon: 0.25
+        }
+    }
+
+    // One spring drives the whole open: the surface's growth, the reveal
+    // of the body behind the clip, and the body's settle offset. There is
+    // no dwell timer and no reveal delay on this path -- content arrives
+    // when the geometry has made room for it, which is a fact about the
+    // spring rather than a countdown running beside it.
+    property real openProgress: root.expanded ? 1 : 0
+
+    Behavior on openProgress {
+        SpringAnimation {
+            spring: 4
+            damping: 0.62
+            mass: 0.9
+            // Unit-range property, so the pixel-scale epsilon the capsule
+            // uses would stop this a quarter of the way from its target.
+            epsilon: 0.005
+        }
+    }
+
+    // The growth axis keeps the spring's overshoot -- that bounce out from
+    // the edge is the motion. The along axis is clamped: a sideways bounce
+    // is noise, and it is the axis with the tightest room inside the
+    // static surface.
+    readonly property real growT: Math.max(0, root.openProgress)
+    readonly property real alongT: Math.min(1, root.growT)
+    readonly property real reveal: Math.max(0, Math.min(1, (root.alongT - 0.35) / 0.45))
+
+    width: root.collapsedW + (Config.notch.expandedWidth - root.collapsedW) * (root.dockHorizontal ? root.alongT : root.growT)
+    height: root.collapsedH + (root.panelHeight - root.collapsedH) * (root.dockHorizontal ? root.growT : root.alongT)
+
+    // Interpolated rather than animated: NOT Tokens.rounding.full for the
+    // collapsed strip, because that is 999999, and animating it down to a
+    // real radius keeps the value above width/2 (where every value renders
+    // identically) until the last few frames, then drops through the whole
+    // visible range at once.
+    radius: root.collapsedThick / 2 + (Tokens.rounding.extraLarge - root.collapsedThick / 2) * root.alongT
+    color: root.joined ? Colours.signalStyle.bar : Colours.surfaceLift
+
+    // Signal skin: the notch hangs from the bar as one piece, so the corners
+    // on the bar side go square and fillets carry the bar edge into its sides.
+    readonly property bool joined: true
+    readonly property string barSide: root.dockHorizontal ? (root.growsPositive ? "top" : "bottom") : (root.growsPositive ? "left" : "right")
+    readonly property real wing: Tokens.rounding.medium
+
+    topLeftRadius: root.joined && (root.barSide === "top" || root.barSide === "left") ? 0 : root.radius
+    topRightRadius: root.joined && (root.barSide === "top" || root.barSide === "right") ? 0 : root.radius
+    bottomLeftRadius: root.joined && (root.barSide === "bottom" || root.barSide === "left") ? 0 : root.radius
+    bottomRightRadius: root.joined && (root.barSide === "bottom" || root.barSide === "right") ? 0 : root.radius
+
+    Binding {
+        target: root.screenState
+        property: "notchSpan"
+        value: root.joined && root.visible ? (root.dockHorizontal ? root.width : root.height) + root.wing * 2 : 0
+    }
+
+    ConcaveCorner {
+        visible: root.joined
+        radius: root.wing
+        color: root.color
+        corner: root.dockHorizontal ? (root.barSide === "bottom" ? 2 : 0) : (root.barSide === "right" ? 2 : 3)
+        x: root.dockHorizontal ? -radius : (root.barSide === "right" ? parent.width - radius : 0)
+        y: root.dockHorizontal ? (root.barSide === "bottom" ? parent.height - radius : 0) : -radius
+    }
+
+    ConcaveCorner {
+        visible: root.joined
+        radius: root.wing
+        color: root.color
+        corner: root.dockHorizontal ? (root.barSide === "bottom" ? 3 : 1) : (root.barSide === "right" ? 0 : 1)
+        x: root.dockHorizontal ? parent.width : (root.barSide === "right" ? parent.width - radius : 0)
+        y: root.dockHorizontal ? (root.barSide === "bottom" ? parent.height - radius : 0) : parent.height
+    }
+
+    // Shadow from the shape, not from the content. The notch redraws
+    // whenever its idle strip ticks, and layering the whole surface meant
+    // every one of those ticks re-ran a five-level blur pyramid. See
+    // components/ShapeShadow.qml.
+    ShapeShadow {
+        anchors.fill: parent
+        visible: !root.joined
+        radius: root.radius
+        color: root.color
+    }
+
+    // Gated here rather than mounted inside NotchProcessTile: the tile
+    // outlives a collapse (shownTileId latches so the body still reports a
+    // height through the shrink), so a watch owned by the tile would keep
+    // sampling for as long as Processes was the last tile visited.
+    LazyLoader {
+        active: root.processesLive
+
+        ProcessUsageWatch {}
+    }
+
+    // Faded rather than flipped straight to invisible: the click that
+    // opens the notch leaves its press treatment running past the flip,
+    // so hiding this the instant `expanded` flips cut that off mid-sweep
+    // and read as a flash under the growing surface.
+    Interact {
+        radius: root.radius
+        disabled: root.expanded
+        visible: opacity > 0
+        opacity: root.expanded ? 0 : 1
+        onClicked: root.cycle()
+
+        Behavior on opacity {
+            Anim { type: Anim.FastEffects }
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        // Hard guarantee, not decoration: the window masks input to this
+        // item's bounds, so anything a child renders outside them is both
+        // visually loose and dead to the pointer. Clipping turns that
+        // class of bug into a visible truncation instead of content
+        // sliding off-screen, and it is what wipes the body out from the
+        // docked edge as the surface grows.
+        clip: true
+
+        DepthGradient {
+            anchors.fill: parent
+            visible: !root.joined
+            radius: root.radius
+            baseColour: root.color
+            strength: 0.05
+        }
+
+        // The collapsed strip's own footprint, pinned at the docked edge
+        // so the idle content stays put while the surface grows past it.
+        Item {
+            width: root.dockHorizontal ? parent.width : root.collapsedThick
+            height: root.dockHorizontal ? root.collapsedThick : parent.height
+            x: root.dockHorizontal ? 0 : (root.growsPositive ? 0 : parent.width - width)
+            y: root.dockHorizontal ? (root.growsPositive ? 0 : parent.height - height) : 0
+
+            NotchIdleStrip {
+                anchors.centerIn: parent
+                stacked: !root.dockHorizontal
+                attention: root.attention
+                visible: opacity > 0
+                opacity: 1 - Math.min(1, root.alongT / 0.3)
+            }
+        }
+
+        NotchBody {
+            id: body
+
+            width: root.contentWidth
+            height: implicitHeight
+
+            // Along the docked edge the body is centred, so the surface
+            // reads as opening around it. Away from the edge it is pinned,
+            // so the clip wipes it out from under the bar rather than
+            // sliding it in from off-screen; the remaining travel is a
+            // short settle, not an entrance.
+            readonly property real enter: (1 - root.reveal) * Tokens.spacing.medium
+            readonly property real pad: Tokens.padding.large
+
+            x: root.dockHorizontal ? (parent.width - width) / 2 : (root.growsPositive ? pad + enter : parent.width - width - pad - enter)
+            y: root.dockHorizontal ? (root.growsPositive ? pad + enter : parent.height - height - pad - enter) : (parent.height - height) / 2
+
+            tiles: root.tiles
+            pluginTiles: root.pluginTiles
+            shelfTiles: root.shelfTiles
+            screenState: root.screenState
+            switchable: root.switchable
+            expanded: root.expanded
+            shownTileId: root.shownTileId
+            activeTile: root.activeTile
+
+            visible: opacity > 0
+            opacity: root.reveal
+
+            onCycled: root.cycle()
+            onDismissed: root.collapse()
+            onPicked: id => root.tileId = id
+        }
+
+        // Last child, so it draws over the depth gradient rather than
+        // under it: a hairline is all that separates an opaque surface
+        // from an opaque backdrop of nearly the same tone.
+        StyledRect {
+            anchors.fill: parent
+            visible: !root.joined
+            radius: root.radius
+            color: "transparent"
+            border.width: 1
+            border.color: Colours.outline
+        }
+    }
+}

@@ -1,0 +1,236 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import qs.config
+import qs.components
+import qs.services
+
+ColumnLayout {
+    id: root
+
+    readonly property var player: Players.active
+
+    spacing: Tokens.spacing.medium
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.medium
+
+        StyledRect {
+            Layout.preferredWidth: 64
+            Layout.preferredHeight: 64
+            radius: Tokens.rounding.medium
+            color: Colours.raised
+            clip: true
+
+            Image {
+                id: albumArt
+
+                anchors.fill: parent
+                source: root.player ? Players.getArtUrl(root.player) : ""
+                sourceSize.width: 64
+                sourceSize.height: 64
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                visible: source.toString().length > 0 && status !== Image.Error
+            }
+
+            MaterialIcon {
+                anchors.centerIn: parent
+                // Covers both "no art URL at all" and "URL given but the
+                // fetch failed" -- without the status check this tile
+                // silently renders blank on a failed remote fetch instead
+                // of falling back to the note icon.
+                visible: !albumArt.visible
+                text: "music_note"
+                color: Colours.inkMuted
+                fontStyle: Tokens.font.icon.large
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Tokens.spacing.small / 2
+
+            StyledText {
+                Layout.maximumWidth: 220
+                text: root.player?.trackTitle || qsTr("No media playing")
+                font: Tokens.font.body.medium
+                elide: Text.ElideRight
+            }
+
+            StyledText {
+                Layout.maximumWidth: 220
+                visible: text.length > 0
+                text: root.player?.trackArtist ?? ""
+                color: Colours.inkMuted
+                font: Tokens.font.label.medium
+                elide: Text.ElideRight
+            }
+
+            StyledText {
+                Layout.maximumWidth: 220
+                visible: text.length > 0
+                text: Players.getIdentity(root.player)
+                color: Colours.inkMuted
+                font: Tokens.font.label.small
+                elide: Text.ElideRight
+            }
+        }
+    }
+
+    // Seek bar -- draggable when the active player supports it, otherwise a
+    // plain read-only progress fill.
+    Item {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 6
+        visible: root.player?.length > 0
+
+        StyledRect {
+            anchors.fill: parent
+            radius: Tokens.rounding.full
+            color: Colours.signalStyle.raised
+            border.width: 1
+            border.color: Colours.signalStyle.hairline
+        }
+
+        StyledRect {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            radius: Tokens.rounding.full
+            width: root.player?.length > 0 ? parent.width * Math.min(1, root.player.position / root.player.length) : 0
+            color: Colours.signalTertiary
+
+            Behavior on width {
+                enabled: !seekArea.pressed
+                Anim {}
+            }
+        }
+
+        MouseArea {
+            id: seekArea
+
+            anchors.fill: parent
+            enabled: root.player?.canSeek ?? false
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+
+            function seekToX(x: real): void {
+                if (root.player?.canSeek)
+                    root.player.position = Math.min(1, Math.max(0, x / width)) * root.player.length;
+            }
+
+            onPressed: mouse => seekToX(mouse.x)
+            onPositionChanged: mouse => {
+                if (pressed)
+                    seekToX(mouse.x);
+            }
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        visible: root.player?.length > 0
+
+        StyledText {
+            text: root.formatTime(root.player?.position ?? 0)
+            font: Tokens.font.label.small
+            color: Colours.inkMuted
+        }
+
+        Item {
+            Layout.fillWidth: true
+        }
+
+        StyledText {
+            text: root.formatTime(root.player?.length ?? 0)
+            font: Tokens.font.label.small
+            color: Colours.inkMuted
+        }
+    }
+
+    RowLayout {
+        Layout.alignment: Qt.AlignHCenter
+        spacing: Tokens.spacing.large
+
+        component MediaButton: Item {
+            id: btn
+
+            required property string icon
+            required property bool enabled_
+            signal clicked
+
+            implicitWidth: icon_.implicitHeight + Tokens.padding.small * 2
+            implicitHeight: implicitWidth
+            opacity: enabled_ ? 1 : 0.4
+
+            Interact {
+                radius: Tokens.rounding.full
+                disabled: !btn.enabled_
+                onClicked: btn.clicked()
+            }
+
+            MaterialIcon {
+                id: icon_
+                anchors.centerIn: parent
+                text: btn.icon
+                color: Colours.ink
+                fontStyle: Tokens.font.icon.medium
+            }
+        }
+
+        MediaButton {
+            icon: "skip_previous"
+            enabled_: root.player?.canGoPrevious ?? false
+            onClicked: root.player?.previous()
+        }
+
+        MediaButton {
+            icon: root.player?.isPlaying ? "pause" : "play_arrow"
+            enabled_: root.player?.canTogglePlaying ?? false
+            onClicked: root.player?.togglePlaying()
+        }
+
+        MediaButton {
+            icon: "skip_next"
+            enabled_: root.player?.canGoNext ?? false
+            onClicked: root.player?.next()
+        }
+    }
+
+    // Player switcher -- only shown when more than one MPRIS source is
+    // active (for example a desktop player beside a browser tab).
+    RowLayout {
+        Layout.alignment: Qt.AlignHCenter
+        spacing: Tokens.spacing.small
+        visible: Players.list.length > 1
+
+        Repeater {
+            model: Players.list
+
+            Item {
+                id: dot
+
+                required property var modelData
+
+                implicitWidth: 8
+                implicitHeight: 8
+
+                Interact {
+                    anchors.fill: parent
+                    radius: Tokens.rounding.full
+                    color: dot.modelData === root.player ? Colours.signal : Colours.outline
+                    onClicked: Players.manualActive = dot.modelData
+                }
+            }
+        }
+    }
+
+    function formatTime(seconds: real): string {
+        const s = Math.max(0, Math.floor(seconds));
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return `${m}:${r < 10 ? "0" : ""}${r}`;
+    }
+}

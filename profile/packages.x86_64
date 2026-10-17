@@ -217,6 +217,32 @@ firefox
 xdg-user-dirs
 xdg-utils
 
+# --- Desktop: Hyprland + Aphotic Cyber Session -------------------------------
+hyprland
+quickshell
+xdg-desktop-portal-hyprland
+kitty
+qt5-wayland
+qt6-wayland
+qt6-shadertools
+qt6-imageformats
+qt6-multimedia
+wl-clipboard
+cliphist
+grim
+slurp
+swappy
+wf-recorder
+pamixer
+brightnessctl
+hypridle
+hyprlock
+swaylock
+matugen
+cava
+inter-font
+starship
+
 # --- Theming / fonts ---------------------------------------------------------
 adw-gtk-theme
 # Covers GTK2 dark styling for legacy security tools, which adw-gtk3 does not.

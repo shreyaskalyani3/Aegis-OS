@@ -1,0 +1,68 @@
+import QtQuick
+import QtQuick.Layouts
+import qs.config
+import qs.components
+import qs.services
+
+ColumnLayout {
+    id: root
+
+    spacing: Tokens.spacing.small
+
+    StyledText {
+        Layout.alignment: Qt.AlignHCenter
+        text: (Pomodoro.isBreak ? qsTr("Break") : qsTr("Focus")).toUpperCase()
+        color: Colours.inkMuted
+        font: Tokens.font.label.builders.small.weight(Font.DemiBold).letterSpacing(1.4).build()
+    }
+
+    StyledText {
+        Layout.alignment: Qt.AlignHCenter
+        text: Pomodoro.formatTime(Pomodoro.remaining)
+        font: Tokens.font.headline.builders.large.scale(1.2).weight(Font.DemiBold).build()
+    }
+
+    RowLayout {
+        Layout.alignment: Qt.AlignHCenter
+        Layout.topMargin: Tokens.spacing.small
+        spacing: Tokens.spacing.large
+
+        component PomodoroButton: Item {
+            id: btn
+
+            required property string icon
+            signal clicked
+
+            implicitWidth: icon_.implicitHeight + Tokens.padding.small * 2
+            implicitHeight: implicitWidth
+
+            Interact {
+                radius: Tokens.rounding.full
+                onClicked: btn.clicked()
+            }
+
+            MaterialIcon {
+                id: icon_
+                anchors.centerIn: parent
+                text: btn.icon
+                color: Colours.ink
+                fontStyle: Tokens.font.icon.medium
+            }
+        }
+
+        PomodoroButton {
+            icon: "restart_alt"
+            onClicked: Pomodoro.reset()
+        }
+
+        PomodoroButton {
+            icon: Pomodoro.running ? "pause" : "play_arrow"
+            onClicked: Pomodoro.toggle()
+        }
+
+        PomodoroButton {
+            icon: "skip_next"
+            onClicked: Pomodoro.skip()
+        }
+    }
+}

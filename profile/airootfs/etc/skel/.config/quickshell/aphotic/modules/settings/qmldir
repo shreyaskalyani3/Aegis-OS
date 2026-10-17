@@ -1,0 +1,27 @@
+module qs.modules.settings
+AboutPane 1.0 panes/AboutPane.qml
+AiPane 1.0 panes/AiPane.qml
+AppearancePane 1.0 panes/AppearancePane.qml
+BarPane 1.0 panes/BarPane.qml
+BarStylePreviewCard 1.0 panes/BarStylePreviewCard.qml
+BarWidgetsSection 1.0 panes/BarWidgetsSection.qml
+PaletteSection 1.0 panes/PaletteSection.qml
+CategoryRail 1.0 CategoryRail.qml
+ClockPane 1.0 panes/ClockPane.qml
+CommunityThemes 1.0 panes/CommunityThemes.qml
+DisplaysPane 1.0 panes/DisplaysPane.qml
+LanguagePane 1.0 panes/LanguagePane.qml
+LauncherPane 1.0 panes/LauncherPane.qml
+NetworkPane 1.0 panes/NetworkPane.qml
+OsdPane 1.0 panes/OsdPane.qml
+PersonalizationPane 1.0 panes/PersonalizationPane.qml
+PluginsPane 1.0 panes/PluginsPane.qml
+PowerSecurityPane 1.0 panes/PowerSecurityPane.qml
+SettingsPanel 1.0 SettingsPanel.qml
+SettingsWindow 1.0 SettingsWindow.qml
+SonarPane 1.0 panes/SonarPane.qml
+SystemPane 1.0 panes/SystemPane.qml
+ThemeCreatorPane 1.0 panes/ThemeCreatorPane.qml
+WallpaperPicker 1.0 panes/WallpaperPicker.qml
+WallpaperTile 1.0 panes/WallpaperTile.qml
+WorkspaceProfilesPane 1.0 panes/WorkspaceProfilesPane.qml

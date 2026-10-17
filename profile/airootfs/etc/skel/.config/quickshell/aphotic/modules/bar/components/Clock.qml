@@ -1,0 +1,221 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import qs.config
+import qs.components
+import qs.services
+
+StyledRect {
+    id: root
+
+    property QtObject _sonarTarget: Loader {
+        active: Settings.sonarEnabled
+        sourceComponent: EchoTarget {
+            target: root
+            targetId: "core:bar/clock"
+            label: qsTr("Command Center")
+            action: "dashboard"
+            bindDescription: "Toggle Command Center"
+            plugin: ""
+            eligible: true
+        }
+    }
+
+    required property ScreenState screenState
+
+    readonly property color colour: Colours.signalTertiaryOnSurface
+    readonly property int padding: Config.bar.clock.background ? Tokens.padding.medium : Tokens.padding.extraSmall
+    readonly property var font: Tokens.font.body.builders.small.scale(1.1)
+
+    implicitWidth: Settings.barHorizontal ? (hLayout.item?.implicitWidth ?? 0) + root.padding * 2 : Settings.barInnerWidth
+    implicitHeight: Settings.barHorizontal ? Settings.barInnerWidth : (vLayout.item?.implicitHeight ?? 0) + root.padding * 2
+
+    color: "transparent"
+    radius: Tokens.rounding.full
+
+    Interact {
+        radius: root.radius
+        onClicked: root.screenState.dashboard = !root.screenState.dashboard
+    }
+
+    Loader {
+        id: hLayout
+
+        anchors.centerIn: parent
+        active: Settings.barHorizontal
+
+        sourceComponent: RowLayout {
+            spacing: Tokens.spacing.small
+
+            Loader {
+                asynchronous: true
+                active: false
+                visible: active
+
+                sourceComponent: MaterialIcon {
+                    text: "calendar_month"
+                    color: root.colour
+                }
+            }
+
+            StyledText {
+                Layout.alignment: Qt.AlignVCenter
+                text: Time.format("ddd d")
+                font: Tokens.font.label.medium
+                color: Colours.inkMuted
+            }
+
+            Loader {
+                asynchronous: true
+                active: Settings.showClockDate
+                visible: active
+
+                sourceComponent: ColumnLayout {
+                    spacing: 0
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: Time.format("ddd")
+                        font: Tokens.font.body.builders.small.scale(0.9).build()
+                        color: root.colour
+                    }
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: Time.format("d")
+                        font: root.font.scale(1.1).build()
+                        color: root.colour
+                    }
+                }
+            }
+
+            StyledText {
+                text: `${Time.hourStr}:${Time.minuteStr}`
+                font: root.font.scale(1.15).weight(Font.DemiBold).build()
+                color: Colours.ink
+            }
+
+            Loader {
+                asynchronous: true
+                active: GlobalConfig.services.useTwelveHourClock
+                visible: active
+
+                sourceComponent: StyledText {
+                    text: Time.amPmStr.toLowerCase()
+                    font: Tokens.font.body.builders.small.scale(0.9).build()
+                    color: root.colour
+                }
+            }
+        }
+    }
+
+    Loader {
+        id: vLayout
+
+        anchors.centerIn: parent
+        active: !Settings.barHorizontal
+
+        sourceComponent: ColumnLayout {
+            id: layout
+
+            spacing: Tokens.spacing.extraSmall
+
+            Loader {
+                Layout.alignment: Qt.AlignHCenter
+                asynchronous: true
+                active: Config.bar.clock.showIcon
+                visible: active
+
+                sourceComponent: MaterialIcon {
+                    text: "calendar_month"
+                    color: root.colour
+                }
+            }
+
+            Loader {
+                Layout.alignment: Qt.AlignHCenter
+                asynchronous: true
+                active: Settings.showClockDate
+                visible: active
+
+                sourceComponent: ColumnLayout {
+                    spacing: layout.spacing - Tokens.spacing.extraSmall
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: Time.format("ddd")
+                        font: Tokens.font.body.builders.small.scale(0.9).build()
+                        color: root.colour
+                    }
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: Time.format("d")
+                        font: root.font.scale(1.1).build()
+                        color: root.colour
+                    }
+
+                    StyledRect {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -Tokens.padding.extraSmall
+                        Layout.rightMargin: -Tokens.padding.extraSmall
+                        Layout.topMargin: Tokens.spacing.extraSmall
+                        Layout.bottomMargin: Tokens.padding.extraSmall / 2
+                        implicitHeight: 1
+                        color: Colours.outline
+                    }
+                }
+            }
+
+            StyledText {
+                Layout.alignment: Qt.AlignHCenter
+                text: Time.hourStr
+                font: {
+                    const scale = text === "11" ? 1.15 : Math.min(1.05, Math.max(hourMetrics.width, minMetrics.width) / hourMetrics.width);
+                    return root.font.width(scale * 100).letterSpacing(scale).build();
+                }
+                color: root.colour
+
+                TextMetrics {
+                    id: hourMetrics
+
+                    font: root.font.build()
+                    text: Time.hourStr
+                }
+            }
+
+            StyledText {
+                Layout.topMargin: -parent.spacing - Tokens.spacing.extraSmall
+                Layout.alignment: Qt.AlignHCenter
+                text: Time.minuteStr
+                font: {
+                    const scale = text === "11" ? 1.15 : Math.min(1.05, Math.max(hourMetrics.width, minMetrics.width) / minMetrics.width);
+                    return root.font.width(scale * 100).letterSpacing(scale).build();
+                }
+                color: root.colour
+
+                TextMetrics {
+                    id: minMetrics
+
+                    font: root.font.build()
+                    text: Time.minuteStr
+                }
+            }
+
+            Loader {
+                Layout.topMargin: -parent.spacing - Tokens.spacing.extraSmall
+                Layout.alignment: Qt.AlignHCenter
+                asynchronous: true
+                active: GlobalConfig.services.useTwelveHourClock
+                visible: active
+
+                sourceComponent: StyledText {
+                    text: Time.amPmStr.toLowerCase()
+                    font: Tokens.font.body.builders.small.scale(0.9).build()
+                    color: root.colour
+                }
+            }
+        }
+    }
+}

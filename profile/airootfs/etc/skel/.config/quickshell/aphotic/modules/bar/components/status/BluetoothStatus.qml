@@ -1,0 +1,90 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Bluetooth
+import qs.config
+import qs.components
+import qs.services
+import qs.utils
+
+Item {
+    id: root
+
+    required property color colour
+
+    implicitWidth: layout.implicitWidth
+    implicitHeight: layout.implicitHeight
+
+    Behavior on implicitWidth {
+        Anim {
+            type: Anim.DefaultEffects
+        }
+    }
+
+    Behavior on implicitHeight {
+        Anim {
+            type: Anim.DefaultEffects
+        }
+    }
+
+    GridLayout {
+        id: layout
+
+        flow: Settings.barHorizontal ? GridLayout.LeftToRight : GridLayout.TopToBottom
+        rowSpacing: Tokens.spacing.medium / 2
+        columnSpacing: Tokens.spacing.medium / 2
+
+        MaterialIcon {
+            animate: true
+            text: {
+                if (!Bluetooth.defaultAdapter?.enabled) // qmllint disable unresolved-type
+                    return "bluetooth_disabled";
+                if (Bluetooth.devices.values.some(d => d.connected)) // qmllint disable unresolved-type
+                    return "bluetooth_connected";
+                return "bluetooth";
+            }
+            color: root.colour
+        }
+
+        Repeater {
+            model: ScriptModel {
+                values: Bluetooth.devices.values.filter(d => d.state !== BluetoothDeviceState.Disconnected) // qmllint disable unresolved-type
+            }
+
+            MaterialIcon {
+                id: device
+
+                required property BluetoothDevice modelData
+
+                animate: true
+                text: Icons.getBluetoothIcon(modelData?.icon)
+                color: root.colour
+                fill: 1
+
+                SequentialAnimation on opacity {
+                    // Only while pairing, and for a bounded number of cycles.
+                    // Animating for as long as a device stays connected is a
+                    // repaint loop on a connected device, which is the whole
+                    // state the bar spends its life in.
+                    running: RenderGate.decorative && device.modelData?.state === BluetoothDeviceState.Connecting // qmllint disable unresolved-type
+                    loops: 3
+
+                    Anim {
+                        from: 1
+                        to: 0
+                        duration: Tokens.anim.durations.large
+                        easing: Tokens.anim.standardAccel
+                    }
+                    Anim {
+                        from: 0
+                        to: 1
+                        duration: Tokens.anim.durations.large
+                        easing: Tokens.anim.standardDecel
+                    }
+                }
+            }
+        }
+    }
+}

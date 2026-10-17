@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+# aphotic doctor — dependency + version drift check.
+# @cmd: doctor
+# @cmd.desc: Check dependencies and report version/config drift
+# @cmd.group: CORE
+
+_aphotic_doctor_check() {
+    local bin="$1"
+    if command -v "$bin" >/dev/null 2>&1; then
+        printf '  [ok]   %s\n' "$bin"
+    else
+        printf '  [MISS] %s\n' "$bin"
+    fi
+}
+
+# A layer installs the tooling; a plugin is what makes the shell react to
+# it. Nothing forces the two to agree, so a machine can have the `gaming`
+# layer with no gaming plugin installed and silently get none of the
+# behaviour it paid for -- which is exactly the state an upgrade past
+# PLG-03 leaves behind. Driven off the plugin catalogue's own
+# `requires_layer` declarations rather than a hardcoded layer->plugin map:
+# core must never name a plugin (docs/PLUGIN_LAYER_MODEL.md).
+_aphotic_doctor_layer_plugins() {
+    local repo="${APHOTIC_PLUGINS_REPO:-$HOME/aphotic-plugins}" manifest name layer layers found=0
+
+    [[ -d "$repo" ]] || {
+        echo "  [skip] plugin catalogue not cloned ($repo)"
+        return 0
+    }
+
+    layers="$(aphotic_toml_get_array "${APHOTIC_DOTS_DIR}/aphotic.toml" install layers | tr '\n' ' ')"
+    [[ -n "${layers// /}" ]] || {
+        echo "  [skip] no layers recorded in aphotic.toml"
+        return 0
+    }
+
+    for manifest in "$repo"/*/plugin.toml; do
+        [[ -f "$manifest" ]] || continue
+        name="$(basename "$(dirname "$manifest")")"
+        layer="$(aphotic_toml_get "$manifest" profile requires_layer)"
+        [[ -n "$layer" ]] || layer="$(aphotic_toml_get "$manifest" ui.notch_tile requires_layer)"
+        [[ -n "$layer" ]] || layer="$(aphotic_toml_get "$manifest" ui.dashboard_tab requires_layer)"
+        [[ -n "$layer" ]] || layer="$(aphotic_toml_get "$manifest" ui.settings_pane requires_layer)"
+        [[ -n "$layer" ]] || continue
+        [[ " $layers " == *" $layer "* ]] || continue
+
+        found=1
+        if [[ ! -d "${APHOTIC_PLUGINS_DIR}/${name}" ]]; then
+            printf '  [MISS] %s (%s layer on, not installed: aphotic plugin install %s)\n' "$name" "$layer" "$name"
+        elif aphotic_plugin_is_enabled "$name"; then
+            printf '  [ok]   %s (%s layer)\n' "$name" "$layer"
+        else
+            printf '  [off]  %s (%s layer on, installed but disabled)\n' "$name" "$layer"
+        fi
+    done
+
+    [[ "$found" == "1" ]] || echo "  [ok]   no layer-gated plugins in the catalogue"
+}
+
+# APHOTIC_VERSION already comes straight off APHOTIC_DOTS_DIR/VERSION, so
+# it never itself drifts from the checkout -- what it can't say is whether
+# that checkout is behind origin/main. Formats _aphotic_state_version_drift
+# (lib/aphotic/state.sh), shared with `aphotic status`/`aphotic diff` so
+# all three agree on what "behind" means.
+# Live configs are symlinks into the checkout install.sh ran from. Deleting
+# that checkout (a throwaway worktree, say) breaks them, and Hyprland drops
+# into emergency mode on its next reload.
+_aphotic_doctor_config_links() {
+    local dots link target bad=0
+    dots="$(readlink -f "${APHOTIC_DOTS_DIR}")"
+    while IFS= read -r link; do
+        target="$(readlink "$link")"
+        case "$target" in
+            */Configs/*) ;;
+            *) continue ;;
+        esac
+        if [[ ! -e "$link" ]]; then
+            printf '  [BROKEN] %s -> %s\n' "${link/#$HOME/\~}" "$target"
+            bad=1
+        elif [[ "$(readlink -f "$link")" != "$dots"/* ]]; then
+            printf '  [warn] %s points outside %s: %s\n' "${link/#$HOME/\~}" "${APHOTIC_DOTS_DIR/#$HOME/\~}" "$target"
+            bad=1
+        fi
+    done < <(find "$HOME/.config/hypr" "$HOME/.config/quickshell" "$HOME/.config/systemd/user" \
+        "$HOME/.local/bin" -maxdepth 2 -type l 2>/dev/null)
+    if [[ "$bad" == "1" ]]; then
+        echo "  Fix: run 'aphotic sync' to relink them to ${APHOTIC_DOTS_DIR/#$HOME/\~}."
+    else
+        echo "  [ok]   every config link resolves inside ${APHOTIC_DOTS_DIR/#$HOME/\~}"
+    fi
+}
+
+_aphotic_doctor_version_drift() {
+    source "${LIB_DIR}/state.sh"
+
+    local status branch head behind
+    IFS=$'\t' read -r status branch head behind < <(_aphotic_state_version_drift)
+
+    if [[ "$status" == "notgit" ]]; then
+        echo "  [skip] ${APHOTIC_DOTS_DIR} is not a git checkout"
+        return 0
+    fi
+
+    printf '  checked out: %s @ %s (v%s)\n' "$branch" "$head" "$APHOTIC_VERSION"
+    case "$status" in
+        not-main)
+            echo "  [skip] not on main -- drift check only compares main against origin/main"
+            ;;
+        no-origin-ref)
+            echo "  [skip] no origin/main ref cached -- run 'git fetch' to enable this check"
+            ;;
+        behind)
+            printf '  [warn] %s commit(s) behind origin/main (cached as of last fetch) -- aphotic sync to catch up\n' "$behind"
+            ;;
+        ok)
+            echo "  [ok]   up to date with origin/main (as of last fetch)"
+            ;;
+    esac
+}
+
+_aphotic_doctor_snapshot() {
+    local state_file="${XDG_STATE_HOME:-${HOME:-}/.local/state}/aphotic/snapshot"
+    local snapshot_date status status_date green answer snapshot_lib
+    [[ -r "$state_file" ]] || return 0
+
+    snapshot_date=$(sed -n 's/^snapshot=//p' "$state_file" | awk 'NR == 1 { print; exit }')
+    [[ -n "$snapshot_date" ]] || return 0
+    echo
+    echo "Package snapshot:"
+    printf '  [warn] system packages use the %s archive snapshot\n' "$snapshot_date"
+
+    snapshot_lib="${APHOTIC_DOTS_DIR:-}/lib/install/snapshot.sh"
+    if [[ ! -r "$snapshot_lib" ]]; then
+        echo "  [warn] could not find the snapshot status helper"
+        return 0
+    fi
+    # shellcheck source=lib/install/snapshot.sh
+    source "$snapshot_lib"
+    status=$(_snapshot_fetch_status 2>/dev/null) || {
+        echo "  [warn] could not check the current install canary"
+        return 0
+    }
+    status_date=$(sed -n 's/.*"date"[[:space:]]*:[[:space:]]*"\([0-9][0-9-]*\)".*/\1/p' <<< "$status" | awk 'NR == 1 { print; exit }')
+    green=$(sed -n 's/.*"green"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' <<< "$status" | awk 'NR == 1 { print; exit }')
+
+    if [[ "$green" != "true" ]]; then
+        printf '  [warn] the install canary is still failing%s; keep the snapshot for now\n' "${status_date:+ as of $status_date}"
+        return 0
+    fi
+
+    printf '  [ok]   the install canary is green again%s\n' "${status_date:+ as of $status_date}"
+    echo "  Run 'sudo pacman -Syu' to return to current package versions."
+    if [[ -t 0 ]]; then
+        printf 'Have you updated and want to clear the snapshot state? [y/N] '
+        IFS= read -r answer || answer=""
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+            if rm -f "$state_file"; then
+                echo "  [ok]   snapshot state cleared"
+            else
+                echo "  [warn] could not clear $state_file"
+            fi
+        fi
+    else
+        echo "  Run aphotic doctor in a terminal after updating to clear the snapshot state."
+    fi
+}
+
+aphotic_cmd_doctor() {
+    echo "Aphotic doctor — aphotic ${APHOTIC_VERSION}"
+    echo
+    echo "Core dependencies:"
+    for bin in hyprctl qs jq git; do
+        _aphotic_doctor_check "$bin"
+    done
+
+    echo
+    echo "Paths:"
+    for p in "$APHOTIC_CONFIG_HOME" "$APHOTIC_STATE_HOME" "$QUICKSHELL_CONFIG_DIR" "$APHOTIC_DOTS_DIR"; do
+        if [[ -e "$p" ]]; then
+            printf '  [ok]   %s\n' "$p"
+        else
+            printf '  [MISS] %s\n' "$p"
+        fi
+    done
+
+    echo
+    echo "Layer plugins:"
+    _aphotic_doctor_layer_plugins
+
+    source "${LIB_DIR}/state.sh"
+    local services daemon_state dm_state dm_detail shellunit_state shellunit_detail
+    services="$(_aphotic_state_service_drift)"
+    IFS=$'\t' read -r _ daemon_state _ <<<"$(grep '^daemon' <<<"$services")"
+    IFS=$'\t' read -r _ dm_state dm_detail <<<"$(grep '^displaymanager' <<<"$services")"
+    IFS=$'\t' read -r _ shellunit_state shellunit_detail <<<"$(grep '^shellunit' <<<"$services")"
+
+    echo
+    echo "Display manager:"
+    # A unit systemd has never heard of still writes "not-found" to
+    # stdout before exiting non-zero -- `|| echo disabled` inside the
+    # same command substitution let both land in the variable at once
+    # ("not-found\ndisabled" on one line). The fallback only applies when
+    # nothing came back at all.
+    local sddm_enabled greetd_enabled
+    sddm_enabled="$(systemctl is-enabled sddm.service 2>/dev/null)" || true
+    [[ -n "$sddm_enabled" ]] || sddm_enabled="disabled"
+    greetd_enabled="$(systemctl is-enabled greetd.service 2>/dev/null)" || true
+    [[ -n "$greetd_enabled" ]] || greetd_enabled="not-installed"
+    printf '  sddm:   %s\n' "$sddm_enabled"
+    printf '  greetd: %s\n' "$greetd_enabled"
+    if [[ -f /etc/xdg/quickshell/aphotic-greeter/shell.qml ]]; then
+        printf '  [ok]   greetd greeter scaffold deployed (aphotic displaymanager status for detail)\n'
+    fi
+    if [[ "$dm_state" == "conflict" ]]; then
+        printf '  [warn] %s; run '\''aphotic displaymanager status'\'' to see which actually wins\n' "$dm_detail"
+    fi
+
+    echo
+    if [[ "$daemon_state" == "running" ]]; then
+        echo "Daemon: running"
+    else
+        echo "Daemon: not running (aphotic shell -d)"
+    fi
+    if [[ "$shellunit_state" != "enabled" ]]; then
+        printf '  [warn] aphotic-shell.service: %s -- %s\n' "$shellunit_state" "$shellunit_detail"
+    fi
+
+    echo
+    echo "Config links:"
+    _aphotic_doctor_config_links
+
+    echo
+    echo "Version:"
+    _aphotic_doctor_version_drift
+    _aphotic_doctor_snapshot
+}

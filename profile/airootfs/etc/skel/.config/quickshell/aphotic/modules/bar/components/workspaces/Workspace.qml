@@ -1,0 +1,174 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import qs.config
+import qs.components
+import qs.services
+
+GridLayout {
+    id: root
+
+    required property int index
+    required property int activeWsId
+    required property var occupied
+    required property int groupOffset
+    // How many window icons this workspace has been allowed to show, shared
+    // out by Workspaces.qml from the along-axis room Bar.qml granted the
+    // whole row. Config.bar.workspaces.maxWindowIcons is the ceiling this
+    // is capped against; this is what actually fits.
+    required property int maxIcons
+
+    readonly property bool isWorkspace: true // Flag for finding workspace children
+    // Unanimated prop for others to use as reference -- the along-axis
+    // extent OccupiedBg.qml/ActiveIndicator.qml read via .size
+    readonly property int size: (Settings.barHorizontal ? implicitWidth : implicitHeight) + (hasWindows ? Tokens.padding.extraSmall : 0)
+
+    readonly property int ws: groupOffset + index + 1
+    readonly property bool isOccupied: occupied[ws] ?? false
+    // Window icon glyphs are off under Signal: the active workspace's
+    // extent is read from the signal line instead, so the per-workspace
+    // icon rows never show.
+    readonly property bool hasWindows: false
+
+    flow: Settings.barHorizontal ? GridLayout.LeftToRight : GridLayout.TopToBottom
+    Layout.alignment: Settings.barHorizontal ? Qt.AlignVCenter : Qt.AlignHCenter
+    Layout.preferredHeight: Settings.barHorizontal ? -1 : size
+    Layout.preferredWidth: Settings.barHorizontal ? size : -1
+
+    rowSpacing: 0
+    columnSpacing: 0
+
+    StyledText {
+        id: indicator
+
+        Layout.alignment: Settings.barHorizontal ? (Qt.AlignVCenter | Qt.AlignLeft) : (Qt.AlignHCenter | Qt.AlignTop)
+        Layout.preferredHeight: Settings.barHorizontal ? -1 : (Settings.barInnerWidth - Tokens.padding.small)
+        Layout.preferredWidth: Settings.barHorizontal ? root.signalCell : -1
+
+        animate: true
+        text: ""
+        color: Config.bar.workspaces.occupiedBg || root.isOccupied || root.activeWsId === root.ws ? Colours.ink : Colours.layer(Colours.outline, 2)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Qt.AlignVCenter
+        font.family: Tokens.font.workspaces
+
+        Rectangle {
+            anchors.centerIn: parent
+            implicitWidth: root.signalDot
+            implicitHeight: root.signalDot
+            radius: root.signalDot / 2
+            color: Qt.alpha(Colours.ink, root.isOccupied ? 0.7 : 0.25)
+            opacity: root.activeWsId === root.ws ? 0 : 1
+
+            Behavior on opacity {
+                Anim {
+                    type: Anim.FastEffects
+                }
+            }
+        }
+
+        Behavior on Layout.preferredWidth {
+            Anim {
+                type: Anim.FastSpatial
+            }
+        }
+    }
+
+    readonly property real signalDot: Math.round(Settings.barInnerWidth * 0.2)
+    readonly property real signalCell: activeWsId === ws ? Settings.barInnerWidth * 0.95 : Settings.barInnerWidth * 0.5
+    readonly property string label: {
+        const ws = Hypr.workspaces.values.find(w => w.id === root.ws);
+        const wsName = !ws || ws.name == root.ws ? root.ws : ws.name[0];
+        let displayName = wsName.toString();
+        if (Config.bar.workspaces.capitalisation.toLowerCase() === "upper") {
+            displayName = displayName.toUpperCase();
+        } else if (Config.bar.workspaces.capitalisation.toLowerCase() === "lower") {
+            displayName = displayName.toLowerCase();
+        }
+        const label = Config.bar.workspaces.label || displayName;
+        const occupiedLabel = Config.bar.workspaces.occupiedLabel || label;
+        const activeLabel = Config.bar.workspaces.activeLabel || (root.isOccupied ? occupiedLabel : label);
+        return root.activeWsId === root.ws ? activeLabel : root.isOccupied ? occupiedLabel : label;
+    }
+
+    Loader {
+        id: windows
+
+        asynchronous: true
+
+        Layout.alignment: Settings.barHorizontal ? Qt.AlignVCenter : Qt.AlignHCenter
+        Layout.fillHeight: !Settings.barHorizontal
+        Layout.fillWidth: Settings.barHorizontal
+        Layout.topMargin: Settings.barHorizontal ? 0 : -Settings.barInnerWidth / 10
+        Layout.leftMargin: Settings.barHorizontal ? -Settings.barInnerWidth / 10 : 0
+
+        visible: active
+        active: root.hasWindows
+
+        sourceComponent: Grid {
+            id: windowIconsGrid
+
+            spacing: 0
+            flow: Settings.barHorizontal ? Grid.LeftToRight : Grid.TopToBottom
+            // Grid (unlike GridLayout) has no "no limit" default for the
+            // cross axis, so this is pinned to the actual item count
+            // instead of a large constant -- large fixed values
+            // overflowed rows * columns into a negative capacity.
+            // Counted off the Repeater rather than `children.length`, which
+            // includes the Repeater itself and so ran one over.
+            columns: Settings.barHorizontal ? Math.max(1, icons.count) : 1
+            rows: Settings.barHorizontal ? 1 : Math.max(1, icons.count)
+
+            add: Transition {
+                Anim {
+                    properties: "scale"
+                    from: 0
+                    to: 1
+                    easing: Tokens.anim.standardDecel
+                }
+            }
+
+            move: Transition {
+                Anim {
+                    properties: "scale"
+                    to: 1
+                    easing: Tokens.anim.standardDecel
+                }
+                Anim {
+                    properties: "x,y"
+                }
+            }
+
+            Repeater {
+                id: icons
+
+                model: ScriptModel {
+                    values: {
+                        const ws = root.ws;
+                        const windows = Hypr.toplevels.values.filter(c => c.workspace?.id === ws);
+                        return windows.slice(0, root.maxIcons);
+                    }
+                }
+
+                AppIcon {
+                    required property var modelData
+
+                    grade: 0
+                    appClass: modelData.lastIpcObject?.class ?? ""
+                    fallbackGlyph: "terminal"
+                    colour: Colours.inkMuted
+                }
+            }
+        }
+    }
+
+    Behavior on Layout.preferredHeight {
+        Anim {}
+    }
+
+    Behavior on Layout.preferredWidth {
+        Anim {}
+    }
+}

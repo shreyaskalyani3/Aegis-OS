@@ -1,0 +1,14 @@
+import QtQuick
+import qs.config
+import qs.components
+import qs.services
+
+MaterialIcon {
+    id: root
+
+    required property color colour
+
+    text: "vpn_key"
+    color: Vpn.status.connected ? Colours.signal : root.colour
+    fill: Vpn.status.connected ? 1 : 0
+}

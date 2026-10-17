@@ -1,0 +1,137 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import qs.config
+import qs.components
+import qs.services
+
+StyledClippingRect {
+    id: root
+
+    required property var modelData // { theme, file }
+    readonly property bool active: root.modelData.theme === Themes.activeTheme && root.modelData.file === Themes.activeWallpaper
+    readonly property string sourcePath: `${Themes.awwwDir}/${root.modelData.theme}/${root.modelData.file}`
+    readonly property bool isVideo: Themes.isVideo(root.modelData.file)
+
+    implicitWidth: 120
+    implicitHeight: 120
+    radius: Tokens.rounding.largeIncreased
+    color: Colours.surfaceLift
+    border.width: root.active ? 3 : 0
+    border.color: Colours.signal
+
+    Image {
+        id: thumb
+
+        anchors.fill: parent
+        // The cached thumb where one exists, the source image until it
+        // does. A video has no still to fall back to, so it stays on the
+        // placeholder below rather than handing Image a file it cannot
+        // decode.
+        source: {
+            const thumb = WallpaperThumbs.thumbFor(root.sourcePath);
+            if (thumb)
+                return thumb;
+            return root.isVideo ? "" : `file://${root.sourcePath}`;
+        }
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: true
+        sourceSize.width: 240
+        sourceSize.height: 240
+        opacity: status === Image.Ready ? 1 : 0
+
+        Behavior on opacity {
+            Anim { type: Anim.DefaultEffects }
+        }
+    }
+
+    StyledRect {
+        anchors.fill: parent
+        visible: thumb.status !== Image.Ready
+        color: Colours.surfaceLift
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            text: "image"
+            color: Colours.inkMuted
+            fontStyle: Tokens.font.icon.large
+        }
+    }
+
+    StyledRect {
+        id: labelScrim
+
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        height: label.implicitHeight + Tokens.padding.small * 2
+        color: Qt.alpha(Colours.shadow, 0.55)
+
+        StyledText {
+            id: label
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: Tokens.padding.small
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
+            text: root.modelData.theme
+            color: Colours.contrastOn(labelScrim.color)
+            font: Tokens.font.label.small
+        }
+    }
+
+    StyledRect {
+        visible: root.isVideo
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: Tokens.padding.small
+        implicitWidth: videoBadge.implicitWidth + Tokens.padding.small * 2
+        implicitHeight: videoBadge.implicitHeight + Tokens.padding.extraSmall
+        radius: Tokens.rounding.full
+        color: Qt.alpha(Colours.shadow, 0.65)
+
+        MaterialIcon {
+            id: videoBadge
+            anchors.centerIn: parent
+            text: "movie"
+            fill: 1
+            color: Colours.ink
+            fontStyle: Tokens.font.icon.small
+        }
+    }
+
+    MaterialIcon {
+        visible: root.active
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: Tokens.padding.small
+        text: "check_circle"
+        fill: 1
+        color: Colours.signal
+        fontStyle: Tokens.font.icon.small
+
+        StyledRect {
+            z: -1
+            anchors.centerIn: parent
+            width: parent.implicitWidth + 4
+            height: parent.implicitHeight + 4
+            radius: Tokens.rounding.full
+            color: Colours.contrastOn(Colours.signal)
+        }
+    }
+
+    Interact {
+        anchors.fill: parent
+        radius: root.radius
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        onClicked: {
+            if (!root.active)
+                Themes.setTheme(root.modelData.theme, root.modelData.file);
+        }
+    }
+}

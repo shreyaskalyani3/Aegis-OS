@@ -1,0 +1,137 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell.Services.UPower
+import qs.config
+import qs.components
+import qs.services
+import qs.utils
+
+ColumnLayout {
+    id: root
+
+    spacing: Tokens.spacing.medium
+
+    readonly property bool charging: [UPowerDeviceState.Charging, UPowerDeviceState.PendingCharge].includes(UPower.displayDevice.state)
+
+    function formatTime(seconds: real): string {
+        if (!seconds || seconds <= 0)
+            return "";
+        const h = Math.floor(seconds / 3600);
+        const m = Math.round((seconds % 3600) / 60);
+        return h > 0 ? qsTr("%1h %2m").arg(h).arg(m) : qsTr("%1m").arg(m);
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.small
+        visible: UPower.displayDevice.isLaptopBattery
+
+        MaterialIcon {
+            text: Icons.getBatteryIcon(UPower.displayDevice.percentage, root.charging)
+            color: !UPower.onBattery || UPower.displayDevice.percentage > 0.2 ? Colours.ink : Colours.alert
+            fill: 1
+        }
+
+        StyledText {
+            text: `${Math.round(UPower.displayDevice.percentage * 100)}%`
+            font: Tokens.font.title.builders.medium.weight(Font.DemiBold).build()
+        }
+
+        StyledText {
+            Layout.fillWidth: true
+            text: {
+                if (UPower.displayDevice.state === UPowerDeviceState.FullyCharged)
+                    return qsTr("Fully charged");
+                if (root.charging) {
+                    const t = root.formatTime(UPower.displayDevice.timeToFull);
+                    return t ? qsTr("Charging — %1 until full").arg(t) : qsTr("Charging");
+                }
+                const t = root.formatTime(UPower.displayDevice.timeToEmpty);
+                return t ? qsTr("%1 remaining").arg(t) : qsTr("On battery");
+            }
+            color: Colours.inkMuted
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    StyledText {
+        visible: !UPower.displayDevice.isLaptopBattery
+        text: qsTr("No battery")
+        color: Colours.inkMuted
+    }
+
+    StyledText {
+        text: qsTr("Power profile").toUpperCase()
+        color: Colours.inkMuted
+        font: Tokens.font.label.builders.small.weight(Font.DemiBold).letterSpacing(1.4).build()
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.small
+
+        Repeater {
+            model: [
+                {
+                    profile: PowerProfile.PowerSaver,
+                    icon: "energy_savings_leaf",
+                    label: qsTr("Saver")
+                },
+                {
+                    profile: PowerProfile.Balanced,
+                    icon: "balance",
+                    label: qsTr("Balanced")
+                },
+                {
+                    profile: PowerProfile.Performance,
+                    icon: "rocket_launch",
+                    label: qsTr("Performance")
+                }
+            ]
+
+            Item {
+                id: profileBtn
+
+                required property var modelData
+
+                Layout.preferredWidth: profileCol.implicitWidth + Tokens.padding.medium * 2
+                Layout.preferredHeight: profileCol.implicitHeight + Tokens.padding.small * 2
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Tokens.rounding.medium
+                    color: PowerProfiles.profile === profileBtn.modelData.profile ? Qt.alpha(Colours.signal, 0.18) : Colours.signalStyle.raised
+                    border.width: 1
+                    border.color: PowerProfiles.profile === profileBtn.modelData.profile ? Colours.signal : Colours.signalStyle.hairline
+                }
+
+                Interact {
+                    radius: Tokens.rounding.medium
+                    color: Colours.signalStyle.hover
+                    stateOpacity: (containsMouse ? 1 : 0)
+                    disabled: profileBtn.modelData.profile === PowerProfile.Performance && !PowerProfiles.hasPerformanceProfile
+                    onClicked: PowerProfiles.profile = profileBtn.modelData.profile
+                }
+
+                ColumnLayout {
+                    id: profileCol
+                    anchors.centerIn: parent
+                    spacing: Tokens.spacing.small / 2
+
+                    MaterialIcon {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: profileBtn.modelData.icon
+                        color: PowerProfiles.profile === profileBtn.modelData.profile ? Colours.signalOnSurface : Colours.inkMuted
+                    }
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: profileBtn.modelData.label
+                        color: PowerProfiles.profile === profileBtn.modelData.profile ? Colours.signalOnSurface : Colours.inkMuted
+                        font: Tokens.font.label.medium
+                    }
+                }
+            }
+        }
+    }
+}

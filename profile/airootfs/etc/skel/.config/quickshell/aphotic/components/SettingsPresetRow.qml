@@ -1,0 +1,66 @@
+import QtQuick
+import QtQuick.Layouts
+import qs.config
+import qs.services
+
+SettingsRow {
+    id: root
+
+    // `enabled` is optional and defaults true. A preset that sets it
+    // false is drawn dimmed and does not take a click: the row still says
+    // the choice exists without pretending it is ready.
+    required property var presets // [{ value, label, enabled }]
+    required property var value
+
+    signal selected(value: var)
+
+    RowLayout {
+        spacing: Tokens.spacing.small
+
+        Repeater {
+            model: root.presets
+
+            StyledRect {
+                id: presetPill
+
+                required property var modelData
+                readonly property bool active: presetPill.modelData.value === root.value
+                readonly property bool selectable: presetPill.modelData.enabled !== false
+
+                Layout.preferredHeight: 28
+                Layout.preferredWidth: presetLabel.implicitWidth + Tokens.padding.medium * 2
+                radius: Tokens.rounding.full
+                opacity: presetPill.selectable ? 1 : 0.45
+                color: (presetPill.active ? Qt.alpha(Colours.signal, 0.16) : Qt.alpha(Colours.ink, 0.04))
+
+                Behavior on color {
+                    CAnim {}
+                }
+
+                GradedOutline {
+                    radius: presetPill.radius
+                    level: 2
+                    accent: presetPill.active
+                    hovered: pillState.containsMouse
+                }
+
+                StyledText {
+                    id: presetLabel
+                    anchors.centerIn: parent
+                    text: presetPill.modelData.label
+                    color: (presetPill.active ? Colours.ink : Colours.inkMuted)
+                    font: Tokens.font.label.small
+                }
+
+                Interact {
+                    id: pillState
+
+                    anchors.fill: parent
+                    radius: parent.radius
+                    disabled: !presetPill.selectable
+                    onClicked: root.selected(presetPill.modelData.value)
+                }
+            }
+        }
+    }
+}

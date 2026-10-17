@@ -1,0 +1,77 @@
+pragma Singleton
+
+import QtQuick
+import Quickshell
+import qs.services
+
+// Suppresses notification popups (services/Notifs.qml sets popup: false
+// while this is enabled -- notifications still land in history, never
+// discarded). Persisted via Settings.dndEnabled, not a separate state
+// file, since it's a single flag alongside every other bar-icon-adjacent
+// toggle already living there.
+Singleton {
+    id: root
+
+    readonly property bool enabled: Settings.dndEnabled
+    property bool _pomodoroForced: false
+    property bool _gamingForced: false
+    property bool _securityForced: false
+
+    // The Gaming profile's APPLY/RESTORE pair, following the same rule the
+    // Pomodoro handler below documents: its own forced-tracking flag, never
+    // _pomodoroForced, so a game ending can't clear DND the user had turned
+    // on themselves -- or that Pomodoro is still holding.
+    function setGamingActive(active: bool): void {
+        if (active) {
+            if (!Settings.dndEnabled) {
+                Settings.dndEnabled = true;
+                root._gamingForced = true;
+            }
+        } else if (root._gamingForced) {
+            Settings.dndEnabled = false;
+            root._gamingForced = false;
+        }
+    }
+
+    // The Security profile's APPLY/RESTORE pair. Its own flag again, for
+    // the same reason: an engagement ending must not clear DND that
+    // Gaming, Pomodoro or the user is still holding.
+    function setSecurityActive(active: bool): void {
+        if (active) {
+            if (!Settings.dndEnabled) {
+                Settings.dndEnabled = true;
+                root._securityForced = true;
+            }
+        } else if (root._securityForced) {
+            Settings.dndEnabled = false;
+            root._securityForced = false;
+        }
+    }
+
+    function toggle(): void {
+        Settings.dndEnabled = !Settings.dndEnabled;
+    }
+
+    // Pomodoro's focus phase auto-engages DND and auto-releases it when
+    // focus ends -- _pomodoroForced tracks whether THIS connection was the
+    // one that turned it on, so ending a focus session never clobbers DND
+    // the user had already turned on manually beforehand. Focus Mode
+    // (roadmap, not yet built) should hook in the same way once it
+    // exists: watch its own active-and-not-paused signal, engage/release
+    // through Settings.dndEnabled, with its own forced-tracking flag
+    // (don't share _pomodoroForced -- Focus Mode and Pomodoro can be
+    // active independently of each other).
+    readonly property bool pomodoroFocusActive: Pomodoro.running && !Pomodoro.isBreak
+
+    onPomodoroFocusActiveChanged: {
+        if (root.pomodoroFocusActive) {
+            if (!Settings.dndEnabled) {
+                Settings.dndEnabled = true;
+                root._pomodoroForced = true;
+            }
+        } else if (root._pomodoroForced) {
+            Settings.dndEnabled = false;
+            root._pomodoroForced = false;
+        }
+    }
+}

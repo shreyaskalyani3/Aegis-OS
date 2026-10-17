@@ -1,0 +1,32 @@
+import os
+import argparse
+import subprocess
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-i", "--image", required=True, help="path to input image")
+args = vars(ap.parse_args())
+
+image_path = args["image"]
+awww_dir = os.path.expanduser(os.environ.get("APHOTIC_AWWW_DIR", "~/.config/awww"))
+
+# Change the wallpaper
+subprocess.run(["awww", "img", "--transition-type", "wipe", "--transition-duration", "3", image_path])
+# Generate the wallust colorscheme; templates write straight to their targets (see wallust.toml)
+subprocess.run(["wallust", "run", image_path])
+# generate current-wallpaper -- the shared "current wallpaper" marker, see
+# services/Wallpapers.qml
+subprocess.run(["cp", image_path, os.path.join(awww_dir, "current-wallpaper")])
+# Deploy the GTK4/libadwaita stylesheet wallust just staged, with the live
+# UI font stamped in -- see cmd_theme.sh's _aphotic_theme_refresh_gtk
+subprocess.run(["aphotic", "theme", "refresh-gtk"])
+# firefox
+subprocess.run(["pywalfox", "update"])
+# Reload the shell to apply colorscheme
+subprocess.run(["aphotic", "reload"])
+# Send a notification
+subprocess.run([
+    "notify-send",
+    "-h", "string:x-canonical-private-synchronous:hypr-cfg",
+    "-u", "low",
+    f"Wallpaper changed to {os.path.basename(image_path)}",
+])

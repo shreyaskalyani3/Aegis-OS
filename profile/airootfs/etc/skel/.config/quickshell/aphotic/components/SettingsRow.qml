@@ -1,0 +1,158 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import qs.config
+import qs.services
+
+StyledRect {
+    id: root
+
+    required property string icon
+    required property string label
+    property string description: ""
+
+    // Search addressing. `searchId` is the anchor a settings-search hit
+    // matches (see config/SettingsCategories.qml), and `highlighted` marks
+    // the row once a hit lands on it, so a deep search opens the right pane
+    // with the right row shown instead of a scroll position that has to be
+    // guessed.
+    property string searchId: ""
+    property bool highlighted: false
+
+    // A row whose subject has a real mark of its own rather than a
+    // glyph name fills this instead of `icon`, and gets the same
+    // rounded plate around it.
+    property Component iconItem: null
+
+    // Connected-list positioning: a standalone row defaults to fully rounded
+    // on every corner (first=last=true). Rows placed inside a
+    // SettingsGroup get these stamped automatically so consecutive rows
+    // in one logical section render as a single seamless card, only the
+    // first/last row rounded on its outer edge.
+    property bool first: true
+    property bool last: true
+
+    default property alias trailing: trailingSlot.data
+
+    // A row that IS the control -- one option in a list being picked from,
+    // rather than a label with a switch on the end. Off by default,
+    // because most rows carry their own trailing control and a click
+    // anywhere else on them should do nothing.
+    property bool activatable: false
+
+    signal activated
+
+    Layout.fillWidth: true
+    Layout.preferredHeight: rowLayout.implicitHeight + Tokens.padding.medium * 2
+    implicitHeight: rowLayout.implicitHeight + Tokens.padding.medium * 2
+
+    // A search hit marks the row it landed on: tinted fill plus the accent
+    // rim, the same pair SettingsSection uses for a matched section.
+    color: root.highlighted ? Qt.tint(Colours.signalStyle.raised, Colours.signalStyle.hover) : Colours.signalStyle.raised
+    topLeftRadius: root.first ? Tokens.rounding.extraLarge : Tokens.rounding.extraSmall
+    topRightRadius: root.first ? Tokens.rounding.extraLarge : Tokens.rounding.extraSmall
+    bottomLeftRadius: root.last ? Tokens.rounding.extraLarge : Tokens.rounding.extraSmall
+    bottomRightRadius: root.last ? Tokens.rounding.extraLarge : Tokens.rounding.extraSmall
+
+    Behavior on topLeftRadius {
+        Anim { type: Anim.DefaultEffects }
+    }
+    Behavior on topRightRadius {
+        Anim { type: Anim.DefaultEffects }
+    }
+    Behavior on bottomLeftRadius {
+        Anim { type: Anim.DefaultEffects }
+    }
+    Behavior on bottomRightRadius {
+        Anim { type: Anim.DefaultEffects }
+    }
+    Behavior on color {
+        CAnim {}
+    }
+
+    GradedOutline {
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        bottomRightRadius: root.bottomRightRadius
+        accent: root.highlighted
+        hovered: root.activatable && rowState.containsMouse
+    }
+
+    // Under the content, so a trailing control's own Interact still
+    // takes its clicks first rather than the row swallowing them.
+    Interact {
+        id: rowState
+
+        anchors.fill: parent
+        visible: root.activatable
+        disabled: !root.activatable
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        bottomRightRadius: root.bottomRightRadius
+        onClicked: root.activated()
+    }
+
+    RowLayout {
+        id: rowLayout
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.margins: Tokens.padding.large
+        spacing: Tokens.spacing.medium
+
+        StyledRect {
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            radius: Tokens.rounding.medium
+            color: Qt.alpha(Colours.ink, 0.05)
+
+            Loader {
+                anchors.centerIn: parent
+                sourceComponent: root.iconItem ?? glyphComp
+            }
+
+            Component {
+                id: glyphComp
+
+                MaterialIcon {
+                    text: root.icon
+                    color: Colours.inkMuted
+                    fontStyle: Tokens.font.icon.medium
+                }
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            StyledText {
+                Layout.fillWidth: true
+                text: root.label
+                elide: Text.ElideRight
+                font: Tokens.font.body.medium
+            }
+
+            StyledText {
+                visible: root.description.length > 0
+                Layout.fillWidth: true
+                text: root.description
+                elide: Text.ElideRight
+                color: Colours.inkMuted
+                font: Tokens.font.label.small
+            }
+        }
+
+        Item {
+            id: trailingSlot
+
+            Layout.preferredWidth: childrenRect.width
+            Layout.preferredHeight: childrenRect.height
+            Layout.alignment: Qt.AlignVCenter
+        }
+    }
+}

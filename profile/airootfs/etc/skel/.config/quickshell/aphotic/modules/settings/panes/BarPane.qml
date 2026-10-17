@@ -1,0 +1,474 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import qs.config
+import qs.components
+import qs.services
+import qs.modules.settings
+
+ColumnLayout {
+    id: root
+
+    required property ScreenState screenState
+
+    spacing: Tokens.spacing.largeIncreased
+
+    StyledText {
+        text: qsTr("Bar")
+        font: Tokens.font.title.large
+    }
+
+    StyledText {
+        text: qsTr("Style")
+        color: Colours.inkMuted
+        font: Tokens.font.label.medium
+    }
+
+    // A grid rather than one row: at five layouts a single row squeezes
+    // every card below the width its scaled-down preview needs to read as
+    // anything.
+    GridLayout {
+        Layout.fillWidth: true
+        columns: 3
+        rowSpacing: Tokens.spacing.small
+        columnSpacing: Tokens.spacing.small
+
+        BarStylePreviewCard {
+            Layout.fillWidth: true
+            styleName: "full"
+            label: qsTr("Full")
+        }
+        BarStylePreviewCard {
+            Layout.fillWidth: true
+            styleName: "capsule"
+            label: qsTr("Capsule")
+        }
+        BarStylePreviewCard {
+            Layout.fillWidth: true
+            styleName: "dock"
+            label: qsTr("Dock")
+        }
+        BarStylePreviewCard {
+            Layout.fillWidth: true
+            styleName: "taskbar"
+            label: qsTr("Taskbar")
+        }
+        BarStylePreviewCard {
+            Layout.fillWidth: true
+            styleName: "minimal"
+            label: qsTr("Minimal")
+        }
+    }
+
+    // None of the three new styles have a real vertical/side-dock layout
+    // (Dock's pill, Taskbar's task list, and Minimal's strip are all
+    // built horizontal-first) -- a side placement isn't blocked, but per
+    // the spec, a combination that's likely to look broken gets flagged
+    // rather than silently allowed with no warning.
+    StyledRect {
+        Layout.fillWidth: true
+        visible: Settings.barStyle !== "full" && !Settings.barHorizontal
+        implicitHeight: warningRow.implicitHeight + Tokens.padding.medium * 2
+        radius: Tokens.rounding.medium
+        color: Colours.alert
+
+        RowLayout {
+            id: warningRow
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: Tokens.padding.medium
+            spacing: Tokens.spacing.small
+
+            MaterialIcon {
+                text: "warning"
+                color: Colours.onAlert
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("This style is designed for top/bottom placement -- side placement may look broken.")
+                color: Colours.onAlert
+                font: Tokens.font.body.small
+            }
+        }
+    }
+
+    StyledText {
+        text: qsTr("Visibility")
+        color: Colours.inkMuted
+        font: Tokens.font.label.medium
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.small
+
+        Repeater {
+            model: [
+                { value: "always", icon: "push_pin", label: qsTr("Always visible") },
+                { value: "autohide", icon: "visibility", label: qsTr("Auto-hide") },
+                { value: "hidden", icon: "visibility_off", label: qsTr("Hidden") }
+            ]
+
+            StyledRect {
+                id: visBtn
+
+                required property var modelData
+                readonly property bool active: Settings.barVisibility === visBtn.modelData.value
+
+                Layout.fillWidth: true
+                implicitHeight: visCol.implicitHeight + Tokens.padding.medium * 2
+                radius: Tokens.rounding.medium
+                color: visBtn.active ? Colours.signal : Colours.surfaceLift
+
+                ColumnLayout {
+                    id: visCol
+                    anchors.centerIn: parent
+                    spacing: Tokens.spacing.small / 2
+
+                    MaterialIcon {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: visBtn.modelData.icon
+                        color: visBtn.active ? Colours.onSignal : Colours.inkMuted
+                    }
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: visBtn.modelData.label
+                        color: visBtn.active ? Colours.onSignal : Colours.inkMuted
+                        font: Tokens.font.label.medium
+                    }
+                }
+
+                Interact {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    showHoverBackground: !visBtn.active
+                    onClicked: Settings.barVisibility = visBtn.modelData.value
+                }
+            }
+        }
+    }
+
+    SettingsGroup {
+        Layout.fillWidth: true
+
+        SettingsToggleRow {
+            searchId: "dockBarRight"
+            visible: !Settings.barHorizontal
+            icon: "dock_to_right"
+            label: qsTr("Dock bar to right edge")
+            checked: Settings.barPositionRight
+            onToggled: state => Settings.barPositionRight = state
+        }
+
+        SettingsToggleRow {
+            searchId: "dockBarBottom"
+            visible: Settings.barHorizontal
+            icon: "vertical_align_bottom"
+            label: qsTr("Dock bar to bottom edge")
+            checked: Settings.barPositionBottom
+            onToggled: state => Settings.barPositionBottom = state
+        }
+
+        SettingsToggleRow {
+            searchId: "barCompact"
+            icon: "density_small"
+            label: qsTr("Compact bar")
+            checked: Settings.barCompact
+            onToggled: state => Settings.barCompact = state
+        }
+
+        // Roadmap Feature #5 -- a real second orientation (top/bottom
+        // dock, full width, entries flowing left-to-right) alongside the
+        // left/right-docked, top-to-bottom mode above.
+        SettingsToggleRow {
+            searchId: "barHorizontal"
+            icon: "swap_horiz"
+            label: qsTr("Horizontal orientation")
+            checked: Settings.barHorizontal
+            onToggled: state => Settings.barHorizontal = state
+        }
+
+        SettingsPresetRow {
+            searchId: "barCorners"
+            icon: "rounded_corner"
+            label: qsTr("Corners")
+            presets: [
+                { value: "sharp", label: qsTr("Sharp") },
+                { value: "soft", label: qsTr("Soft") },
+                { value: "round", label: qsTr("Round") }
+            ]
+            value: Settings.barCorners
+            onSelected: value => Settings.barCorners = value
+        }
+    }
+
+    // The entry list only drives the "full" style -- dock, taskbar,
+    // minimal and capsule each lay themselves out (see BarShell.qml), so
+    // the list would sit there doing nothing under any of them.
+    BarWidgetsSection {
+        Layout.fillWidth: true
+        visible: Settings.barStyle === "full"
+        screenState: root.screenState
+    }
+
+    // The notch's palette lives in the Bar pane because the notch docks to
+    // the bar's own edge and is configured with it -- not because it is a
+    // bar widget. It is here under every bar style, unlike the widget list
+    // above, since the notch is its own surface and does not care which
+    // style the bar is wearing.
+    PaletteSection {
+        Layout.fillWidth: true
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        visible: Settings.barStyle === "dock"
+        spacing: Tokens.spacing.small
+
+        StyledText {
+            text: qsTr("Dock")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsToggleRow {
+                searchId: "dockAutoHide"
+                icon: "visibility_off"
+                label: qsTr("Auto-hide when a window is focused")
+                checked: Settings.dockAutoHide
+                onToggled: state => Settings.dockAutoHide = state
+            }
+
+            SettingsToggleRow {
+                searchId: "dockMagnification"
+                icon: "zoom_in"
+                label: qsTr("Icon magnification on hover")
+                checked: Settings.dockMagnification
+                onToggled: state => Settings.dockMagnification = state
+            }
+        }
+
+        StyledText {
+            text: qsTr("Pinned apps")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            spacing: Tokens.spacing.small
+
+            Repeater {
+                model: Settings.dockPinnedApps
+
+                StyledRect {
+                    id: pinChip
+
+                    required property string modelData
+                    readonly property var entry: DesktopEntries.applications.values.find(a => a.id === pinChip.modelData)
+
+                    implicitWidth: chipRow.implicitWidth + Tokens.padding.medium * 2
+                    implicitHeight: chipRow.implicitHeight + Tokens.padding.small * 2
+                    radius: Tokens.rounding.full
+                    color: Colours.raised
+
+                    RowLayout {
+                        id: chipRow
+                        anchors.centerIn: parent
+                        spacing: Tokens.spacing.small
+
+                        StyledText {
+                            text: pinChip.entry?.name ?? pinChip.modelData
+                            font: Tokens.font.body.small
+                        }
+
+                        MaterialIcon {
+                            text: "close"
+                            fontStyle: Tokens.font.icon.small
+
+                            Interact {
+                                anchors.fill: parent
+                                anchors.margins: -Tokens.padding.extraSmall
+                                radius: Tokens.rounding.full
+                                onClicked: Settings.dockPinnedApps = Settings.dockPinnedApps.filter(id => id !== pinChip.modelData)
+                            }
+                        }
+                    }
+                }
+            }
+
+            StyledRect {
+                id: addChip
+
+                property bool expanded: false
+
+                implicitWidth: addLabel.implicitWidth + Tokens.padding.medium * 2
+                implicitHeight: addLabel.implicitHeight + Tokens.padding.small * 2
+                radius: Tokens.rounding.full
+                color: "transparent"
+                border.width: 1
+                border.color: Colours.outline
+
+                StyledText {
+                    id: addLabel
+                    anchors.centerIn: parent
+                    text: qsTr("+ Add app")
+                    font: Tokens.font.body.small
+                }
+
+                Interact {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    onClicked: addChip.expanded = !addChip.expanded
+                }
+            }
+        }
+
+        Loader {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 200
+            active: addChip.expanded
+
+            sourceComponent: StyledRect {
+                radius: Tokens.rounding.medium
+                color: Colours.surfaceLift
+
+                ListView {
+                    anchors.fill: parent
+                    anchors.margins: Tokens.padding.small
+                    clip: true
+                    model: DesktopEntries.applications.values.filter(a => !a.noDisplay && !Settings.dockPinnedApps.includes(a.id))
+
+                    delegate: StyledRect {
+                        required property var modelData
+
+                        width: ListView.view.width
+                        implicitHeight: rowLabel.implicitHeight + Tokens.padding.small * 2
+                        color: "transparent"
+
+                        StyledText {
+                            id: rowLabel
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.margins: Tokens.padding.small
+                            text: parent.modelData.name
+                            elide: Text.ElideRight
+                        }
+
+                        Interact {
+                            anchors.fill: parent
+                            onClicked: {
+                                Settings.dockPinnedApps = [...Settings.dockPinnedApps, parent.modelData.id];
+                                addChip.expanded = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        visible: Settings.barStyle === "taskbar"
+        spacing: Tokens.spacing.small
+
+        StyledText {
+            text: qsTr("Taskbar")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsToggleRow {
+                searchId: "taskbarGrouping"
+                icon: "layers"
+                label: qsTr("Group windows by app")
+                checked: Settings.taskbarGrouping
+                onToggled: state => Settings.taskbarGrouping = state
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        visible: Settings.barStyle === "minimal"
+        spacing: Tokens.spacing.small
+
+        StyledText {
+            text: qsTr("Minimal")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsToggleRow {
+                searchId: "minimalDnd"
+                icon: "do_not_disturb_on"
+                label: qsTr("Show Do Not Disturb indicator")
+                checked: Settings.minimalShowDnd
+                onToggled: state => Settings.minimalShowDnd = state
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true
+        visible: Settings.barStyle === "capsule"
+        spacing: Tokens.spacing.small
+
+        StyledText {
+            text: qsTr("Capsule")
+            color: Colours.inkMuted
+            font: Tokens.font.label.medium
+        }
+
+        SettingsGroup {
+            Layout.fillWidth: true
+
+            SettingsToggleRow {
+                searchId: "capsuleMedia"
+                icon: "music_note"
+                label: qsTr("Show media in the capsule")
+                checked: Settings.capsuleMedia
+                onToggled: state => Settings.capsuleMedia = state
+            }
+
+            SettingsToggleRow {
+                searchId: "capsuleExpand"
+                icon: "pan_zoom"
+                label: qsTr("Expand on hover")
+                checked: Settings.capsuleExpandOnHover
+                onToggled: state => Settings.capsuleExpandOnHover = state
+            }
+
+            SettingsToggleRow {
+                searchId: "capsuleShapedArt"
+                icon: "shapes"
+                label: qsTr("Animated album artwork shape")
+                checked: Settings.capsuleShapedArt
+                onToggled: state => Settings.capsuleShapedArt = state
+            }
+
+            SettingsToggleRow {
+                searchId: "capsuleAnimations"
+                icon: "animation"
+                label: qsTr("Animate transitions")
+                checked: Settings.capsuleAnimations
+                onToggled: state => Settings.capsuleAnimations = state
+            }
+        }
+    }
+}
