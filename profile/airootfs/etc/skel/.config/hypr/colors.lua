@@ -1,0 +1,21 @@
+-- Generated colors for Hyprland borders & widgets (Aegis Cyber / Aphotic)
+return {
+    background = "#0c0a14",
+    foreground = "#8ddae9",
+    color0  = "#0c0a14",
+    color1  = "#5D59A9",
+    color2  = "#00FF9C",
+    color3  = "#00E5FF",
+    color4  = "#7928CA",
+    color5  = "#FF007F",
+    color6  = "#00F0FF",
+    color7  = "#8ddae9",
+    color8  = "#1a162b",
+    color9  = "#5D59A9",
+    color10 = "#00FF9C",
+    color11 = "#00E5FF",
+    color12 = "#7928CA",
+    color13 = "#FF007F",
+    color14 = "#00F0FF",
+    color15 = "#ffffff",
+}

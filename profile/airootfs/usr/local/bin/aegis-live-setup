@@ -68,7 +68,7 @@ install -d -m 0755 /etc/sddm.conf.d
 cat > /etc/sddm.conf.d/autologin.conf <<EOF
 [Autologin]
 User=${LIVE_USER}
-Session=plasma.desktop
+Session=hyprland
 Relogin=false
 EOF
 

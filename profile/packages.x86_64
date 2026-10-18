@@ -222,11 +222,28 @@ hyprland
 quickshell
 xdg-desktop-portal-hyprland
 kitty
+xorg-xwayland
+polkit-gnome
+thunar
+tumbler
+ffmpegthumbnailer
+playerctl
+blueman
+network-manager-applet
+wofi
+hyprpaper
+psmisc
+libnotify
+python-pillow
+python-requests
+python-pywayland
 qt5-wayland
 qt6-wayland
 qt6-shadertools
 qt6-imageformats
 qt6-multimedia
+qt6-5compat
+kvantum
 wl-clipboard
 cliphist
 grim
@@ -241,6 +258,9 @@ swaylock
 matugen
 cava
 inter-font
+ttf-jetbrains-mono-nerd
+ttf-material-symbols-variable
+noto-fonts-emoji
 starship
 
 # --- Theming / fonts ---------------------------------------------------------

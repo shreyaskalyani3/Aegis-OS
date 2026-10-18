@@ -70,9 +70,9 @@ Item {
         // A run killed by a newer probe exits abnormally; only a finished
         // run advances the crossfade.
         onExited: (exitCode, exitStatus) => {
-            if (exitStatus !== 0 || root._probeSource !== root.source)
+            if (root._probeSource !== root.source)
                 return;
-            const dims = exitCode === 0 ? sizeProc.out.trim().split(" ").map(Number) : [];
+            const dims = exitCode === 0 && sizeProc.out ? sizeProc.out.trim().split(" ").map(Number) : [];
             root._nativeSize = dims.length === 2 && dims[0] > 0 ? Qt.size(dims[0], dims[1]) : Qt.size(0, 0);
             root._advance();
         }

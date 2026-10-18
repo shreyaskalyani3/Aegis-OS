@@ -2,30 +2,15 @@
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("~/.config/hypr/xdg-portal-hyprland")
-    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
-    hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
-    hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
-    -- Started as a systemd --user unit (Configs/systemd/user/aphotic-shell.service)
-    -- rather than a bare exec: gives the shell real Restart=on-failure
-    -- supervision instead of silently staying dead if it crashes, which
-    -- happened at least once with nothing surfacing the fact. `systemctl
-    -- --user restart` is also how the SUPER+B keybind now recovers it
-    -- (see keybinds.lua), so start/restart go through the same path.
-    hl.exec_cmd("systemctl --user start aphotic-shell.service")
-    hl.exec_cmd("blueman-applet")
-    hl.exec_cmd("nm-applet --indicator")
-    -- D-Bus activation of kdeconnectd did not fire here, leaving the tray
-    -- indicator with no daemon and pairing dead. The unit skips itself when
-    -- KDE Connect is not installed.
-    hl.exec_cmd("systemctl --user start kdeconnectd.service")
-    hl.exec_cmd("command -v kdeconnect-indicator >/dev/null && kdeconnect-indicator")
-    hl.exec_cmd("sleep 1 && awww-daemon")
-    -- No-op once a theme has ever been applied (checks for theme.json) --
-    -- a fresh install has neither, so nothing in this file previously
-    -- ever told awww-daemon what to show, leaving "No wallpaper set"
-    -- until SUPER+SHIFT+W was used manually. Polls for the daemon's
-    -- socket itself rather than assuming the sleep above was long enough.
-    hl.exec_cmd("~/.local/bin/aphotic theme ensure-default")
+    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE")
+    hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE")
+    hl.exec_cmd("sh -c 'test -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 && /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 || /usr/lib/polkit-kde-authentication-agent-1 &'")
+    hl.exec_cmd("systemctl --user start graphical-session.target 2>/dev/null || true")
+    hl.exec_cmd("sh -c 'systemctl --user start aphotic-shell.service || (pgrep -x qs || pgrep -x quickshell || qs -c aphotic &)'")
+    hl.exec_cmd("blueman-applet &")
+    hl.exec_cmd("nm-applet --indicator &")
+    hl.exec_cmd("sh -c 'if [ ! -f ~/.config/awww/current-wallpaper ]; then mkdir -p ~/.config/awww && cp /usr/share/backgrounds/aegis/aegis-wallpaper.svg ~/.config/awww/current-wallpaper 2>/dev/null || true; fi'")
+    hl.exec_cmd("~/.local/bin/aphotic theme ensure-default || true")
     -- Connects only if Settings.vpnAutoConnect is true (checked inside
     -- the command itself, see cmd_vpn.sh's `autostart` subcommand) --
     -- warns and no-ops without passwordless sudo, same as everything

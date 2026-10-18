@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Wrapper to ensure 'qs' always resolves cleanly to quickshell
+if command -v quickshell >/dev/null 2>&1; then
+    exec quickshell "$@"
+elif [[ -x /usr/bin/qs ]]; then
+    exec /usr/bin/qs "$@"
+else
+    echo "qs: quickshell executable not found on system" >&2
+    exit 1
+fi

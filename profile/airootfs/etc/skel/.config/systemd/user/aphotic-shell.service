@@ -1,7 +1,7 @@
 [Unit]
 Description=Aphotic Quickshell desktop shell
 After=graphical-session.target
-PartOf=graphical-session.target
+Wants=graphical-session.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
 # Fires only once systemd gives up, i.e. StartLimitBurst above is

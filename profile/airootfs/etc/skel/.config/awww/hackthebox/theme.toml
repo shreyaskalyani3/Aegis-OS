@@ -1,0 +1,12 @@
+[theme]
+display_name = "HackTheBox Cyber"
+description = "High-contrast cyber green and obsidian theme for Aegis OS."
+
+[engine]
+colorscheme = "hackthebox"
+
+[icons]
+papirus_color = "green"
+
+[wallpaper]
+default = "wallpaper.jpg"

@@ -1,0 +1,12 @@
+[theme]
+display_name = "Aphotic Dark"
+description = "Aegis OS Cyber theme with neon blue and purple accents."
+
+[engine]
+colorscheme = "tokyonight"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"
