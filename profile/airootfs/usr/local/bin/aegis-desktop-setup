@@ -8,17 +8,12 @@ log(){ printf 'aegis-desktop-setup: %s\n' "$*" >&2; }
 
 WALL="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"
 
-# 1. Apply wallpaper if tool is available
-if [[ -r "${WALL}" ]] && command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then
-    plasma-apply-wallpaperimage "${WALL}" 2>/dev/null || true
+# 1. Ensure Aphotic theme default is applied
+if command -v aphotic >/dev/null 2>&1; then
+    aphotic theme ensure-default 2>/dev/null || true
 fi
 
-# 2. Ensure BreezeDark color scheme
-if command -v plasma-apply-colorscheme >/dev/null 2>&1; then
-    plasma-apply-colorscheme BreezeDark 2>/dev/null || true
-fi
-
-# 3. Ensure dark icons and widget style
+# 2. Ensure Qt dark theme configuration
 if command -v kwriteconfig6 >/dev/null 2>&1; then
     kwriteconfig6 --file kdeglobals --group Icons --key Theme Papirus-Dark 2>/dev/null || true
     kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze 2>/dev/null || true

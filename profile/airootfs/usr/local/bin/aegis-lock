@@ -18,20 +18,29 @@ set -uo pipefail
 
 log(){ printf 'aegis-lock: %s\n' "$*" >&2; }
 
-# 1. KDE Plasma native session lock via loginctl or D-Bus ScreenSaver.
+# 1. Aphotic / Quickshell native cyber lockscreen
+if command -v qs >/dev/null 2>&1 && qs -c aphotic ipc call lock engage 2>/dev/null; then
+    exit 0
+fi
+
+# 2. Hyprland native locker (hyprlock)
+if command -v hyprlock >/dev/null 2>&1; then
+    hyprlock 2>/dev/null &
+    exit 0
+fi
+
+# 3. Swaylock fallback
+if command -v swaylock >/dev/null 2>&1; then
+    swaylock -f -c 0c0a14 2>/dev/null &
+    exit 0
+fi
+
+# 4. Standard systemd logind session lock
 if command -v loginctl >/dev/null 2>&1 && loginctl lock-session 2>/dev/null; then
     exit 0
 fi
 
-if command -v qdbus >/dev/null 2>&1 && qdbus org.freedesktop.ScreenSaver /ScreenSaver Lock 2>/dev/null; then
-    exit 0
-fi
-
-if command -v qdbus6 >/dev/null 2>&1 && qdbus6 org.freedesktop.ScreenSaver /ScreenSaver Lock 2>/dev/null; then
-    exit 0
-fi
-
-# 2. Display manager locker fallback.
+# 5. Display manager locker fallback.
 if command -v dm-tool >/dev/null 2>&1 && dm-tool lock 2>/dev/null; then
     exit 0
 fi

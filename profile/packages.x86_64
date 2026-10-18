@@ -186,24 +186,11 @@ sof-firmware
 # --- Bluetooth ---------------------------------------------------------------
 bluez
 bluez-utils
-bluedevil
-
-# --- Desktop: KDE Plasma 6 ---------------------------------------------------
-plasma-desktop
-plasma-workspace
-plasma-nm
-plasma-pa
-kscreen
-powerdevil
-kwin
+# --- Display Manager & Qt/GTK Theming ----------------------------------------
+sddm
 breeze
 breeze-gtk
-kde-gtk-config
-polkit-kde-agent
-systemsettings
-xdg-desktop-portal-kde
-sddm
-sddm-kcm
+xdg-desktop-portal-gtk
 konsole
 dolphin
 dolphin-plugins
@@ -271,6 +258,7 @@ papirus-icon-theme
 gnome-themes-extra
 librsvg
 qt5ct
+qt6ct
 kvantum
 ttf-dejavu
 ttf-liberation

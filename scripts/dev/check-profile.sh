@@ -45,8 +45,8 @@ while IFS= read -r f; do
         grep -q "^${k}=" "$f" || bad "$f missing ${k}="
     done
     head -1 "$f" | grep -q '^\[Desktop Entry\]' || bad "$f missing [Desktop Entry] header"
-done < <(find profile/airootfs -name '*.desktop' | sort)
-note "  checked $(find profile/airootfs -name '*.desktop' | wc -l) .desktop files"
+done < <(find profile/airootfs -name '*.desktop' ! -path '*/sddm/themes/*' | sort)
+note "  checked $(find profile/airootfs -name '*.desktop' ! -path '*/sddm/themes/*' | wc -l) .desktop files"
 
 while IFS= read -r f; do
     head -1 "$f" | grep -q '^\[Desktop Entry\]' || bad "$f missing header"
@@ -131,6 +131,7 @@ theme_pkg() {
         Papirus|Papirus-Dark|Papirus-Light)                          echo papirus-icon-theme ;;
         Adwaita|Adwaita-dark|HighContrast)                           echo gnome-themes-extra ;;
         hicolor)                                                     echo '(hicolor built-in)' ;;
+        sugar-candy)                                                 echo '(sugar-candy shipped in overlay)' ;;
         *)                                                           echo '' ;;
     esac
 }

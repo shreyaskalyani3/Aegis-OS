@@ -1,7 +1,7 @@
 -- Environment variables — see https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/
 
-hl.env("XCURSOR_THEME", "Bibata-Modern-Ice")
-hl.env("XCURSOR_SIZE", "20")
+hl.env("XCURSOR_THEME", "Breeze_Snow")
+hl.env("XCURSOR_SIZE", "24")
 
 -- QT_QPA_PLATFORMTHEME covers Qt5 apps; without the _QT6 variant, Qt6 apps
 -- silently fell back to it too instead of reading their own qt6ct config
