@@ -1,0 +1,12 @@
+[theme]
+display_name = "Latte Cyber"
+description = "Aphotic latte aesthetic theme for Aegis OS."
+
+[engine]
+colorscheme = "latte"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"

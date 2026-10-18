@@ -1,0 +1,12 @@
+[theme]
+display_name = "Rosepine Cyber"
+description = "Aphotic rosepine aesthetic theme for Aegis OS."
+
+[engine]
+colorscheme = "rosepine"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"

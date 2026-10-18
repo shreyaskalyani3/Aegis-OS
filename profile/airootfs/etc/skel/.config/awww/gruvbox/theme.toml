@@ -1,0 +1,12 @@
+[theme]
+display_name = "Gruvbox Cyber"
+description = "Aphotic gruvbox aesthetic theme for Aegis OS."
+
+[engine]
+colorscheme = "gruvbox"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"

@@ -1,0 +1,12 @@
+[theme]
+display_name = "Nordic Cyber"
+description = "Aphotic nordic aesthetic theme for Aegis OS."
+
+[engine]
+colorscheme = "nordic"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"

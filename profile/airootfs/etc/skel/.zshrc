@@ -102,3 +102,8 @@ fi
 # syntax highlighting last (if installed)
 [[ -r /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
     source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh 2>/dev/null
+
+# --- Starship Prompt (Aphotic Cyber styling) --------------------------------
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init zsh)"
+fi

@@ -1,0 +1,12 @@
+[theme]
+display_name = "Dracula Cyber"
+description = "Aphotic dracula aesthetic theme for Aegis OS."
+
+[engine]
+colorscheme = "dracula"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"

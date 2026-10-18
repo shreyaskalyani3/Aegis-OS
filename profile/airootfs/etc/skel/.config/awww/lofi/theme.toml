@@ -1,0 +1,12 @@
+[theme]
+display_name = "Lofi Cyber"
+description = "Aphotic lofi aesthetic theme for Aegis OS."
+
+[engine]
+colorscheme = "lofi"
+
+[icons]
+papirus_color = "cyan"
+
+[wallpaper]
+default = "wallpaper.jpg"
