@@ -298,14 +298,27 @@ fi
 # cfgs — add to the syslinux APPEND lines, the grub.cfg linux lines, AND the
 # systemd-boot options lines (efiboot loader entries — without them a UEFI boot
 # never hands `splash` to the kernel and plymouth never engages).
+# Syslinux (BIOS): APPEND line carries live kernel commandline params
 for f in "${STAGED_PROFILE}/syslinux/"archiso_*.cfg \
-         "${STAGED_PROFILE}/syslinux/"*.cfg \
-         "${STAGED_PROFILE}/grub/"grub.cfg \
-         "${STAGED_PROFILE}/efiboot/loader/entries/"*.conf; do
+         "${STAGED_PROFILE}/syslinux/"*.cfg; do
     [[ -f "${f}" ]] || continue
-    sed -i -E 's/^([[:space:]]*APPEND[[:space:]]+)/\1quiet splash plymouth.ignore-serial-consoles /;
-               s/^([[:space:]]*linux[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/;
-               s/^([[:space:]]*options[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/' "${f}"
+    sed -i -E 's/^([[:space:]]*APPEND[[:space:]]+)/\1quiet splash plymouth.ignore-serial-consoles /' "${f}"
+    sed -i -E 's/(quiet splash plymouth\.ignore-serial-consoles[[:space:]]*)+/quiet splash plymouth.ignore-serial-consoles /g' "${f}"
+done
+
+# GRUB (BIOS/UEFI): linux line carries kernel path AND commandline params
+for f in "${STAGED_PROFILE}/grub/"grub.cfg; do
+    [[ -f "${f}" ]] || continue
+    sed -i -E 's/^([[:space:]]*linux[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/' "${f}"
+    sed -i -E 's/(quiet splash plymouth\.ignore-serial-consoles[[:space:]]*)+/quiet splash plymouth.ignore-serial-consoles /g' "${f}"
+done
+
+# systemd-boot (UEFI): options line carries commandline params ONLY!
+# The `linux` line in systemd-boot entries is STRICTLY the file path to the kernel;
+# appending parameters to `linux` corrupts the path and causes systemd-boot to hide the entry.
+for f in "${STAGED_PROFILE}/efiboot/loader/entries/"*.conf; do
+    [[ -f "${f}" ]] || continue
+    sed -i -E 's/^([[:space:]]*options[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/' "${f}"
     sed -i -E 's/(quiet splash plymouth\.ignore-serial-consoles[[:space:]]*)+/quiet splash plymouth.ignore-serial-consoles /g' "${f}"
 done
 

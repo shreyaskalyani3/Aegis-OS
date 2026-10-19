@@ -14,9 +14,7 @@ ENTRIES_SRC=/usr/share/archiso/configs/releng/efiboot/loader/entries
 
 rm -rf /tmp/efiboot-test && cp -a "${ENTRIES_SRC}" /tmp/efiboot-test
 for f in /tmp/efiboot-test/0*.conf; do
-    sed -i 's/^APPEND /APPEND quiet splash plymouth.ignore-serial-consoles /;
-            s/^\([[:space:]]*linux[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/;
-            s/^\([[:space:]]*options[[:space:]].*\)$/& quiet splash plymouth.ignore-serial-consoles/' "${f}"
+    sed -i -E 's/^([[:space:]]*options[[:space:]]+.*)$/\1 quiet splash plymouth.ignore-serial-consoles/' "${f}"
 done
 
 echo "=== 01-archiso (UEFI live entry) ==="
@@ -27,6 +25,9 @@ cat /tmp/efiboot-test/03-archiso-memtest86+x64.conf
 grep -q 'archisosearchuuid=%ARCHISO_UUID% quiet splash plymouth.ignore-serial-consoles$' \
     /tmp/efiboot-test/01-archiso-linux.conf \
     || { echo "FAIL: 01 options line missing splash params"; exit 1; }
+if grep -q '^linux.*splash' /tmp/efiboot-test/01-archiso-linux.conf; then
+    echo "FAIL: linux executable path line was corrupted with parameters!"; exit 1
+fi
 if grep -q 'splash' /tmp/efiboot-test/03-archiso-memtest86+x64.conf; then
     echo "FAIL: memtest entry was touched (it has no options line)"; exit 1
 fi
