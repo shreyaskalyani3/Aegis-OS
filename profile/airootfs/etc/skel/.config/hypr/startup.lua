@@ -14,6 +14,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("sh -c 'systemctl --user start aphotic-shell.service || (pgrep -x qs || pgrep -x quickshell || qs -c aphotic &)'")
     hl.exec_cmd("blueman-applet &")
     hl.exec_cmd("nm-applet --indicator &")
+    hl.exec_cmd("vmware-user-suid-wrapper 2>/dev/null || vmtoolsd -n vmusr 2>/dev/null &")
     hl.exec_cmd("sh -c 'if [ ! -f ~/.config/awww/current-wallpaper ]; then mkdir -p ~/.config/awww && cp /usr/share/backgrounds/aegis/aegis-wallpaper.svg ~/.config/awww/current-wallpaper 2>/dev/null || true; fi'")
     hl.exec_cmd("~/.local/bin/aphotic theme ensure-default || true")
     -- Connects only if Settings.vpnAutoConnect is true (checked inside

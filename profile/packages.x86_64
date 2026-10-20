@@ -168,6 +168,8 @@ xf86-video-nouveau
 # --- VM guest tools (many users run Aegis in a VM) ---------------------------
 virtualbox-guest-utils
 open-vm-tools
+xf86-input-vmmouse
+gtkmm3
 qemu-guest-agent
 spice-vdagent
 hyperv
@@ -211,6 +213,7 @@ waybar
 mako
 xdg-desktop-portal-hyprland
 kitty
+foot
 xorg-xwayland
 polkit-gnome
 thunar

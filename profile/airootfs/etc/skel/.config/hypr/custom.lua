@@ -14,8 +14,8 @@ hl.env("GDK_BACKEND", "wayland,x11,*")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 
 -- 2. Core Desktop Keybindings
-hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd("kitty"), { description = "Open Terminal (Kitty)" })
-hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("kitty"), { description = "Open Terminal (Kitty)" })
+hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd("kitty || foot"), { description = "Open Terminal (Kitty/Foot)" })
+hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("kitty || foot"), { description = "Open Terminal (Kitty/Foot)" })
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd("thunar"), { description = "Open File Manager (Thunar)" })
 hl.bind(mainMod .. " + space", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle || wofi --show drun"), { description = "Toggle App Launcher" })
 hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle || wofi --show drun"), { description = "Toggle App Launcher" })

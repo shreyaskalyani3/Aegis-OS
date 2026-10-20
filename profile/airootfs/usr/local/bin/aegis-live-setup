@@ -94,7 +94,7 @@ fi
 # move on.
 case "$(systemd-detect-virt 2>/dev/null || echo none)" in
     oracle)     systemctl start --no-block vboxservice.service 2>/dev/null || true ;;
-    vmware)     systemctl start --no-block vmtoolsd.service 2>/dev/null || true ;;
+    vmware)     systemctl start --no-block vmtoolsd.service vmware-vmblock-fuse.service 2>/dev/null || true ;;
     kvm|qemu)   systemctl start --no-block qemu-guest-agent.service spice-vdagentd.service 2>/dev/null || true ;;
     microsoft)  systemctl start --no-block hv_fcopy_daemon.service hv_kvp_daemon.service hv_vss_daemon.service 2>/dev/null || true ;;
 esac
