@@ -1,0 +1,138 @@
+/* =============================================================================
+   AEGIS OS — Waybar Cyber Style
+============================================================================= */
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "JetBrainsMono Nerd Font", "Inter", sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    min-height: 0;
+}
+
+window#waybar {
+    background: rgba(12, 10, 20, 0.78);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    border-radius: 12px;
+    color: #8ddae9;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+#custom-aegis {
+    color: #00E5FF;
+    background: rgba(0, 229, 255, 0.15);
+    border: 1px solid #00E5FF;
+    border-radius: 8px;
+    padding: 0 10px;
+    margin: 4px 6px 4px 4px;
+}
+
+#custom-aegis:hover {
+    background: #00E5FF;
+    color: #0c0a14;
+}
+
+#workspaces {
+    background: rgba(26, 22, 43, 0.6);
+    border-radius: 8px;
+    margin: 4px 4px;
+    padding: 0 4px;
+}
+
+#workspaces button {
+    padding: 0 6px;
+    color: #6298a3;
+    border-radius: 6px;
+    margin: 2px;
+    transition: all 0.2s ease;
+}
+
+#workspaces button.active {
+    color: #0c0a14;
+    background: linear-gradient(135deg, #00E5FF, #7928CA);
+    box-shadow: 0 0 8px #00E5FF;
+}
+
+#workspaces button:hover {
+    background: rgba(0, 229, 255, 0.25);
+    color: #00E5FF;
+}
+
+#window {
+    color: #8ddae9;
+    font-weight: normal;
+    padding: 0 10px;
+}
+
+#clock {
+    color: #00FF9C;
+    background: rgba(0, 255, 156, 0.12);
+    border: 1px solid rgba(0, 255, 156, 0.3);
+    border-radius: 8px;
+    padding: 0 12px;
+    margin: 4px 0;
+}
+
+#cpu, #memory, #pulseaudio, #network, #bluetooth, #battery {
+    background: rgba(26, 22, 43, 0.6);
+    border-radius: 8px;
+    padding: 0 10px;
+    margin: 4px 2px;
+    color: #8ddae9;
+}
+
+#cpu {
+    color: #00E5FF;
+}
+
+#memory {
+    color: #CF75B8;
+}
+
+#pulseaudio {
+    color: #00F0FF;
+}
+
+#network {
+    color: #00FF9C;
+}
+
+#bluetooth {
+    color: #8ddae9;
+}
+
+#battery {
+    color: #00FF9C;
+}
+
+#battery.warning {
+    color: #FFB800;
+}
+
+#battery.critical {
+    color: #FF0055;
+    animation: blink 0.5s linear infinite alternate;
+}
+
+#tray {
+    background: rgba(26, 22, 43, 0.6);
+    border-radius: 8px;
+    padding: 0 8px;
+    margin: 4px 2px;
+}
+
+#custom-power {
+    color: #FF0055;
+    background: rgba(255, 0, 85, 0.15);
+    border: 1px solid rgba(255, 0, 85, 0.4);
+    border-radius: 8px;
+    padding: 0 10px;
+    margin: 4px 4px 4px 2px;
+}
+
+#custom-power:hover {
+    background: #FF0055;
+    color: #ffffff;
+    box-shadow: 0 0 10px #FF0055;
+}

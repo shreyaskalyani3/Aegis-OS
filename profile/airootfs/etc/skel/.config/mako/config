@@ -1,0 +1,25 @@
+# =============================================================================
+#  AEGIS OS — Mako Cyber Notification Configuration
+# =============================================================================
+font=JetBrainsMono Nerd Font 10
+background-color=#0c0a14ee
+text-color=#8ddae9
+border-color=#00E5FF
+border-size=2
+border-radius=10
+progress-color=source #00E5FF
+padding=12
+margin=14
+default-timeout=5000
+group-by=summary
+layer=overlay
+
+[urgency=high]
+border-color=#FF0055
+text-color=#ffffff
+default-timeout=0
+
+[urgency=low]
+border-color=#5D59A9
+text-color=#6298a3
+default-timeout=3000

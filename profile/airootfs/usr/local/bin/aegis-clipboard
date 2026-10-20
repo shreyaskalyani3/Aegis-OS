@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-clipboard — clipboard history menu for Hyprland / Aegis OS.
+# =============================================================================
+set -uo pipefail
+
+if ! command -v cliphist >/dev/null 2>&1; then
+    exit 0
+fi
+
+# Show clipboard history in wofi and copy selection to clipboard
+selected="$(cliphist list | wofi --dmenu --prompt "📋 Clipboard History..." --width 650 --height 450)"
+if [[ -n "${selected}" ]]; then
+    echo "${selected}" | cliphist decode | wl-copy
+    notify-send "Clipboard" "Copied item to clipboard" -t 1500
+fi
+
+exit 0

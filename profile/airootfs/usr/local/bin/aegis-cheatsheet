@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-cheatsheet — Hyprland & Aegis OS keybindings cheatsheet.
+# =============================================================================
+set -uo pipefail
+
+# Try quickshell native cheatsheet first
+if command -v qs >/dev/null 2>&1 && qs -c aphotic ipc call aphotic toggle keybindscheatsheet 2>/dev/null; then
+    exit 0
+fi
+
+# Fallback: display in a floating kitty terminal
+cat <<'EOF' > /tmp/aegis-keys.txt
+╔══════════════════════════════════════════════════════════════════╗
+║              AEGIS OS — HYPRLAND SHORTCUTS CHEATSHEET            ║
+╠══════════════════════════════════════════════════════════════════╣
+║  [APPLICATION SHORTCUTS]                                         ║
+║  SUPER + RETURN / T       Open Kitty Cyber Terminal              ║
+║  SUPER + E                Open Thunar File Manager               ║
+║  SUPER + SPACE / A        Toggle Application Launcher            ║
+║  SUPER + D                Toggle Cyber Command Center            ║
+║  SUPER + I                Toggle Aegis / Aphotic Settings        ║
+║  SUPER + N                Toggle Notifications Center            ║
+║  SUPER + M                Toggle Power / Logout Session Menu     ║
+║  SUPER + W                Toggle Wallpaper Picker                ║
+║  SUPER + V                Open Clipboard History                 ║
+║  SUPER + K                Toggle this Cheatsheet                 ║
+║                                                                  ║
+║  [AEGIS SECURITY ARSENAL]                                        ║
+║  SUPER + ALT + A          Launch Aegis AI Agent                  ║
+║  SUPER + ALT + T          Launch Aegis Tools Arsenal             ║
+║  SUPER + ALT + I          Launch Aegis OS Disk Installer         ║
+║                                                                  ║
+║  [WINDOW MANAGEMENT]                                             ║
+║  SUPER + Q                Close / Kill Active Window             ║
+║  SUPER + F                Toggle Fullscreen                      ║
+║  SUPER + SHIFT + SPACE    Toggle Floating Window                 ║
+║  SUPER + P                Toggle Pseudo Tiling                   ║
+║  SUPER + J                Toggle Split Orientation               ║
+║  SUPER + Arrow Keys       Focus Window in Direction              ║
+║  SUPER + SHIFT + Arrows   Move Window in Direction               ║
+║  SUPER + Mouse Drag       Move / Resize Floating Window          ║
+║                                                                  ║
+║  [WORKSPACES]                                                    ║
+║  SUPER + 1..9             Switch to Workspace 1 through 9        ║
+║  SUPER + SHIFT + 1..9     Move Active Window to Workspace 1..9   ║
+║  SUPER + Scroll           Scroll Through Workspaces              ║
+║                                                                  ║
+║  [MEDIA & UTILITIES]                                             ║
+║  SUPER + L                Lock Screen (Cyber Lock)               ║
+║  SUPER + S                Screenshot Selected Area (Swappy)      ║
+║  PRINT                    Screenshot Full Screen                 ║
+║  SUPER + R / SHIFT + R    Start / Stop Screen Recording          ║
+╚══════════════════════════════════════════════════════════════════╝
+Press any key to close...
+EOF
+
+kitty --title "Aegis OS Keybindings" sh -c "cat /tmp/aegis-keys.txt; read -n 1" 2>/dev/null &
+exit 0

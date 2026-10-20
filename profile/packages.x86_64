@@ -207,6 +207,8 @@ xdg-utils
 # --- Desktop: Hyprland + Aphotic Cyber Session -------------------------------
 hyprland
 quickshell
+waybar
+mako
 xdg-desktop-portal-hyprland
 kitty
 xorg-xwayland
@@ -226,6 +228,7 @@ python-requests
 python-pywayland
 qt5-wayland
 qt6-wayland
+qt6-declarative
 qt6-shadertools
 qt6-imageformats
 qt6-multimedia

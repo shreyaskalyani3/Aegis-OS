@@ -14,13 +14,18 @@ hl.env("GDK_BACKEND", "wayland,x11,*")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 
 -- 2. Core Desktop Keybindings
-hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd("kitty || konsole"), { description = "Open Terminal (Kitty/Konsole)" })
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd("thunar || dolphin"), { description = "Open File Manager" })
+hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd("kitty"), { description = "Open Terminal (Kitty)" })
+hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("kitty"), { description = "Open Terminal (Kitty)" })
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd("thunar"), { description = "Open File Manager (Thunar)" })
 hl.bind(mainMod .. " + space", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle || wofi --show drun"), { description = "Toggle App Launcher" })
+hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle || wofi --show drun"), { description = "Toggle App Launcher" })
+hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("aegis-clipboard"), { description = "Clipboard History" })
+hl.bind(mainMod .. " + K", hl.dsp.exec_cmd("aegis-cheatsheet"), { description = "Keybindings Cheatsheet" })
+hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("aegis-lock"), { description = "Lock Screen" })
 
--- 3. Aegis OS Specific Keybindings
-hl.bind(mainMod .. " + ALT + A", hl.dsp.exec_cmd("konsole --profile Aegis -p tabtitle=\"Aegis AI\" -e aegis-ai"), { description = "Open Aegis AI Agent" })
-hl.bind(mainMod .. " + ALT + T", hl.dsp.exec_cmd("konsole --profile Aegis -p tabtitle=\"Aegis Tools\" -e aegis-tools"), { description = "Open Aegis Tools Arsenal" })
+-- 3. Aegis OS Security Arsenal Keybindings
+hl.bind(mainMod .. " + ALT + A", hl.dsp.exec_cmd("kitty --title \"Aegis AI Agent\" aegis-ai"), { description = "Open Aegis AI Agent" })
+hl.bind(mainMod .. " + ALT + T", hl.dsp.exec_cmd("kitty --title \"Aegis Tools Arsenal\" aegis-tools"), { description = "Open Aegis Tools Arsenal" })
 hl.bind(mainMod .. " + ALT + I", hl.dsp.exec_cmd("aegis-install"), { description = "Launch Aegis OS Installer" })
 
 -- 4. Aegis Window Rules & Opacity
