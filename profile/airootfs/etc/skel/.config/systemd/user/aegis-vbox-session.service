@@ -1,0 +1,13 @@
+[Unit]
+Description=VirtualBox guest desktop integration for Hyprland
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionPathExists=/usr/bin/VBoxClient-all
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c 'test "$(systemd-detect-virt 2>/dev/null || true)" = oracle || exit 0; exec /usr/bin/VBoxClient-all'
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target

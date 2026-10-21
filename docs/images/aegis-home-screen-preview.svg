@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b12"/>
+      <stop offset="0.5" stop-color="#0c0a14"/>
+      <stop offset="1" stop-color="#12091b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="42%" r="55%">
+      <stop offset="0" stop-color="#173b51" stop-opacity="0.62"/>
+      <stop offset="0.45" stop-color="#10202f" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#05070b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="neon" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00e5ff"/>
+      <stop offset="0.5" stop-color="#7928ca"/>
+      <stop offset="1" stop-color="#00ff9c"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff3366"/>
+      <stop offset="1" stop-color="#a80f36"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#1d3443" stroke-width="1" opacity="0.35"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity="0.62"/>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="cyanGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <style>
+      .mono { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; }
+      .sans { font-family: Inter, Arial, sans-serif; }
+      .muted { fill: #6298a3; }
+      .cyan { fill: #00e5ff; }
+      .green { fill: #00ff9c; }
+      .white { fill: #edf9ff; }
+      .panel { fill: #0c1019; fill-opacity: .84; stroke: #2d6478; stroke-opacity: .65; }
+    </style>
+  </defs>
+
+  <!-- Desktop background -->
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#glow)"/>
+  <rect width="1600" height="1000" fill="url(#grid)" opacity=".7"/>
+  <circle cx="760" cy="390" r="230" fill="#00e5ff" opacity=".06" filter="url(#soft)"/>
+  <circle cx="900" cy="520" r="220" fill="#7928ca" opacity=".07" filter="url(#soft)"/>
+
+  <!-- Aegis shield watermark -->
+  <g transform="translate(790 360)" opacity=".18" filter="url(#cyanGlow)">
+    <path d="M0-180L154-124V36c0 108-76 194-154 232C-78 230-154 144-154 36v-160z" fill="none" stroke="url(#neon)" stroke-width="8"/>
+    <path d="M0-82L58 90H30L17 48H-17L-30 90h-28zM-6 22H6L0-14z" fill="#eafcff"/>
+    <circle cx="0" cy="126" r="12" fill="#ff3366"/>
+    <rect x="-4" y="126" width="8" height="26" fill="#ff3366"/>
+  </g>
+  <text x="800" y="620" text-anchor="middle" class="mono white" font-size="58" letter-spacing="14" opacity=".18">AEGIS OS</text>
+  <text x="800" y="660" text-anchor="middle" class="mono muted" font-size="15" letter-spacing="5" opacity=".75">DEFENSE • INTELLIGENCE • CONTROL</text>
+
+  <!-- Top Waybar -->
+  <rect x="24" y="22" width="1552" height="54" rx="15" class="panel" filter="url(#shadow)"/>
+  <rect x="24" y="22" width="1552" height="2" rx="1" fill="url(#neon)" opacity=".85"/>
+  <rect x="38" y="33" width="122" height="32" rx="9" fill="#00e5ff" fill-opacity=".14" stroke="#00e5ff" stroke-opacity=".9"/>
+  <text x="50" y="55" class="mono cyan" font-size="15" font-weight="700">🛡 AEGIS</text>
+  <rect x="174" y="33" width="176" height="32" rx="9" fill="#1a162b" fill-opacity=".8"/>
+  <text x="190" y="55" class="mono muted" font-size="14">1  2  3  4  5  6</text>
+  <text x="372" y="55" class="mono white" font-size="14">Aphotic Command Center</text>
+  <rect x="720" y="31" width="164" height="36" rx="10" fill="#00ff9c" fill-opacity=".1" stroke="#00ff9c" stroke-opacity=".45"/>
+  <text x="742" y="55" class="mono green" font-size="15">󰥔 12:30 󰃭 Wed, Oct 21</text>
+  <text x="1050" y="55" class="mono cyan" font-size="14">CPU 18%</text>
+  <text x="1150" y="55" class="mono" fill="#cf75b8" font-size="14">RAM 42%</text>
+  <text x="1260" y="55" class="mono" fill="#00f0ff" font-size="14">󰕾 68%</text>
+  <text x="1350" y="55" class="mono green" font-size="14">󰖩 aegis-net</text>
+  <text x="1500" y="55" class="mono" fill="#ff3366" font-size="17">󰐥</text>
+
+  <!-- Floating terminal -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="190" width="720" height="440" rx="16" fill="#090d14" fill-opacity=".93" stroke="#00e5ff" stroke-opacity=".7" stroke-width="2"/>
+    <rect x="100" y="190" width="720" height="40" rx="16" fill="#111a26"/>
+    <rect x="100" y="214" width="720" height="16" fill="#111a26"/>
+    <circle cx="126" cy="210" r="6" fill="#ff3366"/><circle cx="148" cy="210" r="6" fill="#ffb800"/><circle cx="170" cy="210" r="6" fill="#00ff9c"/>
+    <text x="205" y="216" class="mono muted" font-size="13">kitty — aegis@sentinel</text>
+    <text x="132" y="278" class="mono cyan" font-size="15">╭─[ AEGIS OS / APH O T I C ]</text>
+    <text x="132" y="304" class="mono white" font-size="14">│  Secure workstation ready.</text>
+    <text x="132" y="330" class="mono muted" font-size="14">│  Wayland: Hyprland      Shell: Quickshell</text>
+    <text x="132" y="356" class="mono muted" font-size="14">│  Network: connected     Arsenal: available</text>
+    <text x="132" y="382" class="mono green" font-size="14">╰─[ aegis@sentinel ]─[~]</text>
+    <text x="132" y="410" class="mono white" font-size="15">$ nmap -sV 10.10.10.0/24</text>
+    <text x="132" y="438" class="mono muted" font-size="13">Starting Nmap scan ...</text>
+    <text x="132" y="464" class="mono green" font-size="13">22/tcp open ssh    80/tcp open http</text>
+    <text x="132" y="490" class="mono green" font-size="13">443/tcp open https  3000/tcp open dev-api</text>
+    <text x="132" y="544" class="mono cyan" font-size="15">$ aegis-ai</text>
+    <text x="250" y="544" class="mono muted" font-size="14">launch AI coding agents</text>
+    <rect x="132" y="570" width="12" height="22" fill="#00e5ff" opacity=".85"/>
+  </g>
+
+  <!-- Aphotic command panel -->
+  <g filter="url(#shadow)">
+    <rect x="1010" y="180" width="460" height="560" rx="18" class="panel" stroke="#7928ca" stroke-opacity=".8" stroke-width="2"/>
+    <rect x="1010" y="180" width="460" height="5" rx="2" fill="url(#neon)"/>
+    <text x="1050" y="230" class="sans white" font-size="22" font-weight="700">APHOTIC</text>
+    <text x="1050" y="255" class="mono muted" font-size="12" letter-spacing="2">COMMAND CENTER</text>
+    <circle cx="1408" cy="222" r="8" fill="#00ff9c" filter="url(#cyanGlow)"/>
+    <text x="1050" y="302" class="mono cyan" font-size="13">QUICK ACTIONS</text>
+    <rect x="1048" y="324" width="175" height="74" rx="12" fill="#00e5ff" fill-opacity=".12" stroke="#00e5ff" stroke-opacity=".6"/>
+    <text x="1070" y="352" class="sans white" font-size="16">⌕ Launcher</text>
+    <text x="1070" y="378" class="mono muted" font-size="12">SUPER + SPACE</text>
+    <rect x="1250" y="324" width="175" height="74" rx="12" fill="#7928ca" fill-opacity=".16" stroke="#7928ca" stroke-opacity=".7"/>
+    <text x="1272" y="352" class="sans white" font-size="16">◈ Dashboard</text>
+    <text x="1272" y="378" class="mono muted" font-size="12">SUPER + D</text>
+    <rect x="1048" y="414" width="175" height="74" rx="12" fill="#00ff9c" fill-opacity=".1" stroke="#00ff9c" stroke-opacity=".6"/>
+    <text x="1070" y="442" class="sans white" font-size="16">⚙ Settings</text>
+    <text x="1070" y="468" class="mono muted" font-size="12">SUPER + I</text>
+    <rect x="1250" y="414" width="175" height="74" rx="12" fill="#ff3366" fill-opacity=".12" stroke="#ff3366" stroke-opacity=".6"/>
+    <text x="1272" y="442" class="sans white" font-size="16">◉ Session</text>
+    <text x="1272" y="468" class="mono muted" font-size="12">SUPER + M</text>
+    <text x="1050" y="538" class="mono cyan" font-size="13">SYSTEM STATUS</text>
+    <text x="1050" y="570" class="mono muted" font-size="13">Hyprland compositor</text><text x="1385" y="570" class="mono green" font-size="13">ONLINE</text>
+    <text x="1050" y="596" class="mono muted" font-size="13">Aphotic shell</text><text x="1385" y="596" class="mono green" font-size="13">ONLINE</text>
+    <text x="1050" y="622" class="mono muted" font-size="13">BlackArch arsenal</text><text x="1385" y="622" class="mono green" font-size="13">READY</text>
+    <text x="1050" y="648" class="mono muted" font-size="13">AI agents</text><text x="1385" y="648" class="mono green" font-size="13">READY</text>
+    <rect x="1050" y="680" width="375" height="2" fill="url(#neon)" opacity=".55"/>
+    <text x="1050" y="710" class="mono muted" font-size="12">SUPER + W  Wallpaper</text>
+  </g>
+
+  <!-- Bottom status hint -->
+  <rect x="420" y="876" width="760" height="54" rx="16" fill="#0c1019" fill-opacity=".75" stroke="#2d6478" stroke-opacity=".5"/>
+  <text x="800" y="910" text-anchor="middle" class="mono muted" font-size="13">Aegis OS • Offensive &amp; Defensive Security • Agent-Native</text>
+</svg>

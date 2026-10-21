@@ -6,10 +6,10 @@
 #  Everything authentication-critical (live user, passwords, wheel membership,
 #  passwordless sudo) has moved to aegis-credentials, which runs first in its own
 #  unit. That split is deliberate: this script does slow, failure-prone things —
-#  locale-gen, hardware group probing, gio metadata, VM guest agents — and it
-#  used to run `set -euo pipefail` under a 120s kill timer *before* it ever set a
-#  password. Any stall or hiccup in the first 46 lines therefore produced an
-#  image with no working credentials at all and no way in.
+#  locale-gen and hardware group probing — and it used to run `set -euo pipefail`
+#  under a 120s kill timer *before* it ever set a password. Any stall or hiccup
+#  in the first 46 lines therefore produced an image with no working credentials
+#  at all and no way in.
 #
 #  So: no `set -e` here either. Every step below is optional and independently
 #  guarded; a failure logs and continues instead of silently skipping the rest.
@@ -37,6 +37,20 @@ if ! id -u "${LIVE_USER}" >/dev/null 2>&1; then
     [[ -x /usr/local/bin/aegis-credentials ]] && /usr/local/bin/aegis-credentials
 fi
 
+# --- SDDM autologin -----------------------------------------------------------
+# Write this before locale generation or any other optional work. The unit is
+# ordered before SDDM, but a slow locale or group operation can still consume
+# the unit timeout; the greeter must already have the dynamic user/session pair
+# if that happens. This is live-overlay-only, so the installed system cannot
+# autologin a user that Calamares never created.
+install -d -m 0755 /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/autologin.conf <<EOF
+[Autologin]
+User=${LIVE_USER}
+Session=hyprland.desktop
+Relogin=false
+EOF
+
 # --- Locale ------------------------------------------------------------------
 # Bounded: on a fresh archiso locale-gen can run for minutes, and this unit has
 # a start timeout. Unbounded, it was able to consume the entire budget and get
@@ -61,17 +75,6 @@ if [[ ${#add_groups[@]} -gt 0 ]]; then
         echo "!! could not add ${LIVE_USER} to: ${add_groups[*]}" >&2; unset IFS
 fi
 
-# --- SDDM autologin ----------------------------------------------------------
-# Live overlay only, so the installed system does not try to autologin a user
-# that Calamares never created.
-install -d -m 0755 /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/autologin.conf <<EOF
-[Autologin]
-User=${LIVE_USER}
-Session=hyprland.desktop
-Relogin=false
-EOF
-
 # --- XDG user dirs -----------------------------------------------------------
 runuser -u "${LIVE_USER}" -- xdg-user-dirs-update 2>/dev/null || true
 
@@ -81,23 +84,6 @@ if [[ -n "${LIVE_HOME}" && -d "${LIVE_HOME}/Desktop" ]]; then
     chmod +x "${LIVE_HOME}"/Desktop/*.desktop 2>/dev/null || true
     chown -R "${LIVE_USER}:${LIVE_USER}" "${LIVE_HOME}/Desktop" 2>/dev/null || true
 fi
-
-# --- VM guest integration (auto-detect) --------------------------------------
-# IMPORTANT: use --no-block (fire-and-forget). A plain `systemctl start` waits
-# for the unit's job to finish, and some guest agents block indefinitely: e.g.
-# qemu-guest-agent.service has BindsTo=/After= the virtio-serial device
-# org.qemu.guest_agent.0, so on a VM created without a guest-agent channel it
-# waits forever for a device that never appears. Because this script runs in a
-# oneshot ordered Before=display-manager.service, that would hang the entire
-# boot (the classic "A start job is running ... / no limit" freeze).
-# These agents are never needed before the display manager, so just enqueue and
-# move on.
-case "$(systemd-detect-virt 2>/dev/null || echo none)" in
-    oracle)     systemctl start --no-block vboxservice.service 2>/dev/null || true ;;
-    vmware)     systemctl start --no-block vmtoolsd.service vmware-vmblock-fuse.service 2>/dev/null || true ;;
-    kvm|qemu)   systemctl start --no-block qemu-guest-agent.service spice-vdagentd.service 2>/dev/null || true ;;
-    microsoft)  systemctl start --no-block hv_fcopy_daemon.service hv_kvp_daemon.service hv_vss_daemon.service 2>/dev/null || true ;;
-esac
 
 echo ":: Aegis OS live setup complete"
 exit 0

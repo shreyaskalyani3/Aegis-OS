@@ -160,7 +160,7 @@ Singleton {
             return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${version}`;
         }
 
-        const gpt = bare.match(/^gpt-([0-9]+(?:\.[0-9]+)*)(?:-(.+))?$/i);
+        const gpt = bare.match(/^gpt-([0-9]+(?:\.[0-9]+)*[a-z]*)(?:-(.+))?$/i);
         if (gpt) {
             const version = gpt[1];
             const suffix = (gpt[2] ?? "").toLowerCase();
@@ -171,6 +171,25 @@ Singleton {
             const named = root._codenames[suffix]
                 ?? `${suffix.charAt(0).toUpperCase()}${suffix.slice(1)}`;
             return `${named} ${version}`;
+        }
+
+        const reasoning = bare.match(/^(o[0-9]+)(?:-(.+))?$/i);
+        if (reasoning) {
+            const version = reasoning[1].toLowerCase();
+            const suffix = (reasoning[2] ?? "").toLowerCase();
+            return suffix ? `${version} (${suffix})` : version;
+        }
+
+        const gemini = bare.match(/^gemini-([0-9]+(?:\.[0-9]+)*)(?:-(.+))?$/i);
+        if (gemini) {
+            const version = gemini[1];
+            const suffix = (gemini[2] ?? "").toLowerCase();
+            return suffix ? `Gemini ${version} ${suffix.charAt(0).toUpperCase() + suffix.slice(1)}` : `Gemini ${version}`;
+        }
+
+        const deepseek = bare.match(/^deepseek-([a-z0-9\.\-]+)$/i);
+        if (deepseek) {
+            return `DeepSeek ${deepseek[1].toUpperCase()}`;
         }
 
         return bare;

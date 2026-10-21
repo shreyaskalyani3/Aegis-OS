@@ -68,15 +68,21 @@ aphotic_cmd_ai() {
             if [[ -n "$model" && "$provider" == "ollama" ]]; then
                 aphotic_write_atomic "$conf" \
                     jq --arg p "$provider" --arg m "$model" '.activeProvider = $p | .ollamaModel = $m' "$conf"
+            elif [[ -n "$model" && "$provider" == "chatgpt" ]]; then
+                aphotic_write_atomic "$conf" \
+                    jq --arg p "$provider" --arg m "$model" '.activeProvider = $p | .chatgptModel = $m' "$conf"
+            elif [[ -n "$model" && "$provider" == "gemini" ]]; then
+                aphotic_write_atomic "$conf" \
+                    jq --arg p "$provider" --arg m "$model" '.activeProvider = $p | .geminiModel = $m' "$conf"
+            elif [[ -n "$model" && "$provider" == "claude" ]]; then
+                aphotic_write_atomic "$conf" \
+                    jq --arg p "$provider" --arg m "$model" '.activeProvider = $p | .claudeModel = $m' "$conf"
             else
                 aphotic_write_atomic "$conf" \
                     jq --arg p "$provider" '.activeProvider = $p' "$conf"
             fi
 
-            if [[ -n "$model" && "$provider" != "ollama" ]]; then
-                aphotic_warn "':${model}' is ignored -- only the ollama profile has a model to set"
-            fi
-            aphotic_ok "AI panel profile set to '${provider}'$([ -n "$model" ] && [ "$provider" == "ollama" ] && echo " (model: ${model})")"
+            aphotic_ok "AI panel profile set to '${provider}'$([ -n "$model" ] && echo " (model: ${model})")"
             ;;
         ""|-h|--help)
             cat <<HELP
@@ -86,8 +92,9 @@ Usage: aphotic ai <status|profile|...> [args]
   profile <provider>[:<model>]
                              Switch the AI panel's active provider
                              (ollama, claude, gemini, chatgpt) --
-                             optionally set the model too (ollama only,
-                             e.g. 'ollama:llama3.1:8b')
+                             optionally set the model too (e.g.
+                             'chatgpt:gpt-4o', 'chatgpt:o3-mini',
+                             'gemini:gemini-2.5-flash', 'ollama:llama3.1:8b')
 HELP
             # Whatever plugins have added to `ai`. Printed from their own
             # manifests, so this help stays correct as they come and go

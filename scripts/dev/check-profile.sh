@@ -13,7 +13,8 @@
 #       -- the repo is authored on Windows so everything is mode 0644 in git;
 #       a missing entry means the script silently is not executable in the ISO
 #    6. Hyprland session, autologin, and Aphotic startup consistency
-#    7. every theme / icon name referenced anywhere is backed by a package we
+#    7. live boot/systemd enablement, VM guest integration, and first login
+#    8. every theme / icon name referenced anywhere is backed by a package we
 #       install -- so names with no package behind them are caught before build
 #       time rather than falling back silently at runtime
 # =============================================================================
@@ -119,7 +120,85 @@ grep -qx 'mako' profile/packages.x86_64 || bad "mako is missing from packages.x8
 note "  Hyprland, SDDM autologin, Calamares session, and Aphotic startup validated"
 
 note ""
-note "=== 7. Theme / icon names resolve to installed packages ====="
+note "=== 7. Live boot/systemd/VM/first-login consistency ========"
+BUILD=scripts/build-iso.sh
+SYSTEMD=profile/airootfs/etc/systemd/system
+
+for unit in aegis-credentials.service aegis-live-setup.service \
+            aegis-firstboot-cleanup.service aegis-vm-guest.service; do
+    [[ -f "${SYSTEMD}/${unit}" ]] || bad "missing live/system unit ${unit}"
+    grep -Fq "ln -sf \"/etc/systemd/system/${unit}\"" "${BUILD}" \
+        || bad "${unit} is shipped but build-iso.sh does not enable it"
+done
+grep -Fq 'ln -sf "/dev/null" "${SYSD}/systemd-firstboot.service"' "${BUILD}" \
+    || bad "systemd-firstboot is not masked in the live image"
+grep -Fq 'ln -sf "${LIB}/sddm.service" "${SYSD}/graphical.target.wants/sddm.service"' "${BUILD}" \
+    || bad "SDDM is not pulled in by graphical.target"
+grep -Fq 'ln -sf "${LIB}/NetworkManager.service"            "${SYSD}/multi-user.target.wants/NetworkManager.service"' "${BUILD}" \
+    || bad "NetworkManager is not enabled in the staged image"
+[[ -f scripts/dev/test-boot-profile.sh ]] || bad "boot profile smoke test is missing"
+grep -Fq 'options[[:space:]]+.*' "${BUILD}" \
+    || bad "UEFI systemd-boot options injection is missing"
+grep -Fq 'APPEND[[:space:]]+)' "${BUILD}" \
+    || bad "BIOS syslinux APPEND injection is missing"
+grep -Fq 'linux[[:space:]]+.*' "${BUILD}" \
+    || bad "GRUB linux-line injection is missing"
+
+grep -q '^Before=.*display-manager\.service' "${SYSTEMD}/aegis-credentials.service" \
+    || bad "credentials service is not ordered before the display manager"
+grep -q '^Before=.*display-manager\.service' "${SYSTEMD}/aegis-live-setup.service" \
+    || bad "live setup is not ordered before the display manager"
+grep -q '^ConditionVirtualization=oracle$' "${SYSTEMD}/aegis-vbox-drm.service" \
+    || bad "VirtualBox DRM helper is not restricted to VirtualBox"
+grep -q '^ConditionPathExists=/usr/bin/VBoxDRMClient$' "${SYSTEMD}/aegis-vbox-drm.service" \
+    || bad "VirtualBox DRM helper does not guard the package-provided binary"
+grep -q '^ExecStart=/usr/local/bin/aegis-firstboot-cleanup$' \
+    profile/airootfs/etc/systemd/system/aegis-firstboot-cleanup.service \
+    || bad "first-boot cleanup unit does not invoke its cleanup script"
+if grep -q 'aegis-firstboot-cleanup\.service\|aegis-vm-guest\.service' \
+    profile/airootfs/etc/calamares/modules/shellprocess.conf; then
+    bad "Calamares cleanup removes the persistent first-boot/VM integration units"
+fi
+autologin_write="$(grep -n 'cat > /etc/sddm\.conf\.d/autologin\.conf' profile/airootfs/usr/local/bin/aegis-live-setup | cut -d: -f1)"
+locale_work="$(grep -n 'locale -a' profile/airootfs/usr/local/bin/aegis-live-setup | cut -d: -f1)"
+[[ -n "${autologin_write}" && -n "${locale_work}" && "${autologin_write}" -lt "${locale_work}" ]] \
+    || bad "live setup writes SDDM autologin only after optional locale work"
+
+for pkg in virtualbox-guest-utils open-vm-tools xf86-input-vmmouse gtkmm3 \
+           qemu-guest-agent spice-vdagent hyperv; do
+    grep -qx "${pkg}" profile/packages.x86_64 \
+        || bad "VM package ${pkg} is missing from packages.x86_64"
+done
+VM_SETUP=profile/airootfs/usr/local/bin/aegis-vm-guest-setup
+for token in 'oracle)' 'vmware)' 'kvm|qemu)' 'microsoft)' \
+             'vboxservice.service' 'vmtoolsd.service' 'qemu-guest-agent.service' \
+             'spice-vdagentd.service' 'hv_kvp_daemon.service' 'hv_vss_daemon.service'; do
+    grep -Fq "${token}" "${VM_SETUP}" || bad "VM guest setup is missing ${token}"
+done
+grep -Fq 'systemctl cat "${unit}"' "${VM_SETUP}" \
+    || bad "VM guest setup does not guard optional service units"
+grep -Fq 'systemctl start --no-block "${unit}"' "${VM_SETUP}" \
+    || bad "VM guest setup does not queue guest services asynchronously"
+
+FIRST_LOGIN=profile/airootfs/etc/skel/.config/systemd/user/aegis-first-login.service
+SESSION_DROPIN=profile/airootfs/etc/skel/.config/systemd/user/graphical-session.target.d/aegis-session-services.conf
+VBOX_SESSION=profile/airootfs/etc/skel/.config/systemd/user/aegis-vbox-session.service
+[[ -f "${FIRST_LOGIN}" ]] || bad "first-login user service missing"
+[[ -f "${SESSION_DROPIN}" ]] || bad "graphical-session target drop-in missing"
+[[ -f "${VBOX_SESSION}" ]] || bad "VirtualBox user-session helper missing"
+grep -q '^ExecStartPre=/usr/local/bin/aegis-desktop-setup$' "${FIRST_LOGIN}" \
+    || bad "first-login service does not run desktop setup"
+grep -q '^ExecStart=/usr/local/bin/aegis-welcome$' "${FIRST_LOGIN}" \
+    || bad "first-login service does not launch the setup wizard"
+grep -q '^Wants=aegis-first-login\.service aegis-vbox-session\.service$' "${SESSION_DROPIN}" \
+    || bad "graphical-session target does not pull in first-login/VM session helpers"
+grep -q 'systemctl --user start graphical-session\.target' \
+    profile/airootfs/etc/skel/.config/hypr/hyprland.conf \
+    || bad "Hyprland does not start the user graphical-session target"
+note "  live units, SDDM ordering, guest mappings, and Hyprland first-login path validated"
+
+note ""
+note "=== 8. Theme / icon names resolve to installed packages ====="
 PKGS=profile/packages.x86_64
 SKEL=profile/airootfs/etc/skel
 

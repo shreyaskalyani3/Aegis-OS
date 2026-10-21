@@ -1,0 +1,14 @@
+{
+  "activeProvider": "ollama",
+  "ollamaHost": "http://127.0.0.1:11434",
+  "ollamaModel": "llama3.1:8b",
+  "chatgptModel": "gpt-4o",
+  "geminiModel": "gemini-2.5-flash",
+  "claudeModel": "claude-3-5-sonnet",
+  "llamaSwapHost": "",
+  "lmStudioHost": "",
+  "inferenceMode": "auto",
+  "assistantEnabled": false,
+  "assistantModel": "",
+  "assistantInstalledAt": ""
+}

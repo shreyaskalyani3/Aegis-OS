@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  aegis-welcome — on first desktop login, offer to run the setup wizard.
-#  Silent no-op once setup has completed. Launched from XDG autostart.
+#  Silent no-op once setup has completed. Launched by user systemd (and kept
+#  compatible with XDG autostart for sessions that implement it).
 # =============================================================================
 set -uo pipefail
 
 MARKER="${HOME}/.config/aegis/setup-done"
 [[ -f "${MARKER}" ]] && exit 0
+
+# Hyprland uses the user-systemd target below, while another session may also
+# honor ~/.config/autostart/aegis-welcome.desktop. Keep those two entry paths
+# from opening two setup terminals at the same time.
+if command -v flock >/dev/null 2>&1; then
+    LOCK_DIR="${XDG_RUNTIME_DIR:-${HOME}/.cache}"
+    if mkdir -p "${LOCK_DIR}" 2>/dev/null && exec 9>"${LOCK_DIR}/aegis-welcome.lock"; then
+        flock -n 9 2>/dev/null || exit 0
+    fi
+fi
 
 term=""
 for t in konsole alacritty xterm; do

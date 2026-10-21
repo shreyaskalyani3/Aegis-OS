@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-vm-guest-setup — start the guest integration that matches the host.
+#
+#  This runs from a small systemd unit that remains enabled after installation.
+#  The live-only setup used to start these services, which meant an installed
+#  Aegis system lost VMware/VirtualBox/QEMU/Hyper-V integration as soon as
+#  Calamares removed that live unit.
+#
+#  Every unit is checked and started separately. A package can legally omit one
+#  optional service (the current Arch hyperv package, for example, has KVP/VSS
+#  units but no hv_fcopy_daemon.service); passing a missing unit in the same
+#  systemctl transaction can prevent the valid units from being queued too.
+#  --no-block is intentional: qemu-guest-agent can wait for a virtio-serial
+#  channel that a particular VM does not expose.
+# =============================================================================
+set -uo pipefail
+
+say(){ printf 'aegis-vm-guest-setup: %s\n' "$*"; }
+
+command -v systemctl >/dev/null 2>&1 || exit 0
+
+virt="$(systemd-detect-virt 2>/dev/null || echo none)"
+say "detected virtualization: ${virt}"
+
+start_if_present() {
+    local unit
+    for unit in "$@"; do
+        # `systemctl cat` succeeds for installed units and avoids a single
+        # missing optional service poisoning the transaction for its siblings.
+        systemctl cat "${unit}" >/dev/null 2>&1 || {
+            say "skipping unavailable unit: ${unit}"
+            continue
+        }
+        systemctl start --no-block "${unit}" 2>/dev/null || \
+            say "could not queue ${unit}; continuing"
+    done
+}
+
+case "${virt}" in
+    oracle)
+        # VBoxDRMClient is the package-provided Wayland/DRM-side helper; the
+        # system vboxservice unit handles the core guest additions daemon.
+        start_if_present vboxservice.service aegis-vbox-drm.service
+        ;;
+    vmware)
+        start_if_present vmtoolsd.service vmware-vmblock-fuse.service
+        ;;
+    kvm|qemu)
+        start_if_present qemu-guest-agent.service spice-vdagentd.service
+        ;;
+    microsoft)
+        # hv_fcopy_daemon.service is retained as an optional compatibility
+        # name for images/packages that provide it. Current Arch supplies the
+        # KVP and VSS units; each is started independently.
+        start_if_present hv_fcopy_daemon.service hv_kvp_daemon.service hv_vss_daemon.service
+        ;;
+    *)
+        say "no guest service action required"
+        ;;
+esac
+
+exit 0

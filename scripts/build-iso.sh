@@ -29,6 +29,7 @@ export LC_ALL=C.UTF-8
 # shellcheck source=lib/common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
+validate_config
 BUILD_USER="${AEGIS_BUILD_USER:-builder}"
 VERSION="$(resolve_version)"
 
@@ -83,16 +84,23 @@ fi
 
 if [[ "${AEGIS_ENABLE_CHAOTIC}" -eq 1 ]] && ! grep -q '^\[chaotic-aur\]' /etc/pacman.conf; then
     log "enabling Chaotic-AUR"
-    retry "Chaotic-AUR key fetch" pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
-    pacman-key --lsign-key 3056513887B78AEB
-    pacman -U --noconfirm \
-        'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' \
-        'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst' || \
+    chaotic_ready=0
+    if pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com \
+       && pacman-key --lsign-key 3056513887B78AEB \
+       && pacman -U --noconfirm \
+            'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' \
+            'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst' \
+       && [[ -r /etc/pacman.d/chaotic-mirrorlist ]]; then
+        chaotic_ready=1
+    else
         warn "Chaotic-AUR bootstrap failed — continuing without it"
-    if ! grep -q '^\[chaotic-aur\]' /etc/pacman.conf; then
-        printf '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n' >> /etc/pacman.conf
     fi
-    pacman -Sy --noconfirm || true
+    if [[ "${chaotic_ready}" -eq 1 ]]; then
+        printf '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n' >> /etc/pacman.conf
+        retry "Chaotic-AUR sync database refresh" pacman -Sy --noconfirm
+    else
+        warn "Chaotic-AUR was not added to /etc/pacman.conf"
+    fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -108,6 +116,10 @@ chown -R "${BUILD_USER}:${BUILD_USER}" "${LOCALREPO}"
 # startdir instead of trying to create one it has no rights to.
 pkg_stage="$(mktemp -d /tmp/aegis-pkgstage.XXXXXX)"
 cp -a "${REPO_ROOT}/${AEGIS_PACKAGES_DIR}" "${pkg_stage}/packages"
+# Never carry ignored/stale package archives from a previous local build into
+# the fresh repository. makepkg creates the only package files that belong here.
+find "${pkg_stage}/packages" -type f \
+    \( -name '*.pkg.tar.*' -o -name '*.sig' \) -delete
 # The PKGBUILDs read ../../aegis.conf (and VERSION) relative to their startdir
 # — stage those beside packages/ so the relative lookup survives the move and
 # version pinning doesn't silently fall back to the build date.
@@ -341,7 +353,8 @@ if [[ -f "${ARCHISO_CONF}" ]] && ! grep -q 'plymouth' "${ARCHISO_CONF}"; then
 fi
 
 # Inject the absolute local-repo path into the [aegis] repo Server line.
-sed -i "s|file://__AEGIS_LOCAL_REPO__|file://${LOCALREPO}|g" "${STAGED_PROFILE}/pacman.conf"
+localrepo_sed="$(printf '%s' "${LOCALREPO}" | sed 's/[&|\\]/\\&/g')"
+sed -i "s|file://__AEGIS_LOCAL_REPO__|file://${localrepo_sed}|g" "${STAGED_PROFILE}/pacman.conf"
 
 # Generate the live credentials file from aegis.conf. Until this existed,
 # AEGIS_LIVE_PASSWORD / AEGIS_ROOT_PASSWORD were dead config: aegis.conf
@@ -374,10 +387,24 @@ _cred_got="$( unset AEGIS_LIVE_USER AEGIS_LIVE_PASSWORD AEGIS_ROOT_PASSWORD
     || die "generated credentials.conf does not round-trip — refusing to build an unloggable ISO"
 ok "live credentials generated from aegis.conf (user: ${AEGIS_LIVE_USER})"
 
-# Stamp the build version into os-release / boot menus (placeholder __AEGIS_VERSION__).
-grep -rl '__AEGIS_VERSION__' "${STAGED_PROFILE}" 2>/dev/null | while read -r f; do
-    sed -i "s|__AEGIS_VERSION__|${VERSION}|g" "${f}"
-done
+# Stamp central identity/URL values into the staged profile. The repository
+# keeps explicit tokens so a fork or release URL change cannot leave stale
+# Calamares/os-release/service metadata behind.
+stamp_staged_token() {
+    local token="$1" value="$2" escaped
+    escaped="$(printf '%s' "${value}" | sed 's/[&|\\]/\\&/g')"
+    while IFS= read -r f; do
+        sed -i "s|${token}|${escaped}|g" "${f}"
+    done < <(grep -rlI -- "${token}" "${STAGED_PROFILE}" 2>/dev/null || true)
+}
+stamp_staged_token '__AEGIS_VERSION__'    "${VERSION}"
+stamp_staged_token '__AEGIS_URL__'        "${AEGIS_URL}"
+stamp_staged_token '__AEGIS_DOCS_URL__'   "${AEGIS_DOCS_URL}"
+stamp_staged_token '__AEGIS_SUPPORT_URL__' "${AEGIS_SUPPORT_URL}"
+stamp_staged_token '__AEGIS_RELEASES_URL__' "${AEGIS_RELEASES_URL}"
+stamp_staged_token '__AEGIS_PRIVACY_URL__' "${AEGIS_PRIVACY_URL}"
+_unresolved_tokens="$(grep -RIlE '__AEGIS_(VERSION|URL|DOCS_URL|SUPPORT_URL|RELEASES_URL|PRIVACY_URL)__' "${STAGED_PROFILE}" 2>/dev/null || true)"
+[[ -z "${_unresolved_tokens}" ]] || die "staged profile contains unresolved metadata tokens: ${_unresolved_tokens}"
 
 # If BlackArch is disabled, strip the repo (build + runtime) and the pkg block.
 if [[ "${AEGIS_ENABLE_BLACKARCH}" -ne 1 ]]; then
@@ -467,7 +494,7 @@ _append_filtered_blackarch() {
     # pacstrap ("unable to satisfy dependency 'vagrant' required by
     # malboxes") after the same network outage — with no explanation.
     synced=0
-    for _try in 1 2 3 4 5; do
+    for (( _try=1; _try<=AEGIS_NET_RETRIES; _try++ )); do
         # -Sy exits 0 even when an Include file is missing (warning only), so a
         # bare exit code cannot be trusted — require actual .db files on disk.
         if pacman --config "${STAGED_PROFILE}/pacman.conf" --dbpath "${filter_db}" -Sy >/dev/null 2>&1 \
@@ -475,8 +502,10 @@ _append_filtered_blackarch() {
             synced=1
             break
         fi
-        warn "database refresh failed (try ${_try}/5) — retrying in 10s"
-        sleep 10
+        if (( _try < AEGIS_NET_RETRIES )); then
+            warn "database refresh failed (try ${_try}/${AEGIS_NET_RETRIES}) — retrying in 10s"
+            sleep 10
+        fi
     done
     if [[ "${synced}" -eq 0 ]]; then
         die "the resolvability filter could not refresh the package databases (network?) — rerun the build on a working connection, or set AEGIS_TOOL_SET=lean to build without the BlackArch groups"
@@ -546,13 +575,13 @@ _append_filtered_blackarch() {
 # --- Bake in the requested breadth of the BlackArch arsenal ------------------
 # AEGIS_TOOL_SET selects how much ships inside the ISO:
 #   lean  = the curated always-on set only (already in packages.x86_64)
-#   broad = curated + the major category groups from aegis.conf   (default)
+#   broad = curated + the major category groups from aegis.conf
 #   full  = curated + the ENTIRE `blackarch` group (~2800 tools)
 # Groups resolve from the [blackarch] repo, so this only applies when BlackArch
 # is enabled. A group name in packages.x86_64 is expanded by pacstrap at build.
 PKGS="${STAGED_PROFILE}/packages.x86_64"
 if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
-    case "${AEGIS_TOOL_SET:-broad}" in
+    case "${AEGIS_TOOL_SET}" in
         lean)
             ok "tool set: lean — curated baked-in set only"
             ;;
@@ -573,7 +602,7 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
             ;;
     esac
 else
-    [[ "${AEGIS_TOOL_SET:-broad}" != "lean" ]] && \
+    [[ "${AEGIS_TOOL_SET}" != "lean" ]] && \
         warn "AEGIS_TOOL_SET='${AEGIS_TOOL_SET}' has no effect: BlackArch is disabled"
 fi
 
@@ -588,7 +617,7 @@ LIB="/usr/lib/systemd/system"
 mkdir -p "${SYSD}/multi-user.target.wants" "${SYSD}/graphical.target.wants" \
          "${SYSD}/sysinit.target.wants" "${SYSD}/bluetooth.target.wants"
 
-# Boot into the graphical target (SDDM greeter -> KDE Plasma).
+# Boot into the graphical target (SDDM greeter -> Hyprland).
 ln -sf "${LIB}/graphical.target" "${SYSD}/default.target"
 
 # Display manager: SDDM. The generic display-manager.service alias is what
@@ -633,9 +662,19 @@ ln -sf "/etc/systemd/system/aegis-credentials.service" \
        "${SYSD}/multi-user.target.wants/aegis-credentials.service"
 
 # The Aegis live-setup oneshot configures the live desktop (locale, autologin,
-# launcher trust, VM agents) after credentials are in place.
+# launcher trust) after credentials are in place.
 ln -sf "/etc/systemd/system/aegis-live-setup.service" \
        "${SYSD}/multi-user.target.wants/aegis-live-setup.service"
+# This unit is intentionally retained in the installed target: its marker and
+# removable-media guards make it a no-op on the live medium, then perform the
+# one-time post-install USB cleanup on the first boot from disk.
+ln -sf "/etc/systemd/system/aegis-firstboot-cleanup.service" \
+       "${SYSD}/multi-user.target.wants/aegis-firstboot-cleanup.service"
+# Guest services must survive Calamares removing the live-only credentials and
+# setup links. The helper detects VMware/VirtualBox/QEMU/KVM/Hyper-V and queues
+# only units that the installed package set actually provides.
+ln -sf "/etc/systemd/system/aegis-vm-guest.service" \
+       "${SYSD}/multi-user.target.wants/aegis-vm-guest.service"
 ok "systemd services enabled in staged airootfs"
 
 ok "profile staged at ${STAGED_PROFILE}"
@@ -678,7 +717,12 @@ rm -rf "${OUT}/isofs" 2>/dev/null || true
 ) &
 CACHE_CLEANER_PID=$!
 
-AEGIS_VERSION="${VERSION}" mkarchiso -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
+AEGIS_VERSION="${VERSION}" \
+AEGIS_NAME="${AEGIS_NAME}" \
+AEGIS_ID="${AEGIS_ID}" \
+AEGIS_VENDOR="${AEGIS_VENDOR}" \
+AEGIS_URL="${AEGIS_URL}" \
+mkarchiso -v -w "${WORK}/mkarchiso" -o "${OUT}" "${STAGED_PROFILE}"
 kill "${CACHE_CLEANER_PID}" 2>/dev/null || true
 wait "${CACHE_CLEANER_PID}" 2>/dev/null || true
 

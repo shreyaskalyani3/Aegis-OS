@@ -820,25 +820,35 @@ Singleton {
         root.activeRequestId = requestId;
 
         switch (provider) {
-        case "claude":
-            claudeProc.command = ["claude", "-p", text, "--disallowed-tools", "*"];
+        case "claude": {
+            const claudeArgs = ["claude", "-p", text, "--disallowed-tools", "*"];
+            const resolvedClaudeModel = model || AiConfig.claudeModel;
+            if (resolvedClaudeModel && resolvedClaudeModel.length > 0) {
+                claudeArgs.push("--model", resolvedClaudeModel);
+            }
+            claudeProc.command = claudeArgs;
             claudeProc.running = true;
             break;
-        case "gemini":
+        }
+        case "gemini": {
+            const resolvedGeminiModel = model || AiConfig.geminiModel || "gemini-2.5-flash";
             geminiProc.command = ["curl", "-s", "-m", "30",
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${AiKeys.geminiApiKey}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${resolvedGeminiModel}:generateContent?key=${AiKeys.geminiApiKey}`,
                 "-H", "content-type: application/json",
                 "-d", JSON.stringify({ contents: [{ parts: [{ text }] }] })];
             geminiProc.running = true;
             break;
-        case "chatgpt":
+        }
+        case "chatgpt": {
+            const resolvedChatModel = model || AiConfig.chatgptModel || "gpt-4o";
             chatgptProc.command = ["curl", "-s", "-m", "30",
                 "https://api.openai.com/v1/chat/completions",
                 "-H", "content-type: application/json",
                 "-H", `authorization: Bearer ${AiKeys.openaiApiKey}`,
-                "-d", JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: text }] })];
+                "-d", JSON.stringify({ model: resolvedChatModel, messages: [{ role: "user", content: text }] })];
             chatgptProc.running = true;
             break;
+        }
         default: {
             // Reached by both "ollama" and "assistant" -- the Assistant is
             // a persona/preset layered on this same Ollama call (pinned

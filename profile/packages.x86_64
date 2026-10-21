@@ -7,7 +7,7 @@
 #  guarded block near the bottom (stripped when AEGIS_ENABLE_BLACKARCH=0).
 #
 #  How much of the 2800+ BlackArch arsenal is baked in is controlled by
-#  AEGIS_TOOL_SET in aegis.conf: `broad` (default) makes build-iso.sh APPEND the
+#  AEGIS_TOOL_SET in aegis.conf: `lean` (default) keeps the curated core; `broad` makes build-iso.sh APPEND the
 #  major category groups (AEGIS_BLACKARCH_GROUPS) here at staging time; `full`
 #  appends the whole `blackarch` group; `lean` appends nothing. Anything not
 #  baked in is always installable post-boot via `aegis-tools`.
@@ -221,7 +221,6 @@ tumbler
 ffmpegthumbnailer
 playerctl
 blueman
-network-manager-applet
 wofi
 hyprpaper
 psmisc
@@ -237,13 +236,11 @@ qt6-imageformats
 qt6-multimedia
 qt6-5compat
 kvantum
-wl-clipboard
 cliphist
 grim
 slurp
 swappy
 wf-recorder
-pamixer
 brightnessctl
 hypridle
 hyprlock
@@ -265,12 +262,9 @@ gnome-themes-extra
 librsvg
 qt5ct
 qt6ct
-kvantum
 ttf-dejavu
 ttf-liberation
-ttf-jetbrains-mono-nerd
 noto-fonts
-noto-fonts-emoji
 noto-fonts-cjk
 terminus-font
 ttf-nerd-fonts-symbols

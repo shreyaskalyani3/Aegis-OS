@@ -10,13 +10,35 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 step "Aegis OS — WSL2 + Arch setup helper"
+validate_config
 
 command -v wsl.exe >/dev/null 2>&1 || die "wsl.exe not found. Enable WSL: run in an ADMIN PowerShell:  wsl --install"
+
+# Convert the actual checkout path to the path visible inside WSL. Git Bash
+# provides `pwd -W`; the /f-style fallback also keeps this working in MSYS-like
+# shells where wslpath is not installed as a native command.
+wsl_repo_path() {
+    local windows_repo wsl_repo drive rest
+    windows_repo="$(pwd -W 2>/dev/null || true)"
+    if [[ -n "${windows_repo}" ]]; then
+        wsl_repo="$(wsl.exe wslpath -u "${windows_repo}" 2>/dev/null | tr -d '\r')"
+        [[ -n "${wsl_repo}" ]] && { printf '%s' "${wsl_repo}"; return; }
+    fi
+    if [[ "${REPO_ROOT}" =~ ^/([[:alpha:]])/(.*)$ ]]; then
+        drive="${BASH_REMATCH[1],,}"
+        rest="${BASH_REMATCH[2]}"
+        printf '/mnt/%s/%s' "${drive}" "${rest}"
+    else
+        printf '%s' "${REPO_ROOT}"
+    fi
+}
+WSL_REPO_ROOT="$(wsl_repo_path)"
 
 log "Ensuring WSL2 is the default version"
 wsl.exe --set-default-version 2 || warn "could not set WSL2 default (may already be set)"
 
 DISTRO="${AEGIS_WSL_DISTRO:-archlinux}"
+[[ "${DISTRO}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid WSL distro name: ${DISTRO}"
 
 if wsl.exe --list --quiet 2>/dev/null | tr -d '\r\0' | grep -qi "^${DISTRO}$"; then
     ok "WSL distro '${DISTRO}' already installed"
@@ -47,13 +69,13 @@ ${C_GREEN}${C_BOLD}WSL Arch is ready.${C_RESET} Now build the ISO inside it:
   2. Initialize pacman keys (first time):
         ${C_CYAN}sudo pacman-key --init && sudo pacman-key --populate archlinux${C_RESET}
         ${C_CYAN}sudo pacman -Syu --noconfirm${C_RESET}
-  3. Go to this repo (your F: drive is at /mnt/f):
-        ${C_CYAN}cd "/mnt/f/build OWN OS"${C_RESET}
+  3. Go to this repo (the checkout is visible inside WSL at):
+        ${C_CYAN}cd "${WSL_REPO_ROOT}"${C_RESET}
      ${C_YELLOW}NOTE:${C_RESET} building on /mnt (DrvFs) can be slow and may reject some
      permissions. For a reliable build, copy the repo into the Linux filesystem first:
-        ${C_CYAN}cp -a "/mnt/f/build OWN OS" ~/aegis-os && cd ~/aegis-os${C_RESET}
+        ${C_CYAN}cp -a "${WSL_REPO_ROOT}" ~/aegis-os && cd ~/aegis-os${C_RESET}
   4. Build:
         ${C_CYAN}sudo bash scripts/build-iso.sh${C_RESET}
 
-The finished ISO will be in ./out/ (copy it back to /mnt/f to use it on Windows).
+The finished ISO will be in ./out/ (copy it back to the Windows checkout if needed).
 EOF

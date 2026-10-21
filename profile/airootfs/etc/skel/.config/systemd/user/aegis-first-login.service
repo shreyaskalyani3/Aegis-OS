@@ -1,0 +1,13 @@
+[Unit]
+Description=Aegis OS first graphical-login setup
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/bin/aegis-desktop-setup
+ExecStart=/usr/local/bin/aegis-welcome
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target

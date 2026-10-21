@@ -111,12 +111,12 @@ Output: `out/aegis-*.iso` and `out/aegis-*.iso.sha256`.
 |---|---|
 | `AEGIS_VERSION` | ISO version (default: build date `YYYY.MM.DD`) |
 | `AEGIS_ENABLE_BLACKARCH` | `1` bakes BlackArch tools in; `0` strips them (much smaller/faster) |
-| `AEGIS_TOOL_SET` | how much arsenal is baked in: `lean` / `broad` (default) / `full` |
+| `AEGIS_TOOL_SET` | how much arsenal is baked in: `lean` (default) / `broad` / `full` |
 | `AEGIS_BLACKARCH_GROUPS` | the category groups baked in when `AEGIS_TOOL_SET=broad` |
 | `AEGIS_ENABLE_CHAOTIC` | `1` adds Chaotic-AUR to the build environment |
 | `AEGIS_AI_AGENTS` | which agents the tooling knows about |
 | `AEGIS_LIVE_USER` / `_PASSWORD` | live-session credentials (default `aegis`/`aegis`) |
-| `AEGIS_DESKTOP` | desktop environment (wired for `plasma`) |
+| `AEGIS_DESKTOP` | desktop environment (wired for `hyprland`) |
 | `AEGIS_PLYMOUTH_THEME` | plymouth boot animation: `aegis` (default) or `hitech-arch-animation` (neon Arch boot animation, vendored at build time) |
 | `AEGIS_NET_RETRIES` | attempts each network call gets before the build gives up (default 5) |
 
@@ -124,7 +124,7 @@ Set them in `aegis.conf`, or override per-build via the environment, e.g.:
 
 ```bash
 AEGIS_TOOL_SET=lean  sudo -E bash scripts/build-iso.sh   # curated core only, ~4 GB
-AEGIS_TOOL_SET=broad sudo -E bash scripts/build-iso.sh   # all major categories (default)
+AEGIS_TOOL_SET=broad sudo -E bash scripts/build-iso.sh   # all major categories
 AEGIS_TOOL_SET=full  sudo -E bash scripts/build-iso.sh   # ENTIRE arsenal — big-disk host only
 AEGIS_ENABLE_BLACKARCH=0 sudo -E bash scripts/build-iso.sh   # no BlackArch at all
 ```

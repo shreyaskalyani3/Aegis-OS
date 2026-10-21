@@ -22,6 +22,9 @@ Singleton {
     property string activeProvider: "ollama"
     property string ollamaHost: ""
     property string ollamaModel: ""
+    property string chatgptModel: "gpt-4o"
+    property string geminiModel: "gemini-2.5-flash"
+    property string claudeModel: "claude-3-5-sonnet"
     // No loopback fallback, unlike ollamaHost: llama-swap has no standard
     // port and nothing installs it, so an unset host means "not in use".
     property string llamaSwapHost: ""
@@ -48,6 +51,9 @@ Singleton {
             activeProvider: root.activeProvider,
             ollamaHost: root.ollamaHost,
             ollamaModel: root.ollamaModel,
+            chatgptModel: root.chatgptModel,
+            geminiModel: root.geminiModel,
+            claudeModel: root.claudeModel,
             llamaSwapHost: root.llamaSwapHost,
             lmStudioHost: root.lmStudioHost,
             inferenceMode: root.inferenceMode,
@@ -69,6 +75,9 @@ Singleton {
     }
     onOllamaHostChanged: root._save()
     onOllamaModelChanged: root._save()
+    onChatgptModelChanged: root._save()
+    onGeminiModelChanged: root._save()
+    onClaudeModelChanged: root._save()
     onLlamaSwapHostChanged: root._save()
     onLmStudioHostChanged: root._save()
     onInferenceModeChanged: root._save()
@@ -90,6 +99,12 @@ Singleton {
                     root.ollamaHost = data.ollamaHost;
                 if (typeof data.ollamaModel === "string")
                     root.ollamaModel = data.ollamaModel;
+                if (typeof data.chatgptModel === "string" && data.chatgptModel.length > 0)
+                    root.chatgptModel = data.chatgptModel;
+                if (typeof data.geminiModel === "string" && data.geminiModel.length > 0)
+                    root.geminiModel = data.geminiModel;
+                if (typeof data.claudeModel === "string" && data.claudeModel.length > 0)
+                    root.claudeModel = data.claudeModel;
                 if (typeof data.llamaSwapHost === "string")
                     root.llamaSwapHost = data.llamaSwapHost;
                 if (typeof data.lmStudioHost === "string")

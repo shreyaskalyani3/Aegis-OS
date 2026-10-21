@@ -8,14 +8,18 @@
 #  login session — and WSL2 tears the whole VM down ~60s after the LAST client
 #  disconnects, killing even the systemd-run build unit.
 #
-#  Runs INSIDE WSL, started from Windows detached:
-#    powershell Start-Process wsl.exe '-u','root','--','bash','-c','exec bash /mnt/f/AegisOS/scripts/wsl-build-supervisor.sh'
+#  Runs INSIDE WSL, started from Windows detached. Set AEGIS_HOST_REPO to the
+#  mounted Windows checkout when the script is launched from a different copy.
 #  Never run it twice in parallel: it would double-launch builds.
 #
-#  Log: F:/AegisOS/work/supervisor.log (WSL side: /mnt/f/AegisOS/work/...)
+#  The supervisor log defaults to ${AEGIS_HOST_REPO}/work/supervisor.log.
 set -u
 
-SLOG=/mnt/f/AegisOS/work/supervisor.log
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOST_REPO="${AEGIS_HOST_REPO:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+WSL_REPO="${AEGIS_WSL_REPO:-${HOME:-/root}/AegisOS}"
+SLOG="${AEGIS_SUPERVISOR_LOG:-${HOST_REPO}/work/supervisor.log}"
+LAUNCH_SCRIPT="${AEGIS_LAUNCH_SCRIPT:-${SCRIPT_DIR}/wsl-build-launch.sh}"
 mkdir -p "$(dirname "${SLOG}")"
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "${SLOG}"; }
 
@@ -25,7 +29,7 @@ fail_streak=0
 
 while true; do
     # 1. Done? (ISO exists → exit; the build script itself writes it.)
-    if ls /root/AegisOS/out/*.iso >/dev/null 2>&1; then
+    if ls "${WSL_REPO}"/out/*.iso >/dev/null 2>&1; then
         log "ISO present — supervisor done"
         break
     fi
@@ -41,7 +45,7 @@ while true; do
     # 3. Nothing running: relaunch (backoff on repeated quick deaths).
     if [ "${fail_streak}" -ge 8 ]; then
         log "GIVING UP after ${fail_streak} quick failures — fix scripts/build-iso.sh, delete work/BUILD-GAVE-UP, rerun"
-        : > /mnt/f/AegisOS/work/BUILD-GAVE-UP
+        : > "${HOST_REPO}/work/BUILD-GAVE-UP"
         break
     fi
     if [ "${fail_streak}" -gt 0 ]; then
@@ -51,7 +55,7 @@ while true; do
     fi
 
     log "launching build (scripts/wsl-build-launch.sh)"
-    bash /mnt/f/AegisOS/scripts/wsl-build-launch.sh >> "${SLOG}" 2>&1
+    bash "${LAUNCH_SCRIPT}" >> "${SLOG}" 2>&1
     sleep 45
 
     # Did that launch stick for at least ~2 min? If the build survives past

@@ -19,14 +19,30 @@ GITHUB_WORKFLOW = os.getenv(
 )
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+SUPPORTED_TOOL_SETS = {"lean", "broad", "full"}
+DEFAULT_TOOL_SET = os.getenv("AEGIS_TOOL_SET", "lean")
+if DEFAULT_TOOL_SET not in SUPPORTED_TOOL_SETS:
+    raise RuntimeError(
+        "AEGIS_TOOL_SET must be lean, broad, or full "
+        f"(got {DEFAULT_TOOL_SET!r})"
+    )
+
+_DEFAULT_BLACKARCH = os.getenv("AEGIS_ENABLE_BLACKARCH", "1")
+if _DEFAULT_BLACKARCH not in {"0", "1"}:
+    raise RuntimeError(
+        "AEGIS_ENABLE_BLACKARCH must be 0 or 1 "
+        f"(got {_DEFAULT_BLACKARCH!r})"
+    )
+DEFAULT_BLACKARCH = _DEFAULT_BLACKARCH == "1"
+
 
 class BuildRequest(BaseModel):
     tool_set: str = Field(
-        default="broad",
+        default=DEFAULT_TOOL_SET,
         pattern="^(lean|broad|full)$",
     )
 
-    blackarch: bool = True
+    blackarch: bool = DEFAULT_BLACKARCH
 
 
 @app.get("/")

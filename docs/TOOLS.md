@@ -15,8 +15,8 @@ away with `aegis-tools`.
 
 | Tier | What's baked in | Approx. ISO |
 |---|---|---|
-| `lean` | Curated always-on core only | ~4 GB |
-| **`broad`** (default) | Curated core **+ all major BlackArch category groups** | ~8–16 GB |
+| **`lean`** (default) | Curated always-on core only | ~4 GB |
+| `broad` | Curated core **+ all major BlackArch category groups** | ~8–16 GB |
 | `full` | The entire `blackarch` group (~2800 tools) | ~15–25 GB\* |
 
 > \* `full` will **not** build on GitHub Actions (out of disk/time) — build it on
@@ -40,9 +40,9 @@ Plus a curated slice of popular BlackArch tools (`nikto`, `gobuster`, `ffuf`,
 `wpscan`, `netexec`, `impacket`, `responder`, `bettercap`, `seclists`, …) when
 BlackArch is enabled.
 
-### The `broad` default — major categories baked in
+### The `broad` tier — optional major categories baked in
 
-With the default `broad` tier, `build-iso.sh` also bakes in these whole BlackArch
+With `AEGIS_TOOL_SET=broad`, `build-iso.sh` also bakes in these whole BlackArch
 category groups (from `AEGIS_BLACKARCH_GROUPS` in `aegis.conf`):
 
 `blackarch-scanner` · `blackarch-recon` · `blackarch-webapp` · `blackarch-fuzzer` ·

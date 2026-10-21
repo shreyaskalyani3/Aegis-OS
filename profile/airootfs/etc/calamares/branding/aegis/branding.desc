@@ -29,10 +29,10 @@ strings:
     versionedName:       "Aegis OS (Sentinel)"
     shortVersionedName:  "Aegis"
     bootloaderEntryName: "Aegis OS"
-    productUrl:          "https://aegis-os.example"
-    supportUrl:          "https://aegis-os.example/support"
-    knownIssuesUrl:      "https://aegis-os.example/issues"
-    releaseNotesUrl:     "https://aegis-os.example/news"
+    productUrl:          "__AEGIS_URL__"
+    supportUrl:          "__AEGIS_SUPPORT_URL__"
+    knownIssuesUrl:      "__AEGIS_SUPPORT_URL__"
+    releaseNotesUrl:     "__AEGIS_RELEASES_URL__"
 
 images:
     # High-resolution assets drawn for these exact slots. Do NOT point these

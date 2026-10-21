@@ -1,6 +1,6 @@
 [Unit]
 Description=Aegis OS live environment setup (user, autologin, locale)
-Documentation=https://aegis-os.example/docs
+Documentation=__AEGIS_DOCS_URL__
 After=local-fs.target systemd-tmpfiles-setup.service aegis-credentials.service
 Before=display-manager.service systemd-user-sessions.service getty.target
 Wants=local-fs.target

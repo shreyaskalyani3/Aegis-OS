@@ -45,12 +45,19 @@ jobs:
     env:
       # github.event.inputs.* are strings ("true"/"false"/""); this keeps the
       # logic robust whether triggered manually or by a tag push (no inputs).
-      AEGIS_TOOL_SET: ${{ github.event.inputs.tool_set || 'lean' }}
-      AEGIS_ENABLE_BLACKARCH: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.enable_blackarch == 'true') && '1' || '0' }}
+      # Empty values deliberately fall back to aegis.conf inside the
+      # container, keeping tag builds aligned with the central defaults.
+      AEGIS_TOOL_SET: ${{ github.event.inputs.tool_set || '' }}
+      AEGIS_ENABLE_BLACKARCH: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.enable_blackarch == 'true' && '1' || '0') || '' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate build and profile configuration
+        run: |
+          bash scripts/dev/check-build-config.sh
+          bash scripts/dev/check-profile.sh
 
       - name: Delete previous workflow artifacts
         # Artifact storage is account/repo-wide. Large ISO artifacts can

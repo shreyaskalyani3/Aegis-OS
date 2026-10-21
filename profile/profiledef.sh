@@ -4,10 +4,10 @@
 # =============================================================================
 # shellcheck disable=SC2034
 
-iso_name="aegis"
+iso_name="${AEGIS_ID:-aegis}"
 iso_label="AEGIS_$(date +%Y%m)"
-iso_publisher="Aegis OS Project <https://github.com/shreyaskalyani3/Aegis-OS>"
-iso_application="Aegis OS — Security & Agent-native Live/Install"
+iso_publisher="${AEGIS_VENDOR:-Aegis OS Project} <${AEGIS_URL:-https://github.com/shreyaskalyani3/Aegis-OS}>"
+iso_application="${AEGIS_NAME:-Aegis OS} — Security & Agent-native Live/Install"
 iso_version="${AEGIS_VERSION:-$(date +%Y.%m.%d)}"
 install_dir="aegis"
 buildmodes=('iso')
@@ -30,6 +30,7 @@ bootstrap_tarball_compression=('zstd' '-c' '-T0' '--auto-threads=logical')
 # for pacstrap-provided files (/etc/shadow etc.) always warn "does not exist";
 # the filesystem package ships shadow/gshadow as 0400 root:root already, so
 # they are omitted here deliberately.
+declare -A file_permissions
 file_permissions=(
   ["/root"]="0:0:750"
   ["/etc/sudoers.d"]="0:0:750"
@@ -51,6 +52,7 @@ file_permissions=(
   ["/usr/local/bin/aegis-desktop-setup"]="0:0:755"
   ["/usr/local/bin/aegis-credentials"]="0:0:755"
   ["/usr/local/bin/aegis-live-setup"]="0:0:755"
+  ["/usr/local/bin/aegis-vm-guest-setup"]="0:0:755"
   ["/usr/local/bin/aegis-firstboot-cleanup"]="0:0:755"
   ["/usr/local/bin/aegis-lock"]="0:0:755"
   ["/usr/local/bin/aphotic"]="0:0:755"
@@ -71,4 +73,7 @@ file_permissions=(
   ["/usr/share/aegis/drop-install-launcher"]="0:0:755"
   ["/etc/systemd/system/aegis-credentials.service"]="0:0:644"
   ["/etc/systemd/system/aegis-live-setup.service"]="0:0:644"
-)
+  ["/etc/systemd/system/aegis-firstboot-cleanup.service"]="0:0:644"
+  ["/etc/systemd/system/aegis-vm-guest.service"]="0:0:644"
+  ["/etc/systemd/system/aegis-vbox-drm.service"]="0:0:644"
+ )

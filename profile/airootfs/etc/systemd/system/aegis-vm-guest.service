@@ -1,0 +1,16 @@
+[Unit]
+Description=Aegis OS virtual-machine guest integration
+Documentation=__AEGIS_DOCS_URL__
+After=local-fs.target systemd-udev-trigger.service
+Before=display-manager.service
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=30
+ExecStart=/usr/local/bin/aegis-vm-guest-setup
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

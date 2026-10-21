@@ -1,0 +1,15 @@
+[Unit]
+Description=VirtualBox DRM guest integration for Wayland
+Documentation=https://www.virtualbox.org/manual/ch04.html
+ConditionVirtualization=oracle
+ConditionPathExists=/usr/bin/VBoxDRMClient
+After=systemd-udev-trigger.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/VBoxDRMClient
+Restart=no
+TimeoutStartSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-# Maintainer: Aegis OS Project <security@aegis-os.example>
+# Maintainer: Aegis OS Project
 # =============================================================================
 #  aegis-meta — Aegis OS release identity + curated core metapackage.
 # =============================================================================
@@ -30,7 +30,7 @@ pkgver="${pkgver//[^0-9.]/}"
 pkgrel=1
 pkgdesc="Aegis OS release identity and core metapackage (security + AI-agent workstation)"
 arch=('any')
-url="${AEGIS_URL:-https://aegis-os.example}"
+url="${AEGIS_URL:-https://github.com/shreyaskalyani3/Aegis-OS}"
 license=('GPL3')
 provides=("aegis=${pkgver}" "aegis-release=${pkgver}")
 conflicts=('aegis-release')
@@ -68,7 +68,7 @@ package() {
   local _codename="${AEGIS_CODENAME:-Sentinel}"
   local _tagline="${AEGIS_TAGLINE:-Offensive & Defensive Security, Agent-Native}"
   local _vendor="${AEGIS_VENDOR:-Aegis OS Project}"
-  local _url="${AEGIS_URL:-https://aegis-os.example}"
+  local _url="${AEGIS_URL:-https://github.com/shreyaskalyani3/Aegis-OS}"
 
   # --- Release identity (parseable, lsb-release style) ---------------------
   install -d "${pkgdir}/usr/lib"
