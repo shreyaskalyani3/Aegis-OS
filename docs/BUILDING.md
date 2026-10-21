@@ -149,7 +149,7 @@ qemu-system-x86_64 -enable-kvm -m 4096 -smp 2 -cdrom out/aegis-*.iso
 
 Or attach the ISO to a new VirtualBox/VMware VM (≥4 GB RAM), or write it to a
 USB stick with `dd`/Rufus/Etcher and boot bare metal. The live session
-autologins to KDE Plasma as `aegis`.
+autologins to the Hyprland + Aphotic desktop as `aegis`.
 
 ---
 
@@ -165,7 +165,7 @@ sudo archinstall        # official Arch guided installer
 
 > The Calamares configuration in `profile/airootfs/etc/calamares/` targets this
 > profile's layout (SquashFS at `/run/archiso/bootmnt/aegis/x86_64/airootfs.sfs`,
-> GRUB, SDDM/Plasma). If you change `install_dir`, `iso_name`, or the image
+> GRUB, SDDM/Hyprland). If you change `install_dir`, `iso_name`, or the image
 > type in `profiledef.sh`, update `modules/unpackfs.conf` to match. Validate a
 > disk install in a VM before relying on it. `archinstall` is unaffected by
 > profile changes and is the safe fallback.

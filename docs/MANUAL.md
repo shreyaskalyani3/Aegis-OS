@@ -17,8 +17,8 @@ Welcome to the official documentation and field manual for **Aegis OS**. This ma
    - [Installing to Disk with Calamares](#installing-to-disk-with-calamares)
    - [Offline Kernel Cache Architecture](#offline-kernel-cache-architecture)
 3. [Desktop Environment & Interface](#3-desktop-environment--interface)
-   - [KDE Plasma 6 "Sentinel" Customization](#kde-plasma-6-sentinel-customization)
-   - [Theming Stack (Breeze Dark, Papirus, Qt & GTK)](#theming-stack)
+   - [Hyprland + Aphotic "Sentinel" Customization](#hyprland--aphotic-sentinel-customization)
+   - [Theming Stack (Aphotic, Papirus, Qt & GTK)](#theming-stack)
    - [Terminal Experience & Fastfetch](#terminal-experience--fastfetch)
    - [The Aegis Tools Menu](#the-aegis-tools-menu)
    - [The `aegis-run` Dynamic Launcher](#the-aegis-run-dynamic-launcher)
@@ -65,7 +65,7 @@ Traditional security distributions provide hundreds of disconnected tools leavin
 │                        Aegis OS System Stack                           │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Application:  Aegis Tools (2,800+ BlackArch) · AI Agents (Claude/Codex)│
-│ Desktop:      KDE Plasma 6 · Breeze Dark · Papirus-Dark · JetBrains   │
+│ Desktop:      Hyprland + Aphotic · Waybar · Mako · JetBrains         │
 │ Display:      Wayland / X11 · SDDM Greeter · PipeWire Audio           │
 │ Kernel:       Arch Linux Kernel · mkinitcpio initramfs · systemd       │
 │ Base:         Arch Linux (Rolling Release) · Pacman Package Manager    │
@@ -142,7 +142,7 @@ To permanently install Aegis OS to your hard drive or SSD:
 2. The launcher calls `aegis-install`:
    - Bypasses password prompts automatically via live privilege escalation.
    - Forwards `$DISPLAY` and `$XAUTHORITY` so Qt/Calamares renders seamlessly.
-   - Sets `QT_QPA_PLATFORMTHEME=gtk3` so the installer matches the dark desktop theme.
+    - Sets `QT_QPA_PLATFORM=xcb` and `QT_QPA_PLATFORMTHEME=qt6ct` so the installer renders correctly from the Wayland session.
 3. Follow the graphical Calamares wizard:
    - Select timezone, keyboard layout, and disk partitioning (Erase disk or manual partition).
    - Enter your personal username and password for the installed machine.
@@ -163,15 +163,15 @@ Aegis OS implements the **offline kernel cache pattern**:
 
 ## 3. Desktop Environment & Interface
 
-### KDE Plasma 6 "Sentinel" Customization
+### Hyprland + Aphotic "Sentinel" Customization
 
-Aegis OS runs a low-latency, highly customized **KDE Plasma 6** desktop configured statically via Plasma applets and KDE rc files in `/etc/skel/.config/`.
+Aegis OS runs a low-latency, highly customized **Hyprland + Aphotic** desktop configured statically via Hyprland, Waybar, Mako, Wofi, and Quickshell files in `/etc/skel/.config/`.
 
 - **First-Frame Consistency**: Configuration is copied by `useradd -m` before session start. No setup wizards or default panel prompts ever appear — the Aegis desktop identity is active from frame one.
-- **Top / Bottom Panel**:
-  - **Aegis Kickoff Menu**: Fast searchable launcher with the Aegis shield emblem and categorized security tools.
-  - **Quick Launchers**: Konsole Terminal, File Manager (Dolphin), Web Browser (Firefox), Aegis Tools, Aegis AI, Install to Disk.
-  - **Task Manager & System Tray**: Icon task switcher, NetworkManager applet, PipeWire audio control, power management, digital clock.
+- **Cyber desktop surfaces**:
+  - **Waybar**: Workspaces, active window, system telemetry, network/audio/Bluetooth status, and power control.
+  - **Aphotic Quickshell**: Launcher, dashboard, settings, notifications, session controls, wallpaper picker, and security surfaces.
+  - **Hyprland keybindings**: Kitty, Thunar, Aegis Tools, Aegis AI, clipboard history, screenshots, recording, lock screen, and installer shortcuts.
 
 ---
 
@@ -179,13 +179,13 @@ Aegis OS runs a low-latency, highly customized **KDE Plasma 6** desktop configur
 
 | Component | Theme / Resource | Why Selected |
 | :--- | :--- | :--- |
-| **KDE Plasma Desktop** | `BreezeDark` | Native dark styling with crisp vector assets |
-| **Window Borders (KWin)** | `BreezeDark` | Clean, modern titlebars with borderless window styling |
+| **Hyprland Desktop** | Aphotic cyber palette | Low-latency Wayland compositor with blur and animated borders |
+| **Wayland Shell** | Waybar + Mako + Aphotic Quickshell | Status, notifications, launcher, settings, and session controls |
 | **Display Manager** | `SDDM` + Breeze | Seamless dark login greeter matching the desktop |
-| **GTK 3 & GTK 4 Apps** | `breeze-gtk` / `adw-gtk3-dark` | Seamless dark integration for GTK applications in Plasma |
+| **GTK 3 & GTK 4 Apps** | `adw-gtk3-dark` | Seamless dark integration for GTK applications in Hyprland |
 | **GTK 2 Legacy Apps** | `Materia-dark-compact` | Seamless dark styling for older security tools |
 | **Icon Theme** | `Papirus-Dark` | Clear, high-contrast monochrome and colored icons |
-| **Qt Apps** | `QT_QPA_PLATFORMTHEME=kde` | Native Qt6 integration with Breeze styling |
+| **Qt Apps** | `QT_QPA_PLATFORMTHEME=qt6ct` | Native Qt6 integration from the Wayland session |
 | **Monospace Font** | `JetBrainsMono Nerd Font` | Optimized for code legibility and CLI glyphs |
 
 ---

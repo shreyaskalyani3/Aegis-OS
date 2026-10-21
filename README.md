@@ -6,13 +6,13 @@
 
 *Codename: Sentinel*
 
-Live + installable ISO · BlackArch arsenal · KDE Plasma 6 · Claude Code · OpenCode · Aider · Codex
+Live + installable ISO · BlackArch arsenal · Hyprland + Aphotic · Claude Code · OpenCode · Aider · Codex
 
 <br>
 
-<img src="docs/images/desktop-preview.svg" alt="Aegis OS desktop — KDE Plasma with the Aegis MOTD terminal and the aegis-ai agent launcher" width="92%">
+<img src="docs/images/desktop-preview.svg" alt="Aegis OS desktop — Hyprland with the Aphotic shell, Aegis MOTD terminal, and aegis-ai launcher" width="92%">
 
-<sub>KDE Plasma 6 · Breeze Dark + Papirus-Dark · the <code>aegis</code> MOTD banner · the <code>aegis-ai</code> launcher · a live <code>nmap -sV</code> scan</sub>
+<sub>Hyprland + Aphotic · Wayland · the <code>aegis</code> MOTD banner · the <code>aegis-ai</code> launcher · a live <code>nmap -sV</code> scan</sub>
 
 </div>
 
@@ -39,8 +39,8 @@ the branding, and the build tooling that compile into a distributable `.iso`.
 | Layer | Details |
 |-------|---------|
 | **Base** | Arch Linux (rolling), current `linux` kernel, `mkinitcpio`-generated live image |
-| **Tools** | BlackArch (2800+ tools) — **all major categories baked in** by default, the rest on demand via `aegis-tools`. Tune with `AEGIS_TOOL_SET` (`lean`/`broad`/`full`) |
-| **Desktop** | KDE Plasma 6, dark "Aegis" theme (Breeze Dark + Papirus-Dark icons), Aegis wallpaper, branded panel, a **10-category Aegis Tools menu**, an **Install Aegis OS** desktop icon, autologin live user |
+| **Tools** | BlackArch (2800+ tools) — a curated core is baked in by default; major categories and the full arsenal are selectable with `AEGIS_TOOL_SET` (`lean`/`broad`/`full`) and the rest is available via `aegis-tools` |
+| **Desktop** | Hyprland + Aphotic Quickshell, Waybar, Mako, Wofi, Aegis wallpaper, a **10-category Aegis Tools menu**, an **Install Aegis OS** desktop icon, autologin live user |
 | **AI agents** | Claude Code, OpenCode (native Arch pkg), Aider, Codex — unified `aegis-ai` launcher + `aegis-setup` wizard |
 | **Runtimes** | Node.js 22, Python + `pipx` + `uv`, Go, Rust, Git, ripgrep — so agents & tools work out of the box |
 | **Installer** | Calamares graphical installer — Aegis is **installable to disk**, not just a live CD |
@@ -57,27 +57,27 @@ for how the agents are integrated.
 
 <div align="center">
 
-<img src="docs/images/login-preview.svg" alt="Aegis OS SDDM greeter — shield avatar, aegis user, Plasma session" width="64%">
+<img src="docs/images/login-preview.svg" alt="Aegis OS SDDM greeter — shield avatar, aegis user, Hyprland session" width="64%">
 
-<sub>The SDDM greeter: shield avatar, the <code>aegis</code> user, Plasma session.</sub>
+<sub>The SDDM greeter: shield avatar, the <code>aegis</code> user, Hyprland session.</sub>
 
 </div>
 
 ### The desktop
 
-The KDE Plasma session is configured **statically**, via Plasma configuration files in
+The Hyprland session is configured **statically** via the profile's Hyprland,
+Waybar, Mako, Wofi, and Quickshell files in
 [`etc/skel/.config/`](profile/airootfs/etc/skel/.config/). `useradd -m` copies
-`/etc/skel` before the first login, so the config is already in place when Plasma starts —
-the Aegis desktop is what you see on the first frame.
+`/etc/skel` before the first login, so the Aphotic desktop is ready on the first frame.
 
 | Piece | Ships as | What you get |
 |-------|----------|--------------|
-| **Panel** | [`plasma-org.kde.plasma.desktop-appletsrc`](profile/airootfs/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc) | Kickoff "Aegis" menu button, launchers for Konsole / Dolphin / Firefox / Aegis Tools / Aegis AI / Install, task manager, workspace pager, tray, digital clock |
+| **Shell / panel** | [`hyprland.conf`](profile/airootfs/etc/skel/.config/hypr/hyprland.conf), [`waybar/`](profile/airootfs/etc/skel/.config/waybar), [`quickshell/`](profile/airootfs/etc/skel/.config/quickshell) | Hyprland compositor, cyber Waybar, Aphotic launcher/settings/session surfaces |
 | **Aegis Tools menu** | [`aegis-tools.menu`](profile/airootfs/etc/xdg/menus/applications-merged/aegis-tools.menu) + 10 category files + 73 launchers | Kali-style numbered categories: Information Gathering → Anonymity & Maintenance |
-| **Wallpaper** | [`plasma-org.kde.plasma.desktop-appletsrc`](profile/airootfs/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc) | Sentinel wallpaper, seeded across desktop and lockscreen |
-| **Window borders** | [`kwinrc`](profile/airootfs/etc/skel/.config/kwinrc) | Breeze Dark decorations |
-| **Theming** | [`kdeglobals`](profile/airootfs/etc/skel/.config/kdeglobals), [`plasmarc`](profile/airootfs/etc/skel/.config/plasmarc) | Breeze Dark colors + Papirus-Dark icons + native Qt/GTK integration |
-| **Terminal** | [`konsolerc`](profile/airootfs/etc/skel/.config/konsolerc) | Dark palette, JetBrainsMono Nerd Font, red cursor |
+| **Wallpaper** | [`hyprpaper.conf`](profile/airootfs/etc/skel/.config/hypr/hyprpaper.conf) + Aphotic wallpaper controls | Sentinel/Aphotic wallpapers with Hyprpaper and Quickshell controls |
+| **Window borders** | [`hyprland.conf`](profile/airootfs/etc/skel/.config/hypr/hyprland.conf) | Animated cyan/purple/green cyber borders and blur |
+| **Theming** | [`environment`](profile/airootfs/etc/environment), [`gtk-3.0/`](profile/airootfs/etc/skel/.config/gtk-3.0), [`qt6ct`](profile/packages.x86_64) | Wayland-native Qt/GTK integration with dark Aphotic styling |
+| **Terminal** | [`kitty/`](profile/airootfs/etc/skel/.config/kitty), [`alacritty/`](profile/airootfs/etc/skel/.config/alacritty) | Dark terminals, JetBrainsMono Nerd Font, and Aegis prompt |
 | **Install icon** | [`etc/skel/Desktop/`](profile/airootfs/etc/skel/Desktop/) | **Install Aegis OS** on the desktop, executable out of the box |
 | **Brand icons** | [`hicolor/scalable/apps/`](profile/airootfs/usr/share/icons/hicolor/scalable/apps/) | 14 self-hosted SVGs — every `Icon=` in the profile resolves |
 
@@ -86,13 +86,13 @@ Every menu entry runs through
 and, when the tool is not in this build's `AEGIS_TOOL_SET`, explains what it is and offers to
 install it instead of failing silently. So the menu stays useful on a `lean` image.
 
-### Unified KDE Plasma 6 Theming Stack
+### Unified Hyprland + Aphotic Theming Stack
 
-KDE Plasma 6 cleanly coordinates the entire desktop theme across Qt and GTK applications:
+Hyprland and Aphotic coordinate the desktop theme across Wayland, Qt, and GTK applications:
 
-- **Qt & Plasma Workspace:** Configured via `kdeglobals`, `plasmarc`, `kwinrc`, and `konsolerc` in [`etc/skel/.config/`](profile/airootfs/etc/skel/.config/). Plasma natively renders in **Breeze Dark** with **Papirus-Dark** icons and JetBrains Mono fonts.
-- **GTK Applications:** Integrated seamlessly via `breeze-gtk`, `kde-gtk-config`, and static drop-ins in `gtk-3.0/` and `gtk-4.0/`, ensuring GTK apps match the dark palette without visual discordance.
-- **Greeter (SDDM):** Uses the SDDM Breeze theme configured via [`kde_settings.conf`](profile/airootfs/etc/sddm.conf.d/kde_settings.conf) and [`theme.conf.user`](profile/airootfs/usr/share/sddm/themes/breeze/theme.conf.user) to display the Aegis Sentinel wallpaper and cursor on boot.
+- **Wayland Workspace:** Hyprland, Waybar, Mako, Wofi, and Quickshell share the Aphotic cyber palette, with Papirus-Dark icons and JetBrains Mono fonts.
+- **GTK Applications:** Integrated seamlessly via `adw-gtk-theme` and static drop-ins in `gtk-3.0/` and `gtk-4.0/`, ensuring GTK apps match the dark palette without visual discordance.
+- **Greeter (SDDM):** Uses the Sugar Candy theme configured via [`kde_settings.conf`](profile/airootfs/etc/sddm.conf.d/kde_settings.conf) to display the Aegis wallpaper and cursor on boot, then starts the Hyprland session.
 
 All theme and icon names are strictly verified: **check 7** of [`scripts/dev/check-profile.sh`](scripts/dev/check-profile.sh) fails the lint if any theme, decoration, cursor, or icon name has no backing package in `packages.x86_64`. At runtime, [`aegis-desktop-setup`](profile/airootfs/usr/local/bin/aegis-desktop-setup) verifies wallpaper and theme consistency at login.
 
@@ -107,7 +107,7 @@ Aegis ships **four** SVG wallpapers in `/usr/share/backgrounds/aegis/` (they ren
 | **Blue Team** | `aegis-wallpaper-blueteam.svg` | Cyan defensive palette |
 | **Minimal** | `aegis-wallpaper-minimal.svg` | Small lower-left emblem, lots of negative space |
 
-Switch the desktop wallpaper anytime via right-click on the desktop → **Configure Desktop and Wallpaper** (or via `plasma-apply-wallpaperimage`). The SDDM greeter wallpaper is configured in `/usr/share/sddm/themes/breeze/theme.conf.user`.
+Switch the desktop wallpaper with the Aphotic wallpaper picker or `hyprpaper`; the SDDM greeter wallpaper is configured in `/usr/share/sddm/themes/sugar-candy/theme.conf`.
 
 > The two images above are hand-drawn SVGs of the shipped design, rendered from the same colors,
 > fonts, and layout the profile configures.
@@ -184,7 +184,7 @@ fixes two separate problems with that:
 |---|---|
 | polkit demanded a password | Escalate through the passwordless `sudo` the live session already has. Belt and braces, `aegis-credentials` also drops a polkit rule granting `wheel` a silent `YES`, so the `pkexec` path — including the stock `calamares.desktop` in the applications menu — stops prompting too. |
 | **`pkexec` cannot start X11 programs at all** | `man pkexec` is explicit: it builds a minimal environment and so does not set `$DISPLAY` or `$XAUTHORITY`. A Qt GUI like Calamares has no way to reach the display. `aegis-install` passes both through on every escalation path. |
-| Calamares rendered light grey on a dark desktop | `QT_QPA_PLATFORMTHEME=kde` in [`/etc/environment`](profile/airootfs/etc/environment) makes Qt applications natively inherit the KDE Plasma Breeze Dark theme. |
+| Calamares rendered light grey on a dark desktop | `QT_QPA_PLATFORMTHEME=qt6ct` in [`/etc/environment`](profile/airootfs/etc/environment) keeps Qt applications aligned with the Wayland desktop theme. |
 
 The polkit rule is **generated at boot, never shipped.** `aegis-credentials` exits at its
 `/run/archiso` guard on an installed system, so `/etc/polkit-1/rules.d/49-aegis-live.rules`

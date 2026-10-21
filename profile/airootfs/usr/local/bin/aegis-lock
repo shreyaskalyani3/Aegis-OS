@@ -2,8 +2,8 @@
 # =============================================================================
 #  aegis-lock — the screen lock dispatcher on Aegis OS.
 #
-#  Engages the KDE Plasma session lockscreen via loginctl or D-Bus ScreenSaver,
-#  falling back to display manager lock or screen blanking if necessary.
+#  Engages the Aphotic/Hyprland lockscreen first, then falls back to systemd
+#  logind, the display manager, or screen blanking if necessary.
 #
 #  Order:
 #    1. loginctl lock-session

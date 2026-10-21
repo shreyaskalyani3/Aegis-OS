@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  aegis-desktop-setup — desktop configuration pass for KDE Plasma.
+#  aegis-desktop-setup — desktop configuration pass for Hyprland + Aphotic.
 # =============================================================================
 set -uo pipefail
 
@@ -13,10 +13,10 @@ if command -v aphotic >/dev/null 2>&1; then
     aphotic theme ensure-default 2>/dev/null || true
 fi
 
-# 2. Ensure Qt dark theme configuration
-if command -v kwriteconfig6 >/dev/null 2>&1; then
-    kwriteconfig6 --file kdeglobals --group Icons --key Theme Papirus-Dark 2>/dev/null || true
-    kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze 2>/dev/null || true
+# 2. Keep GTK applications dark in the Wayland session. Qt is configured by
+# qt6ct through /etc/environment and the Hyprland session environment.
+if command -v gsettings >/dev/null 2>&1; then
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
 fi
 
 # 4. On installed system, remove live installer launcher from desktop

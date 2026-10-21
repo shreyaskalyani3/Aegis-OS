@@ -12,7 +12,7 @@
 #    5. every /usr/local/bin script has a profiledef.sh file_permissions entry
 #       -- the repo is authored on Windows so everything is mode 0644 in git;
 #       a missing entry means the script silently is not executable in the ISO
-#    6. KDE Plasma panel applets and pinned taskbar launchers
+#    6. Hyprland session, autologin, and Aphotic startup consistency
 #    7. every theme / icon name referenced anywhere is backed by a package we
 #       install -- so names with no package behind them are caught before build
 #       time rather than falling back silently at runtime
@@ -99,21 +99,24 @@ done
 note "  scripts: $(ls -1 profile/airootfs/usr/local/bin | wc -l), entries: $(grep -c '/usr/local/bin/' profile/profiledef.sh)"
 
 note ""
-note "=== 6. KDE Plasma desktop & panel consistency ============="
-P=profile/airootfs/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc
-[[ -f "$P" ]] || bad "plasma-org.kde.plasma.desktop-appletsrc missing"
-grep -q 'plugin=org.kde.plasma.kickoff' "$P" || bad "kickoff applet missing from plasma panel"
-grep -q 'plugin=org.kde.plasma.icontasks' "$P" || bad "icontasks applet missing from plasma panel"
-grep -q 'plugin=org.kde.plasma.systemtray' "$P" || bad "systemtray applet missing from plasma panel"
-grep -q 'plugin=org.kde.plasma.digitalclock' "$P" || bad "digitalclock applet missing from plasma panel"
-launchers="$(grep '^launchers=' "$P" | sed 's/^launchers=//' | tr ',' ' ')"
-for l in $launchers; do
-    app="$(echo "$l" | sed 's/^applications://')"
-    if [[ "$app" == "aegis-"* ]]; then
-        [[ -f "profile/airootfs/usr/share/applications/$app" ]] || bad "taskbar references missing $app"
-    fi
-done
-note "  Plasma panel validated with applets and pinned taskbar launchers"
+note "=== 6. Hyprland session & Aphotic startup consistency ==="
+H=profile/airootfs/etc/skel/.config/hypr
+[[ -f "$H/hyprland.conf" ]] || bad "Hyprland config missing"
+[[ -f "$H/hyprland.lua" ]] || bad "Aphotic Hyprland Lua entrypoint missing"
+[[ -f "$H/xdg-portal-hyprland" ]] || bad "XDG portal launcher missing"
+grep -q '^exec-once = bash ~/.config/hypr/xdg-portal-hyprland$' "$H/hyprland.conf" \
+    || bad "Hyprland config does not invoke the XDG portal launcher through bash"
+grep -q '^exec-once = waybar &' "$H/hyprland.conf" || bad "Waybar autostart missing"
+grep -q '^exec-once = mako &' "$H/hyprland.conf" || bad "Mako autostart missing"
+grep -q '^Session=hyprland\.desktop$' profile/airootfs/etc/sddm.conf.d/autologin.conf \
+    || bad "SDDM autologin does not select Hyprland"
+grep -q 'desktopFile: "hyprland"' profile/airootfs/etc/calamares/modules/displaymanager.conf \
+    || bad "Calamares default desktop is not Hyprland"
+grep -qx 'hyprland' profile/packages.x86_64 || bad "hyprland is missing from packages.x86_64"
+grep -qx 'quickshell' profile/packages.x86_64 || bad "quickshell is missing from packages.x86_64"
+grep -qx 'waybar' profile/packages.x86_64 || bad "waybar is missing from packages.x86_64"
+grep -qx 'mako' profile/packages.x86_64 || bad "mako is missing from packages.x86_64"
+note "  Hyprland, SDDM autologin, Calamares session, and Aphotic startup validated"
 
 note ""
 note "=== 7. Theme / icon names resolve to installed packages ====="
@@ -156,7 +159,7 @@ check_theme() {  # $1 = where, $2 = name
 
 ini_key(){  [[ -f "$1" ]] || return 0; grep -m1 "^$2[[:space:]]*=" "$1" | sed 's/^[^=]*=[[:space:]]*//; s/^"//; s/"[[:space:]]*$//' | tr -d '\r'; }
 
-# --- KDE Plasma & KWin themes ---
+# --- Qt, GTK, and SDDM theme assets ---
 check_theme "kdeglobals (ColorScheme)"  "$(ini_key "$SKEL/.config/kdeglobals" ColorScheme)"
 check_theme "kdeglobals (Icon Theme)"   "$(ini_key "$SKEL/.config/kdeglobals" Theme)"
 check_theme "kdeglobals (widgetStyle)"  "$(ini_key "$SKEL/.config/kdeglobals" widgetStyle)"

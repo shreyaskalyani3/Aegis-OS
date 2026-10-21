@@ -25,7 +25,7 @@ Type=simple
 # stdout nor stderr ever firing. Prepending it here fixes every such
 # call site at once instead of hardcoding an absolute path in each one.
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
-ExecStart=/usr/bin/qs -c aphotic
+ExecStart=/usr/local/bin/qs -c aphotic
 Restart=on-failure
 RestartSec=2
 
