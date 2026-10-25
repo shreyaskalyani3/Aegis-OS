@@ -1,13 +1,17 @@
 [Unit]
 Description=VirtualBox guest desktop integration for Hyprland
 After=graphical-session.target
-PartOf=graphical-session.target
+PartOf=graphical-session.target aegis-session.target
 ConditionPathExists=/usr/bin/VBoxClient-all
 
 [Service]
-Type=simple
+# VBoxClient-all launches daemonized clients and returns. Keep their cgroup
+# alive after the launcher exits, and terminate it when the session stops.
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=30
 ExecStart=/bin/sh -c 'test "$(systemd-detect-virt 2>/dev/null || true)" = oracle || exit 0; exec /usr/bin/VBoxClient-all'
 Restart=no
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=aegis-session.target

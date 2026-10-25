@@ -480,9 +480,13 @@ AEGIS_ENABLE_BLACKARCH=1
 
 ### Profile Linter (`check-profile.sh`)
 
-Before initiating a 30+ minute ISO build, validate the entire codebase:
+Before initiating an ISO build, run the portable profile and regression checks:
 ```bash
+bash scripts/dev/check-build-config.sh
 bash scripts/dev/check-profile.sh
+bash scripts/dev/test-shortcuts.sh
+python3 scripts/dev/test-session-startup.py
+bash scripts/dev/test-boot-profile.sh
 ```
 Checks performed:
 1. XML & SVG well-formedness (xfconf, panels, icons).
@@ -491,6 +495,59 @@ Checks performed:
 4. Shell script syntax validation (`bash -n`).
 5. File permissions in `profiledef.sh` (ensures scripts are executable).
 6. Theme and icon package resolution.
+7. Duplicate shortcut chords, command packages, and Aphotic IPC endpoints.
+8. Session environment ordering, wallpaper ownership, VM service selection,
+   non-destructive first boot, and non-default live configuration stamping.
+
+The Python checks use temporary fixtures and mock guest/session commands; they
+do not start the desktop, install packages, or access real disks. When available,
+`systemd-analyze` also validates the session dependency graph using stand-in
+executables. To additionally test daemonized-child lifetime on a machine with
+a working **user** systemd manager:
+
+```bash
+AEGIS_TEST_USER_SYSTEMD=1 python3 scripts/dev/test-session-startup.py
+```
+
+That opt-in test creates a uniquely named transient user service containing only
+a short-lived test process, then stops it. Lua syntax checks require `lua` or
+`luac`; the shortcut checker reports a skip when neither is installed.
+
+#### Required ISO desktop smoke test
+
+Static/isolated checks are not proof that GPU rendering, physical Super keys,
+or a VM's guest clipboard work. After rebuilding the ISO:
+
+1. Boot a disposable VM in UEFI mode and, separately, BIOS mode. Check SDDM
+   autologin, desktop startup, resolution changes, networking, and audio.
+2. Test **Super+Return/T** (terminal), **Super+A/Space** (launcher), **Super+E**
+   (files), **Super+V** (clipboard), **Super+K** (cheatsheet), **Super+L** (lock),
+   **Super+F** (Firefox), **Super+Shift+F** (fullscreen), and **Super+Alt+I**
+   (installer). Verify that one press opens/toggles only one surface.
+3. In the desktop terminal, run:
+
+   ```bash
+   hyprctl configerrors
+   systemctl --user is-active aegis-session.target aphotic-shell.service aegis-wallpaper.service
+   awww query -j
+   journalctl --user -b -u aphotic-shell.service -u aegis-wallpaper.service -u aphotic-recovery.service --no-pager
+   ```
+
+4. Close the welcome window and verify wallpaper switching still works. Log
+   out/back in and repeat the service checks to catch stale display sockets.
+5. Install only to a disposable VM disk, eject its ISO, and reboot. Verify the
+   installed account, login, desktop, and matching guest integration. Test
+   VMware, VirtualBox, and QEMU/KVM separately where those hosts are available;
+   clipboard/resize support is dependent on the guest tools and Wayland stack.
+6. On real hardware, boot the USB **without installing or modifying disks**;
+   check graphics, keyboard shortcuts, Wi-Fi, touchpad, brightness, and suspend.
+
+Installer USB media is deliberately preserved after installation. First boot
+only logs a reminder to remove the USB/eject the VM ISO or change firmware boot
+order. It never wipes an attached drive based on its volume label.
+
+Profile changes apply to a **new ISO and newly created users**. Existing user
+homes retain their copies of `/etc/skel`; rebuilding alone does not migrate them.
 
 ---
 

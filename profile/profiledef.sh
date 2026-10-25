@@ -50,6 +50,7 @@ file_permissions=(
   ["/usr/local/bin/aegis-motd"]="0:0:755"
   ["/usr/local/bin/aegis-welcome"]="0:0:755"
   ["/usr/local/bin/aegis-desktop-setup"]="0:0:755"
+  ["/usr/local/bin/aegis-session-start"]="0:0:755"
   ["/usr/local/bin/aegis-credentials"]="0:0:755"
   ["/usr/local/bin/aegis-live-setup"]="0:0:755"
   ["/usr/local/bin/aegis-vm-guest-setup"]="0:0:755"
@@ -59,6 +60,16 @@ file_permissions=(
   ["/usr/local/bin/qs"]="0:0:755"
   ["/usr/local/bin/aegis-clipboard"]="0:0:755"
   ["/usr/local/bin/aegis-cheatsheet"]="0:0:755"
+  # The user-level Aphotic dispatcher is used by the graphical-session
+  # services copied from /etc/skel. Windows-authored files are 0644 in git;
+  # without this override every user-systemd Aphotic unit fails with EACCES.
+  ["/etc/skel/.local/bin/aphotic"]="0:0:755"
+  ["/etc/skel/.local/lib/aphotic/agent_hook.sh"]="0:0:755"
+  ["/etc/skel/.local/lib/aphotic/agent_statusline.sh"]="0:0:755"
+  ["/etc/skel/.local/lib/aphotic/vpn-hook.sh"]="0:0:755"
+  ["/usr/local/lib/aphotic/agent_hook.sh"]="0:0:755"
+  ["/usr/local/lib/aphotic/agent_statusline.sh"]="0:0:755"
+  ["/usr/local/lib/aphotic/vpn-hook.sh"]="0:0:755"
   # grub-mkconfig wrapper used by the Calamares bootloader module (see
   # etc/calamares/modules/bootloader.conf) — must be executable.
   ["/usr/share/aegis/grub-mkconfig-wrapper"]="0:0:755"

@@ -1,8 +1,5 @@
 #!/bin/bash
-sleep 1
-killall xdg-desktop-portal-hyprland
-killall xdg-desktop-portal-wlr
-killall xdg-desktop-portal
-/usr/lib/xdg-desktop-portal-hyprland &
-sleep 2
-/usr/lib/xdg-desktop-portal &
+# Called by aegis-session-start after the display environment was imported.
+# Let the user manager own these processes; killall could affect other users
+# and racing manual launches fought with D-Bus activation.
+systemctl --user --no-block restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service

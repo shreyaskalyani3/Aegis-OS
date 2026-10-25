@@ -1,7 +1,8 @@
 [Unit]
 Description=Aegis OS first graphical-login setup
-After=graphical-session.target
-PartOf=graphical-session.target
+After=graphical-session.target aegis-wallpaper.service
+Wants=aegis-wallpaper.service
+PartOf=graphical-session.target aegis-session.target
 
 [Service]
 Type=simple
@@ -10,4 +11,4 @@ ExecStart=/usr/local/bin/aegis-welcome
 Restart=no
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=aegis-session.target

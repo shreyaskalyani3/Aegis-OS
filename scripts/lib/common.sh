@@ -54,8 +54,13 @@ validate_config() {
 
     [[ "${AEGIS_LIVE_USER}" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] \
         || die "AEGIS_LIVE_USER is not a valid Linux account name: '${AEGIS_LIVE_USER}'"
+    [[ "${AEGIS_HOSTNAME}" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,62}$ ]] \
+        || die "AEGIS_HOSTNAME is not a valid single-label hostname: '${AEGIS_HOSTNAME}'"
     [[ -n "${AEGIS_LIVE_PASSWORD}" && -n "${AEGIS_ROOT_PASSWORD}" ]] \
         || die "AEGIS_LIVE_PASSWORD and AEGIS_ROOT_PASSWORD must not be empty"
+    [[ "${AEGIS_LIVE_PASSWORD}" != *$'\n'* && "${AEGIS_LIVE_PASSWORD}" != *$'\r'* \
+        && "${AEGIS_ROOT_PASSWORD}" != *$'\n'* && "${AEGIS_ROOT_PASSWORD}" != *$'\r'* ]] \
+        || die "live/root passwords cannot contain newline characters"
     [[ "${AEGIS_DEFAULT_SHELL}" == /* && "${AEGIS_DEFAULT_SHELL}" != *[[:space:]]* ]] \
         || die "AEGIS_DEFAULT_SHELL must be an absolute path without whitespace"
     [[ "${AEGIS_TIMEZONE}" =~ ^[A-Za-z0-9._+-]+(/[A-Za-z0-9._+-]+)*$ ]] \

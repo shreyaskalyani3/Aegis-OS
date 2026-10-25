@@ -33,7 +33,8 @@ cat <<'EOF' > /tmp/aegis-keys.txt
 ║                                                                  ║
 ║  [WINDOW MANAGEMENT]                                             ║
 ║  SUPER + Q                Close / Kill Active Window             ║
-║  SUPER + F                Toggle Fullscreen                      ║
+║  SUPER + F                Open Firefox                            ║
+║  SUPER + SHIFT + F        Toggle Fullscreen                      ║
 ║  SUPER + SHIFT + SPACE    Toggle Floating Window                 ║
 ║  SUPER + P                Toggle Pseudo Tiling                   ║
 ║  SUPER + J                Toggle Split Orientation               ║

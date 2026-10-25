@@ -3,13 +3,16 @@
 local mainMod = "SUPER"
 
 -- Main binds
-hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("kitty"), { description = "Open terminal" })
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("qs -c aphotic ipc call lock engage"), { description = "Lock screen" })
+hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd("kitty || foot"), { description = "Open terminal" })
+hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("kitty || foot"), { description = "Open terminal" })
+hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("aegis-lock"), { description = "Lock screen" })
 hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("qs -c aphotic ipc call session toggle"), { description = "Open power/logout menu" })
 hl.bind(mainMod .. " + backspace", hl.dsp.exec_cmd("qs -c aphotic ipc call session toggle"), { description = "Toggle session menu" })
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd("thunar"), { description = "Open file manager" })
-hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle"), { description = "Toggle app launcher" })
-hl.bind(mainMod .. " + space", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle"), { description = "Toggle app launcher" })
+hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle || wofi --show drun"), { description = "Toggle app launcher" })
+hl.bind(mainMod .. " + space", hl.dsp.exec_cmd("qs -c aphotic ipc call launcher toggle || wofi --show drun"), { description = "Toggle app launcher" })
+hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("aegis-clipboard"), { description = "Open clipboard history" })
+hl.bind(mainMod .. " + K", hl.dsp.exec_cmd("qs -c aphotic ipc call aphotic toggle keybindscheatsheet || aegis-cheatsheet"), { description = "Toggle keybinds cheatsheet" })
 hl.bind(mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { description = "Screenshot: select area" })
 hl.bind(mainMod .. " + CTRL + P", hl.dsp.window.tag({ tag = "opaque" }), { description = "Toggle opacity for a tiled window" })
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd('mkdir -p ~/Videos && wf-recorder -g "$(slurp)" -f ~/Videos/$(date +%Y-%m-%d_%H-%M-%S).mp4'), { description = "Screen recording: select area" })
@@ -32,14 +35,18 @@ hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("systemctl --user restart aphotic-she
 -- to SUPER+B on purpose: B restarts, SHIFT+B recovers.
 hl.bind(mainMod .. " + SHIFT + B", hl.dsp.exec_cmd("aphotic recovery present"), { description = "Aphotic recovery (shell will not start)" })
 hl.bind(mainMod .. " + F", hl.dsp.exec_cmd("firefox"), { description = "Open Firefox" })
-hl.bind(mainMod .. " + C", hl.dsp.exec_cmd("code"), { description = "Open VS Code" })
+hl.bind(mainMod .. " + C", hl.dsp.exec_cmd('command -v code >/dev/null 2>&1 && code || kitty --title "Aegis Editor" nvim'), { description = "Open editor (VS Code or Neovim)" })
+
+-- Aegis Security Arsenal & AI Agent
+hl.bind(mainMod .. " + ALT + A", hl.dsp.exec_cmd("kitty --title \"Aegis AI Agent\" aegis-ai"), { description = "Open Aegis AI Agent" })
+hl.bind(mainMod .. " + ALT + T", hl.dsp.exec_cmd("kitty --title \"Aegis Tools Arsenal\" aegis-tools"), { description = "Open Aegis Tools Arsenal" })
+hl.bind(mainMod .. " + ALT + I", hl.dsp.exec_cmd("aegis-install"), { description = "Launch Aegis OS Installer" })
 
 -- Quickshell surfaces (Command Center, Settings, notifications)
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("qs -c aphotic ipc call dashboard toggle"), { description = "Toggle Command Center" })
 hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("qs -c aphotic ipc call settings toggle"), { description = "Toggle Settings" })
 hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs -c aphotic ipc call notifs clear"), { description = "Clear all notifications" })
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs -c aphotic ipc call notifications toggle"), { description = "Toggle Notification Center" })
-hl.bind(mainMod .. " + K", hl.dsp.exec_cmd("qs -c aphotic ipc call aphotic toggle keybindscheatsheet"), { description = "Toggle keybinds cheatsheet" })
 -- AUR/official package search + install (Arch-only; silently a no-op if
 -- neither yay nor paru is on PATH, see services/PkgSearch.qml)
 hl.bind(mainMod .. " + Y", hl.dsp.exec_cmd("qs -c aphotic ipc call pkginstall toggle"), { description = "Toggle package search/install" })
@@ -74,7 +81,7 @@ hl.bind(mainMod .. " + CTRL + Tab",         hl.dsp.exec_cmd("qs -c aphotic ipc c
 hl.bind(mainMod .. " + CTRL + SHIFT + Tab", hl.dsp.exec_cmd("qs -c aphotic ipc call hypr cycleSpecialWorkspace prev"), { description = "Previous special workspace" })
 
 -- Window binds
-hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }), { description = "Toggle floating" })
+hl.bind(mainMod .. " + SHIFT + space", hl.dsp.window.float({ action = "toggle" }), { description = "Toggle floating" })
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo(), { description = "Toggle pseudotile" })
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"), { description = "Toggle split direction" })
 hl.bind(mainMod .. " + G", hl.dsp.group.toggle(), { description = "Toggle window group" })

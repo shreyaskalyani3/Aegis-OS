@@ -1,5 +1,5 @@
 [Unit]
-Description=Aegis OS first-boot cleanup (disable live USB)
+Description=Aegis OS first installed-boot notice (preserve installer media)
 Documentation=__AEGIS_DOCS_URL__
 # ConditionFirstBoot is not reliable in all environments (e.g. systemd-nspawn,
 # some VM snapshots). Instead we use our own marker file; the service runs

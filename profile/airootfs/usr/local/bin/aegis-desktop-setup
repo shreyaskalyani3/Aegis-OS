@@ -6,14 +6,18 @@ set -uo pipefail
 
 log(){ printf 'aegis-desktop-setup: %s\n' "$*" >&2; }
 
-WALL="/usr/share/backgrounds/aegis/aegis-wallpaper.svg"
+# 1. The wallpaper service owns the daemon. Never background it here: this
+# script also runs as ExecStartPre, whose children systemd kills on completion.
+# Starting the service is idempotent and also supports the XDG autostart path.
+systemctl --user start aegis-wallpaper.service \
+    || log "wallpaper service unavailable; theme application may be skipped"
 
-# 1. Ensure Aphotic theme default is applied
+# 2. Ensure Aphotic theme default is applied (waits for the wallpaper socket).
 if command -v aphotic >/dev/null 2>&1; then
     aphotic theme ensure-default 2>/dev/null || true
 fi
 
-# 2. Keep GTK applications dark in the Wayland session. Qt is configured by
+# 3. Keep GTK applications dark in the Wayland session. Qt is configured by
 # qt6ct through /etc/environment and the Hyprland session environment.
 if command -v gsettings >/dev/null 2>&1; then
     gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true

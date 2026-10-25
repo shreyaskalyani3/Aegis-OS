@@ -20,10 +20,20 @@ set -uo pipefail
 [[ -d /run/archiso ]] || exit 0
 
 LIVE_USER="aegis"
+LIVE_LOCALE="en_US.UTF-8"
+LIVE_KEYMAP="us"
+LIVE_HOSTNAME="aegis"
 if [[ -r /etc/aegis/credentials.conf ]]; then
     # shellcheck source=/dev/null
     source /etc/aegis/credentials.conf 2>/dev/null
     LIVE_USER="${AEGIS_LIVE_USER:-${LIVE_USER}}"
+fi
+if [[ -r /etc/aegis/live.conf ]]; then
+    # shellcheck source=/dev/null
+    source /etc/aegis/live.conf 2>/dev/null || true
+    LIVE_LOCALE="${AEGIS_LOCALE:-${LIVE_LOCALE}}"
+    LIVE_KEYMAP="${AEGIS_KEYMAP:-${LIVE_KEYMAP}}"
+    LIVE_HOSTNAME="${AEGIS_HOSTNAME:-${LIVE_HOSTNAME}}"
 fi
 
 echo ":: Aegis OS live setup starting"
@@ -36,6 +46,13 @@ if ! id -u "${LIVE_USER}" >/dev/null 2>&1; then
     echo "!! ${LIVE_USER} does not exist — running aegis-credentials now" >&2
     [[ -x /usr/local/bin/aegis-credentials ]] && /usr/local/bin/aegis-credentials
 fi
+
+# Apply the build-selected host identity and console layout early. These are
+# best-effort on hardware/VMs where the relevant device or systemd manager is
+# unavailable, but the stamped /etc/hostname and vconsole.conf remain in place
+# for the next boot.
+hostname "${LIVE_HOSTNAME}" 2>/dev/null || true
+command -v loadkeys >/dev/null 2>&1 && loadkeys "${LIVE_KEYMAP}" >/dev/null 2>&1 || true
 
 # --- SDDM autologin -----------------------------------------------------------
 # Write this before locale generation or any other optional work. The unit is
@@ -55,8 +72,20 @@ EOF
 # Bounded: on a fresh archiso locale-gen can run for minutes, and this unit has
 # a start timeout. Unbounded, it was able to consume the entire budget and get
 # the script SIGTERMed partway through.
-if ! locale -a 2>/dev/null | grep -qiE 'en_US\.utf'; then
-    grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen 2>/dev/null || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+locale_norm() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/-//g'
+}
+wanted_locale="$(locale_norm "${LIVE_LOCALE}")"
+locale_ready=0
+while IFS= read -r installed_locale; do
+    [[ "$(locale_norm "${installed_locale}")" == "${wanted_locale}" ]] && {
+        locale_ready=1
+        break
+    }
+done < <(locale -a 2>/dev/null || true)
+if [[ "${locale_ready}" -eq 0 ]]; then
+    grep -Fqx "${LIVE_LOCALE} UTF-8" /etc/locale.gen 2>/dev/null || \
+        printf '%s UTF-8\n' "${LIVE_LOCALE}" >> /etc/locale.gen
     timeout 60 locale-gen || echo "!! locale-gen did not finish in 60s; continuing" >&2
 fi
 

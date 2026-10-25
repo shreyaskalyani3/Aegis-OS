@@ -6,13 +6,17 @@ Description=Aphotic shell recovery
 # once". Nothing enables or wants this unit; it is triggered or idle.
 
 [Service]
-Type=oneshot
+# `aphotic recovery present` starts a detached quickshell/terminal child and
+# returns. Keep the unit active while that child remains in the cgroup so the
+# recovery surface is not immediately considered complete (and so a second
+# OnFailure does not stack another surface on top of it).
+Type=exec
+ExitType=cgroup
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
 # `recovery present` renders the aphotic-recovery quickshell config and
 # falls back to a terminal menu if that will not start either -- a second
 # quickshell config is no help when quickshell itself is what broke.
 ExecStart=%h/.local/bin/aphotic recovery present
-# It hands off to a detached surface and exits; leaving the unit
-# "active" would make a second failure look like a recovery already in
-# progress.
+# The command's detached child remains in this unit's cgroup until the surface
+# closes; the unit then becomes inactive and can be triggered again later.
 RemainAfterExit=no

@@ -58,6 +58,9 @@ jobs:
         run: |
           bash scripts/dev/check-build-config.sh
           bash scripts/dev/check-profile.sh
+          bash scripts/dev/test-shortcuts.sh
+          python3 scripts/dev/test-session-startup.py
+          bash scripts/dev/test-boot-profile.sh
 
       - name: Delete previous workflow artifacts
         # Artifact storage is account/repo-wide. Large ISO artifacts can
@@ -257,4 +260,3 @@ jobs:
               Run `./join-iso.sh` (or `cat *.iso.part* > aegis-os.iso`)
             - **Windows**:
               Double-click `join-iso.bat` (or in CMD: `copy /b *.iso.part* aegis-os.iso`)
-

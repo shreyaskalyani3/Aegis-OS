@@ -1,7 +1,7 @@
 [Unit]
 Description=Aphotic Quickshell desktop shell
 After=graphical-session.target
-Wants=graphical-session.target
+PartOf=graphical-session.target aegis-session.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
 # Fires only once systemd gives up, i.e. StartLimitBurst above is
@@ -37,4 +37,4 @@ RestartSec=2
 ExecStopPost=-/bin/sh -c 'exec %h/.local/bin/aphotic recovery record "$SERVICE_RESULT" "$EXIT_STATUS"'
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=aegis-session.target

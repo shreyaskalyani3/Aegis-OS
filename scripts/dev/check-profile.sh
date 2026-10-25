@@ -99,14 +99,29 @@ for f in profile/airootfs/usr/local/bin/*; do
 done
 note "  scripts: $(ls -1 profile/airootfs/usr/local/bin | wc -l), entries: $(grep -c '/usr/local/bin/' profile/profiledef.sh)"
 
+# User-systemd Aphotic units execute the copy under /etc/skel directly. These
+# paths are 0644 in a Windows-authored checkout, so they need explicit build
+# permission overrides just like /usr/local/bin scripts do.
+for path in \
+    /etc/skel/.local/bin/aphotic \
+    /etc/skel/.local/lib/aphotic/agent_hook.sh \
+    /etc/skel/.local/lib/aphotic/agent_statusline.sh \
+    /etc/skel/.local/lib/aphotic/vpn-hook.sh \
+    /usr/local/lib/aphotic/agent_hook.sh \
+    /usr/local/lib/aphotic/agent_statusline.sh \
+    /usr/local/lib/aphotic/vpn-hook.sh; do
+    grep -q "\[\"${path}\"\]" profile/profiledef.sh \
+        || bad "${path} has NO file_permissions entry (user services/hooks will not execute)"
+done
+
 note ""
 note "=== 6. Hyprland session & Aphotic startup consistency ==="
 H=profile/airootfs/etc/skel/.config/hypr
 [[ -f "$H/hyprland.conf" ]] || bad "Hyprland config missing"
 [[ -f "$H/hyprland.lua" ]] || bad "Aphotic Hyprland Lua entrypoint missing"
 [[ -f "$H/xdg-portal-hyprland" ]] || bad "XDG portal launcher missing"
-grep -q '^exec-once = bash ~/.config/hypr/xdg-portal-hyprland$' "$H/hyprland.conf" \
-    || bad "Hyprland config does not invoke the XDG portal launcher through bash"
+grep -Fq 'bash "${portal}"' profile/airootfs/usr/local/bin/aegis-session-start \
+    || bad "ordered session helper does not invoke the portal launcher through bash"
 grep -q '^exec-once = waybar &' "$H/hyprland.conf" || bad "Waybar autostart missing"
 grep -q '^exec-once = mako &' "$H/hyprland.conf" || bad "Mako autostart missing"
 grep -q '^Session=hyprland\.desktop$' profile/airootfs/etc/sddm.conf.d/autologin.conf \
@@ -117,6 +132,26 @@ grep -qx 'hyprland' profile/packages.x86_64 || bad "hyprland is missing from pac
 grep -qx 'quickshell' profile/packages.x86_64 || bad "quickshell is missing from packages.x86_64"
 grep -qx 'waybar' profile/packages.x86_64 || bad "waybar is missing from packages.x86_64"
 grep -qx 'mako' profile/packages.x86_64 || bad "mako is missing from packages.x86_64"
+grep -qx 'awww' profile/packages.x86_64 || bad "awww is missing from packages.x86_64"
+for startup in "$H/startup.lua" "$H/hyprland.conf"; do
+    grep -Fq 'aegis-session-start || qs -c aphotic' "$startup" \
+        || bad "$startup does not use ordered session startup with shell fallback"
+done
+grep -Eq '^[[:space:]]*(hl\.exec_cmd|exec-once)[^#]*awww init' "$H/startup.lua" "$H/hyprland.conf" \
+    && bad "startup still uses the invalid awww init command"
+grep -Fq 'systemd-detect-virt' "$H/startup.lua" || bad "Lua VM helper is not virtualization-gated"
+grep -Fq 'systemd-detect-virt' "$H/hyprland.conf" || bad "legacy VM helper is not virtualization-gated"
+grep -Fq 'systemctl --user start aegis-wallpaper.service' profile/airootfs/usr/local/bin/aegis-desktop-setup \
+    || bad "desktop setup does not start the managed wallpaper service"
+grep -q '^ExecStart=/usr/bin/awww-daemon$' \
+    profile/airootfs/etc/skel/.config/systemd/user/aegis-wallpaper.service \
+    || bad "wallpaper service does not own awww-daemon"
+grep -q '^ExitType=cgroup$' \
+    profile/airootfs/etc/skel/.config/systemd/user/aphotic-recovery.service \
+    || bad "recovery service does not retain its detached recovery UI"
+if grep -q 'hyprpaper &' "$H/startup.lua" "$H/hyprland.conf"; then
+    bad "Hyprpaper competes with the Aphotic/awww wallpaper service"
+fi
 note "  Hyprland, SDDM autologin, Calamares session, and Aphotic startup validated"
 
 note ""
@@ -159,6 +194,9 @@ if grep -q 'aegis-firstboot-cleanup\.service\|aegis-vm-guest\.service' \
     profile/airootfs/etc/calamares/modules/shellprocess.conf; then
     bad "Calamares cleanup removes the persistent first-boot/VM integration units"
 fi
+grep -Fq 'rm -f /etc/systemd/system/systemd-firstboot.service' \
+    profile/airootfs/etc/calamares/modules/shellprocess.conf \
+    || bad "Calamares cleanup does not remove the live-only systemd-firstboot mask"
 autologin_write="$(grep -n 'cat > /etc/sddm\.conf\.d/autologin\.conf' profile/airootfs/usr/local/bin/aegis-live-setup | cut -d: -f1)"
 locale_work="$(grep -n 'locale -a' profile/airootfs/usr/local/bin/aegis-live-setup | cut -d: -f1)"
 [[ -n "${autologin_write}" && -n "${locale_work}" && "${autologin_write}" -lt "${locale_work}" ]] \
@@ -181,20 +219,23 @@ grep -Fq 'systemctl start --no-block "${unit}"' "${VM_SETUP}" \
     || bad "VM guest setup does not queue guest services asynchronously"
 
 FIRST_LOGIN=profile/airootfs/etc/skel/.config/systemd/user/aegis-first-login.service
-SESSION_DROPIN=profile/airootfs/etc/skel/.config/systemd/user/graphical-session.target.d/aegis-session-services.conf
+SESSION_TARGET=profile/airootfs/etc/skel/.config/systemd/user/aegis-session.target
 VBOX_SESSION=profile/airootfs/etc/skel/.config/systemd/user/aegis-vbox-session.service
 [[ -f "${FIRST_LOGIN}" ]] || bad "first-login user service missing"
-[[ -f "${SESSION_DROPIN}" ]] || bad "graphical-session target drop-in missing"
+[[ -f "${SESSION_TARGET}" ]] || bad "ordered Aegis session target missing"
 [[ -f "${VBOX_SESSION}" ]] || bad "VirtualBox user-session helper missing"
 grep -q '^ExecStartPre=/usr/local/bin/aegis-desktop-setup$' "${FIRST_LOGIN}" \
     || bad "first-login service does not run desktop setup"
 grep -q '^ExecStart=/usr/local/bin/aegis-welcome$' "${FIRST_LOGIN}" \
     || bad "first-login service does not launch the setup wizard"
-grep -q '^Wants=aegis-first-login\.service aegis-vbox-session\.service$' "${SESSION_DROPIN}" \
-    || bad "graphical-session target does not pull in first-login/VM session helpers"
-grep -q 'systemctl --user start graphical-session\.target' \
-    profile/airootfs/etc/skel/.config/hypr/hyprland.conf \
-    || bad "Hyprland does not start the user graphical-session target"
+for unit in aphotic-shell.service aegis-wallpaper.service aegis-first-login.service aegis-vbox-session.service; do
+    grep '^Wants=' "${SESSION_TARGET}" | grep -Fqw "${unit}" \
+        || bad "Aegis session target does not pull in ${unit}"
+done
+grep -Fq 'systemctl --user start aegis-session.target' profile/airootfs/usr/local/bin/aegis-session-start \
+    || bad "session helper does not start the Aegis session target"
+grep -qx 'Type=oneshot' "${VBOX_SESSION}" && grep -qx 'RemainAfterExit=yes' "${VBOX_SESSION}" \
+    || bad "VirtualBox session service does not retain daemonized guest clients"
 note "  live units, SDDM ordering, guest mappings, and Hyprland first-login path validated"
 
 note ""

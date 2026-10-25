@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Import the compositor environment before starting any managed desktop helper.
+# Separate Hyprland exec commands run asynchronously, not in completion order.
+set -uo pipefail
+
+log(){ printf 'aegis-session-start: %s\n' "$*" >&2; }
+[[ -n "${WAYLAND_DISPLAY:-}" ]] || { log "no Wayland session; refusing to start desktop services"; exit 1; }
+
+# Import only named, present session variables, never the entire environment
+# (which may contain credentials). Include Xwayland and Qt theme settings so
+# systemd-launched applications receive the same settings as shortcut launches.
+session_env=()
+for name in DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE \
+    XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP \
+    XCURSOR_THEME XCURSOR_SIZE HYPRCURSOR_THEME HYPRCURSOR_SIZE \
+    QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_QPA_PLATFORMTHEME_QT6 QT_STYLE_OVERRIDE \
+    GDK_BACKEND MOZ_ENABLE_WAYLAND; do
+    [[ -v "$name" ]] && session_env+=("$name")
+done
+
+dbus-update-activation-environment --systemd "${session_env[@]}" \
+    || log "D-Bus activation update failed; attempting the systemd import directly"
+if ! systemctl --user import-environment "${session_env[@]}"; then
+    log "environment import failed; not starting services with a stale display"
+    exit 1
+fi
+
+# Hyprland may start graphical-session.target itself before its autostart
+# commands. A separate target prevents that from bypassing the import above.
+if ! systemctl --user start aegis-session.target; then
+    log "desktop target failed; inspect journalctl --user -b"
+    exit 1
+fi
+
+portal="${XDG_CONFIG_HOME:-${HOME}/.config}/hypr/xdg-portal-hyprland"
+if [[ -f "${portal}" ]]; then
+    bash "${portal}" || log "portal restart failed; screen sharing may be unavailable"
+fi

@@ -223,6 +223,7 @@ playerctl
 blueman
 wofi
 hyprpaper
+awww
 psmisc
 libnotify
 python-pillow

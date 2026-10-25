@@ -1,0 +1,6 @@
+[Unit]
+Description=Aegis desktop services after compositor environment import
+Requires=graphical-session.target
+After=graphical-session.target
+PartOf=graphical-session.target
+Wants=aphotic-shell.service aegis-wallpaper.service aegis-first-login.service aegis-vbox-session.service
