@@ -4,7 +4,7 @@ Version=1.0
 Name=Bully
 GenericName=WPS brute-force attack
 Comment=WPS brute-force attack
-Exec=konsole --profile Aegis -p tabtitle="Bully" -e aegis-run --group blackarch-wireless --desc 'WPS brute-force attack' bully
+Exec=aegis-term --profile Aegis -p tabtitle="Bully" -e aegis-run --group blackarch-wireless --desc 'WPS brute-force attack' bully
 Icon=aegis-cat-wireless
 Terminal=false
 StartupNotify=false

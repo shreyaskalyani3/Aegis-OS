@@ -76,13 +76,31 @@ if yes_no "Store API keys now (optional; saved to ${ENV_FILE}, mode 600)?" "N"; 
         grep -v "^export ${name}=" "${ENV_FILE}" > "${ENV_FILE}.tmp" 2>/dev/null || true
         mv "${ENV_FILE}.tmp" "${ENV_FILE}" 2>/dev/null || true
         printf 'export %s=%q\n' "$name" "$val" >> "${ENV_FILE}"
+
+        # Synchronize with Aphotic GUI AI Keys store
+        local aphotic_dir="${HOME}/.config/aphotic"
+        local aphotic_keys="${aphotic_dir}/ai-keys.json"
+        mkdir -p "${aphotic_dir}" 2>/dev/null || true
+        if command -v jq >/dev/null 2>&1; then
+            [[ -f "${aphotic_keys}" ]] || echo '{}' > "${aphotic_keys}"
+            case "${name}" in
+                ANTHROPIC_API_KEY)
+                    jq --arg v "$val" '.anthropicApiKey = $v' "${aphotic_keys}" > "${aphotic_keys}.tmp" && mv "${aphotic_keys}.tmp" "${aphotic_keys}" ;;
+                OPENAI_API_KEY)
+                    jq --arg v "$val" '.openaiApiKey = $v' "${aphotic_keys}" > "${aphotic_keys}.tmp" && mv "${aphotic_keys}.tmp" "${aphotic_keys}" ;;
+                GEMINI_API_KEY)
+                    jq --arg v "$val" '.geminiApiKey = $v' "${aphotic_keys}" > "${aphotic_keys}.tmp" && mv "${aphotic_keys}.tmp" "${aphotic_keys}" ;;
+            esac
+            chmod 600 "${aphotic_keys}" 2>/dev/null || true
+        fi
+
         echo "   ${GRN}✓${Z} ${name} saved"
     }
     save_key ANTHROPIC_API_KEY
     save_key OPENAI_API_KEY
     save_key OPENROUTER_API_KEY
     save_key GEMINI_API_KEY
-    echo "   ${C_D}keys load automatically in new shells (via ~/.zshrc)${Z}"
+    echo "   ${C_D}keys load automatically in new shells and Aphotic AI chat${Z}"
 fi
 if yes_no "Log in to Claude Code interactively now?" "N" && command -v claude >/dev/null; then
     claude || true

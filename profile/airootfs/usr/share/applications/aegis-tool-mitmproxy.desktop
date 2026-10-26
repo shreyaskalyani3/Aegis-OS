@@ -4,7 +4,7 @@ Version=1.0
 Name=mitmproxy
 GenericName=Interactive HTTPS intercepting proxy
 Comment=Interactive HTTPS intercepting proxy
-Exec=konsole --profile Aegis -p tabtitle="mitmproxy" -e aegis-run --group blackarch-webapp --desc 'Interactive HTTPS intercepting proxy' mitmproxy
+Exec=aegis-term --profile Aegis -p tabtitle="mitmproxy" -e aegis-run --group blackarch-webapp --desc 'Interactive HTTPS intercepting proxy' mitmproxy
 Icon=aegis-cat-web
 Terminal=false
 StartupNotify=false

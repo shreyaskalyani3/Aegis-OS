@@ -4,7 +4,7 @@ Version=1.0
 Name=GDB
 GenericName=GNU debugger
 Comment=GNU debugger
-Exec=konsole --profile Aegis -p tabtitle="GDB" -e aegis-run --group blackarch-reversing --desc 'GNU debugger' gdb
+Exec=aegis-term --profile Aegis -p tabtitle="GDB" -e aegis-run --group blackarch-reversing --desc 'GNU debugger' gdb
 Icon=aegis-cat-reversing
 Terminal=false
 StartupNotify=false

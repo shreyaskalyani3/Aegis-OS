@@ -4,7 +4,7 @@ Version=1.0
 Name=Evil-WinRM
 GenericName=WinRM shell for Windows pentesting
 Comment=WinRM shell for Windows pentesting
-Exec=konsole --profile Aegis -p tabtitle="Evil-WinRM" -e aegis-run --group blackarch-exploitation --desc 'WinRM shell for Windows pentesting' evil-winrm
+Exec=aegis-term --profile Aegis -p tabtitle="Evil-WinRM" -e aegis-run --group blackarch-exploitation --desc 'WinRM shell for Windows pentesting' evil-winrm
 Icon=aegis-cat-exploit
 Terminal=false
 StartupNotify=false

@@ -4,7 +4,7 @@ Version=1.0
 Name=Wfuzz
 GenericName=Web application fuzzer
 Comment=Web application fuzzer
-Exec=konsole --profile Aegis -p tabtitle="Wfuzz" -e aegis-run --group blackarch-webapp --desc 'Web application fuzzer' wfuzz
+Exec=aegis-term --profile Aegis -p tabtitle="Wfuzz" -e aegis-run --group blackarch-webapp --desc 'Web application fuzzer' wfuzz
 Icon=aegis-cat-web
 Terminal=false
 StartupNotify=false

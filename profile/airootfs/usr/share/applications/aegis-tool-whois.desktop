@@ -4,7 +4,7 @@ Version=1.0
 Name=whois
 GenericName=Domain and IP registration lookup
 Comment=Domain and IP registration lookup
-Exec=konsole --profile Aegis -p tabtitle="whois" -e aegis-run --group blackarch-recon --desc 'Domain and IP registration lookup' whois
+Exec=aegis-term --profile Aegis -p tabtitle="whois" -e aegis-run --group blackarch-recon --desc 'Domain and IP registration lookup' whois
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

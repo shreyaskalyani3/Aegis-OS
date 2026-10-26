@@ -4,7 +4,7 @@ Version=1.0
 Name=Aegis Tools
 GenericName=Security Tool Manager
 Comment=Browse and install BlackArch security tool groups
-Exec=konsole --profile Aegis -p tabtitle="Aegis Tools" -e aegis-run --desc 'Security tool manager' aegis-tools
+Exec=aegis-term --profile Aegis -p tabtitle="Aegis Tools" -e aegis-run --desc 'Security tool manager' aegis-tools
 Icon=aegis-tools
 Terminal=false
 StartupNotify=true

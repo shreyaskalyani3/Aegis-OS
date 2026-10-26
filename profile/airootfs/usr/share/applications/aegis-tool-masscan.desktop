@@ -4,7 +4,7 @@ Version=1.0
 Name=Masscan
 GenericName=Internet-scale port scanner
 Comment=Internet-scale port scanner
-Exec=konsole --profile Aegis -p tabtitle="Masscan" -e aegis-run --group blackarch-recon --desc 'Internet-scale port scanner' masscan
+Exec=aegis-term --profile Aegis -p tabtitle="Masscan" -e aegis-run --group blackarch-recon --desc 'Internet-scale port scanner' masscan
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

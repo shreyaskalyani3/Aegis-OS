@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  aegis-term — unified terminal dispatcher for Aegis OS.
+#  Dynamically launches the optimal terminal emulator:
+#    1. kitty      (default GPU-accelerated Wayland terminal for Hyprland)
+#    2. foot       (lightweight Wayland fallback)
+#    3. konsole    (Qt / KDE profile-supported terminal)
+#    4. alacritty  (OpenGL cross-platform terminal)
+#    5. xterm      (universal X11 fallback)
+# =============================================================================
+set -uo pipefail
+
+term=""
+for t in kitty foot konsole alacritty xterm; do
+    if command -v "$t" >/dev/null 2>&1; then
+        term="$t"
+        break
+    fi
+done
+
+[[ -z "$term" ]] && { echo "aegis-term: no supported terminal emulator found" >&2; exit 1; }
+
+TITLE="Aegis Terminal"
+CMD=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -p)
+            if [[ "${2:-}" == tabtitle=* ]]; then
+                TITLE="${2#tabtitle=}"
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --profile)
+            shift 2 || shift ;;
+        -T|--title|-t)
+            TITLE="${2:-}"
+            shift 2 || shift ;;
+        -e)
+            shift
+            CMD=("$@")
+            break
+            ;;
+        *)
+            CMD=("$@")
+            break
+            ;;
+    esac
+done
+
+case "$term" in
+    kitty)
+        if [[ ${#CMD[@]} -gt 0 ]]; then
+            exec kitty --title "$TITLE" "${CMD[@]}"
+        else
+            exec kitty --title "$TITLE"
+        fi
+        ;;
+    foot)
+        if [[ ${#CMD[@]} -gt 0 ]]; then
+            exec foot -T "$TITLE" "${CMD[@]}"
+        else
+            exec foot -T "$TITLE"
+        fi
+        ;;
+    konsole)
+        if [[ ${#CMD[@]} -gt 0 ]]; then
+            exec konsole --profile Aegis -p tabtitle="$TITLE" -e "${CMD[@]}"
+        else
+            exec konsole --profile Aegis
+        fi
+        ;;
+    alacritty)
+        if [[ ${#CMD[@]} -gt 0 ]]; then
+            exec alacritty --title "$TITLE" -e "${CMD[@]}"
+        else
+            exec alacritty --title "$TITLE"
+        fi
+        ;;
+    xterm)
+        if [[ ${#CMD[@]} -gt 0 ]]; then
+            exec xterm -T "$TITLE" -e "${CMD[@]}"
+        else
+            exec xterm -T "$TITLE"
+        fi
+        ;;
+esac

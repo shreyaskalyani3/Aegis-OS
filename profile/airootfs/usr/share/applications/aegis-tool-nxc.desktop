@@ -4,7 +4,7 @@ Version=1.0
 Name=NetExec
 GenericName=Network & Active Directory protocol toolkit
 Comment=Network & Active Directory protocol toolkit
-Exec=konsole --profile Aegis -p tabtitle="NetExec" -e aegis-run --pkg netexec --group blackarch-recon --desc 'Network & Active Directory protocol toolkit' nxc
+Exec=aegis-term --profile Aegis -p tabtitle="NetExec" -e aegis-run --pkg netexec --group blackarch-recon --desc 'Network & Active Directory protocol toolkit' nxc
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

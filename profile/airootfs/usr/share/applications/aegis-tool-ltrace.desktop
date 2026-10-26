@@ -4,7 +4,7 @@ Version=1.0
 Name=ltrace
 GenericName=Trace library calls
 Comment=Trace library calls
-Exec=konsole --profile Aegis -p tabtitle="ltrace" -e aegis-run --group blackarch-reversing --desc 'Trace library calls' ltrace
+Exec=aegis-term --profile Aegis -p tabtitle="ltrace" -e aegis-run --group blackarch-reversing --desc 'Trace library calls' ltrace
 Icon=aegis-cat-reversing
 Terminal=false
 StartupNotify=false

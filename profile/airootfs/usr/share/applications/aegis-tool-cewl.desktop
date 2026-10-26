@@ -4,7 +4,7 @@ Version=1.0
 Name=CeWL
 GenericName=Build a custom wordlist by spidering a site
 Comment=Build a custom wordlist by spidering a site
-Exec=konsole --profile Aegis -p tabtitle="CeWL" -e aegis-run --group blackarch-cracker --desc 'Build a custom wordlist by spidering a site' cewl
+Exec=aegis-term --profile Aegis -p tabtitle="CeWL" -e aegis-run --group blackarch-cracker --desc 'Build a custom wordlist by spidering a site' cewl
 Icon=aegis-cat-passwords
 Terminal=false
 StartupNotify=false

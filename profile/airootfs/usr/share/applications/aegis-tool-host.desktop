@@ -4,7 +4,7 @@ Version=1.0
 Name=host
 GenericName=DNS lookup utility
 Comment=DNS lookup utility
-Exec=konsole --profile Aegis -p tabtitle="host" -e aegis-run --pkg bind --group blackarch-recon --desc 'DNS lookup utility' host
+Exec=aegis-term --profile Aegis -p tabtitle="host" -e aegis-run --pkg bind --group blackarch-recon --desc 'DNS lookup utility' host
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

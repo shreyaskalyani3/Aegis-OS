@@ -60,6 +60,7 @@ file_permissions=(
   ["/usr/local/bin/qs"]="0:0:755"
   ["/usr/local/bin/aegis-clipboard"]="0:0:755"
   ["/usr/local/bin/aegis-cheatsheet"]="0:0:755"
+  ["/usr/local/bin/aegis-term"]="0:0:755"
   # The user-level Aphotic dispatcher is used by the graphical-session
   # services copied from /etc/skel. Windows-authored files are 0644 in git;
   # without this override every user-systemd Aphotic unit fails with EACCES.

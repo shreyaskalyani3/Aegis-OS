@@ -4,7 +4,7 @@ Version=1.0
 Name=sqlmap
 GenericName=Automatic SQL injection detection and exploitation
 Comment=Automatic SQL injection detection and exploitation
-Exec=konsole --profile Aegis -p tabtitle="sqlmap" -e aegis-run --group blackarch-webapp --desc 'Automatic SQL injection detection and exploitation' sqlmap
+Exec=aegis-term --profile Aegis -p tabtitle="sqlmap" -e aegis-run --group blackarch-webapp --desc 'Automatic SQL injection detection and exploitation' sqlmap
 Icon=aegis-cat-web
 Terminal=false
 StartupNotify=false

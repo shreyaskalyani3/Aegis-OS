@@ -4,7 +4,7 @@ Version=1.0
 Name=SearchSploit
 GenericName=Offline Exploit-DB search
 Comment=Offline Exploit-DB search
-Exec=konsole --profile Aegis -p tabtitle="SearchSploit" -e aegis-run --pkg exploitdb --group blackarch-exploitation --desc 'Offline Exploit-DB search' searchsploit
+Exec=aegis-term --profile Aegis -p tabtitle="SearchSploit" -e aegis-run --pkg exploitdb --group blackarch-exploitation --desc 'Offline Exploit-DB search' searchsploit
 Icon=aegis-cat-exploit
 Terminal=false
 StartupNotify=false

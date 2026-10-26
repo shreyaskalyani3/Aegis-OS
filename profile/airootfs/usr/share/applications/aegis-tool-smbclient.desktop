@@ -4,7 +4,7 @@ Version=1.0
 Name=smbclient
 GenericName=Interactive SMB/CIFS client
 Comment=Interactive SMB/CIFS client
-Exec=konsole --profile Aegis -p tabtitle="smbclient" -e aegis-run --group blackarch-recon --desc 'Interactive SMB/CIFS client' smbclient
+Exec=aegis-term --profile Aegis -p tabtitle="smbclient" -e aegis-run --group blackarch-recon --desc 'Interactive SMB/CIFS client' smbclient
 Icon=aegis-cat-recon
 Terminal=false
 StartupNotify=false

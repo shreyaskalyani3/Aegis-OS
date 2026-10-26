@@ -4,7 +4,7 @@ Version=1.0
 Name=Crunch
 GenericName=Wordlist generator from a character set and pattern
 Comment=Wordlist generator from a character set and pattern
-Exec=konsole --profile Aegis -p tabtitle="Crunch" -e aegis-run --group blackarch-cracker --desc 'Wordlist generator from a character set and pattern' crunch
+Exec=aegis-term --profile Aegis -p tabtitle="Crunch" -e aegis-run --group blackarch-cracker --desc 'Wordlist generator from a character set and pattern' crunch
 Icon=aegis-cat-passwords
 Terminal=false
 StartupNotify=false

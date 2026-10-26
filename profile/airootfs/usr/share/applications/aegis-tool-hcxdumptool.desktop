@@ -4,7 +4,7 @@ Version=1.0
 Name=hcxdumptool
 GenericName=Capture WPA PMKIDs and handshakes
 Comment=Capture WPA PMKIDs and handshakes
-Exec=konsole --profile Aegis -p tabtitle="hcxdumptool" -e aegis-run --group blackarch-wireless --desc 'Capture WPA PMKIDs and handshakes' hcxdumptool
+Exec=aegis-term --profile Aegis -p tabtitle="hcxdumptool" -e aegis-run --group blackarch-wireless --desc 'Capture WPA PMKIDs and handshakes' hcxdumptool
 Icon=aegis-cat-wireless
 Terminal=false
 StartupNotify=false

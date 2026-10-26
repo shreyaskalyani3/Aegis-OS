@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOST_REPO="${AEGIS_HOST_REPO:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+HOST_REPO="${AEGIS_HOST_REPO:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 WSL_REPO="${AEGIS_WSL_REPO:-${HOME:-/root}/AegisOS}"
 SLOG="${AEGIS_SUPERVISOR_LOG:-${HOST_REPO}/work/supervisor.log}"
 LAUNCH_SCRIPT="${AEGIS_LAUNCH_SCRIPT:-${SCRIPT_DIR}/wsl-build-launch.sh}"

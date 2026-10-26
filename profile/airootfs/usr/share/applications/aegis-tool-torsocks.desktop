@@ -4,7 +4,7 @@ Version=1.0
 Name=Torsocks
 GenericName=Route a single command through Tor
 Comment=Route a single command through Tor
-Exec=konsole --profile Aegis -p tabtitle="Torsocks" -e aegis-run --group blackarch-defensive --desc 'Route a single command through Tor' torsocks
+Exec=aegis-term --profile Aegis -p tabtitle="Torsocks" -e aegis-run --group blackarch-defensive --desc 'Route a single command through Tor' torsocks
 Icon=aegis-cat-maintenance
 Terminal=false
 StartupNotify=false

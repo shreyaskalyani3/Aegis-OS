@@ -4,7 +4,7 @@ Version=1.0
 Name=Netcat
 GenericName=TCP/UDP swiss army knife
 Comment=TCP/UDP swiss army knife
-Exec=konsole --profile Aegis -p tabtitle="Netcat" -e aegis-run --pkg openbsd-netcat --group blackarch-exploitation --desc 'TCP/UDP swiss army knife' nc
+Exec=aegis-term --profile Aegis -p tabtitle="Netcat" -e aegis-run --pkg openbsd-netcat --group blackarch-exploitation --desc 'TCP/UDP swiss army knife' nc
 Icon=aegis-cat-exploit
 Terminal=false
 StartupNotify=false

@@ -4,7 +4,7 @@ Version=1.0
 Name=Radare2
 GenericName=Reverse engineering and binary analysis framework
 Comment=Reverse engineering and binary analysis framework
-Exec=konsole --profile Aegis -p tabtitle="Radare2" -e aegis-run --pkg radare2 --group blackarch-reversing --desc 'Reverse engineering and binary analysis framework' r2
+Exec=aegis-term --profile Aegis -p tabtitle="Radare2" -e aegis-run --pkg radare2 --group blackarch-reversing --desc 'Reverse engineering and binary analysis framework' r2
 Icon=aegis-cat-reversing
 Terminal=false
 StartupNotify=false

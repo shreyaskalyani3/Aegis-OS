@@ -4,7 +4,7 @@ Version=1.0
 Name=WPScan
 GenericName=WordPress vulnerability scanner
 Comment=WordPress vulnerability scanner
-Exec=konsole --profile Aegis -p tabtitle="WPScan" -e aegis-run --group blackarch-webapp --desc 'WordPress vulnerability scanner' wpscan
+Exec=aegis-term --profile Aegis -p tabtitle="WPScan" -e aegis-run --group blackarch-webapp --desc 'WordPress vulnerability scanner' wpscan
 Icon=aegis-cat-web
 Terminal=false
 StartupNotify=false

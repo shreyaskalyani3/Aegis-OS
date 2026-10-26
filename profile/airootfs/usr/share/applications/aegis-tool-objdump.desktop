@@ -4,7 +4,7 @@ Version=1.0
 Name=objdump
 GenericName=Disassembler and object file inspector
 Comment=Disassembler and object file inspector
-Exec=konsole --profile Aegis -p tabtitle="objdump" -e aegis-run --pkg binutils --group blackarch-reversing --desc 'Disassembler and object file inspector' objdump
+Exec=aegis-term --profile Aegis -p tabtitle="objdump" -e aegis-run --pkg binutils --group blackarch-reversing --desc 'Disassembler and object file inspector' objdump
 Icon=aegis-cat-reversing
 Terminal=false
 StartupNotify=false

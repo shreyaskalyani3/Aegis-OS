@@ -20,12 +20,14 @@ if command -v flock >/dev/null 2>&1; then
 fi
 
 term=""
-for t in konsole alacritty xterm; do
+for t in kitty foot konsole alacritty xterm; do
     command -v "$t" >/dev/null 2>&1 && { term="$t"; break; }
 done
 [[ -z "${term}" ]] && exit 0
 
 case "${term}" in
+    kitty)          exec "${term}" --title "Aegis OS Setup" bash -lc aegis-setup ;;
+    foot)           exec "${term}" -T "Aegis OS Setup" bash -lc aegis-setup ;;
     konsole)        exec "${term}" --profile Aegis -e bash -lc aegis-setup ;;
     alacritty)      exec "${term}" --title "Aegis OS Setup" -e bash -lc aegis-setup ;;
     xterm)          exec "${term}" -T "Aegis OS Setup" -e bash -lc aegis-setup ;;

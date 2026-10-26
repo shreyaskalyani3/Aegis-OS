@@ -4,7 +4,7 @@ Version=1.0
 Name=PhotoRec
 GenericName=File carving and data recovery
 Comment=File carving and data recovery
-Exec=konsole --profile Aegis -p tabtitle="PhotoRec" -e aegis-run --pkg testdisk --group blackarch-forensic --desc 'File carving and data recovery' photorec
+Exec=aegis-term --profile Aegis -p tabtitle="PhotoRec" -e aegis-run --pkg testdisk --group blackarch-forensic --desc 'File carving and data recovery' photorec
 Icon=aegis-cat-forensics
 Terminal=false
 StartupNotify=false
