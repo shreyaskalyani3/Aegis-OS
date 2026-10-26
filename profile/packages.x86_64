@@ -160,6 +160,8 @@ xorg-xkill
 xorg-xhost
 xf86-input-libinput
 mesa
+mesa-utils
+vulkan-icd-loader
 xf86-video-vesa
 xf86-video-amdgpu
 xf86-video-intel
@@ -236,6 +238,11 @@ qt6-shadertools
 qt6-imageformats
 qt6-multimedia
 qt6-5compat
+qt6-virtualkeyboard
+qt5-graphicaleffects
+qt5-quickcontrols
+qt5-quickcontrols2
+qt5-svg
 kvantum
 cliphist
 grim
