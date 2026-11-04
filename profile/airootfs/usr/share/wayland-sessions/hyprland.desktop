@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Hyprland
+Comment=Hyprland Wayland compositor (Aegis OS)
+Exec=hyprland
+Type=Application
+X-LightDM-Session=hyprland
+X-GNOME-BuiltIn=false
+Keywords=hyprland;wayland;compositor;desktop;

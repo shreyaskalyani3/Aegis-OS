@@ -61,12 +61,18 @@ command -v loadkeys >/dev/null 2>&1 && loadkeys "${LIVE_KEYMAP}" >/dev/null 2>&1
 # if that happens. This is live-overlay-only, so the installed system cannot
 # autologin a user that Calamares never created.
 install -d -m 0755 /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/autologin.conf <<EOF
+# Live-overlay only: never clobber an existing autologin.conf (e.g. one the
+# user customised on a persistent overlay) — write it once, atomically.
+if [[ ! -f /etc/sddm.conf.d/autologin.conf ]]; then
+    cat > /etc/sddm.conf.d/autologin.conf.tmp <<EOF
 [Autologin]
 User=${LIVE_USER}
 Session=hyprland.desktop
 Relogin=false
 EOF
+    chmod 0644 /etc/sddm.conf.d/autologin.conf.tmp
+    mv -f /etc/sddm.conf.d/autologin.conf.tmp /etc/sddm.conf.d/autologin.conf
+fi
 
 # --- Locale ------------------------------------------------------------------
 # Bounded: on a fresh archiso locale-gen can run for minutes, and this unit has
