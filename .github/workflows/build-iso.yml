@@ -138,6 +138,12 @@ jobs:
 
       - name: Build the ISO inside a privileged Arch container
         run: |
+          mkdir -p work
+          # The build log is written to the bind-mounted work/ dir so it
+          # survives a container exit and can be uploaded as an artifact on
+          # failure. GitHub job logs require authentication to read, which
+          # made earlier 2-minute failures impossible to diagnose.
+          set -o pipefail
           docker run --rm --privileged \
             -v "$PWD":/aegis -w /aegis \
             -v /mnt/aegis-work:/aegis/work \
@@ -145,11 +151,32 @@ jobs:
             -e AEGIS_TOOL_SET \
             -e AEGIS_ENABLE_BLACKARCH \
             archlinux:latest bash -eo pipefail -c '
+              exec > >(tee /aegis/work/build.log) 2>&1
               echo "==> Refreshing pacman keyring"
               pacman -Sy --noconfirm archlinux-keyring
               echo "==> Building Aegis OS (tool set: ${AEGIS_TOOL_SET}, blackarch: ${AEGIS_ENABLE_BLACKARCH})"
               bash scripts/build-iso.sh
-            '
+            ' ; rc=$?
+          # Mirror the log into the checkout (also bound as /aegis) so the
+          # artifact upload step sees it even when /mnt is cleaned up.
+          cp -f work/build.log ./build.log 2>/dev/null || true
+          exit "$rc"
+
+      - name: Upload build log (always)
+        # Job logs need a GitHub login to read; this artifact is the
+        # authenticated-free record of what happened, including failures.
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        env:
+          NODE_OPTIONS: --no-deprecation
+        with:
+          name: build-log
+          path: |
+            build.log
+            work/build.log
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Debug failure details
         if: failure()
