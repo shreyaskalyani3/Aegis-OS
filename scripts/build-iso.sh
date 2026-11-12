@@ -48,7 +48,7 @@ mkdir -p "${WORK}" "${OUT}" "${LOCALREPO}"
 step "1/6 Installing build dependencies"
 retry "archlinux-keyring install" pacman -Sy --needed --noconfirm archlinux-keyring
 retry "build-dependency install" pacman -S  --needed --noconfirm archiso base-devel git squashfs-tools libisoburn \
-    dosfstools erofs-utils grub mtools sudo curl imagemagick
+    dosfstools erofs-utils grub mtools sudo curl imagemagick coreutils
 ok "build dependencies present"
 
 # Ensure an unprivileged build user exists (makepkg refuses to run as root).
@@ -714,8 +714,12 @@ log "pre-downloading the ISO package set ($(printf '%s\n' "${ISO_PKGS}" | wc -l)
 # Runs with the STAGED conf — the same config pacstrap will use — because the
 # list includes aegis-meta from the local [aegis] repo (absent from the host
 # config, so the host config would die with "target not found").
+# Wrapped in `timeout`: pacman aborts individual stalled transfers but a
+# mirror that trickles under its radar would otherwise hang the job until the
+# CI timeout, with no log line saying where. On timeout the retry loop starts
+# a fresh attempt; completed downloads stay cached and resume.
 # shellcheck disable=SC2086  # intentional word-split: one package per arg
-retry "ISO package pre-download" pacman --config "${STAGED_PROFILE}/pacman.conf" \
+retry "ISO package pre-download" timeout 5400 pacman --config "${STAGED_PROFILE}/pacman.conf" \
     -Syw --noconfirm --cachedir /var/cache/pacman/pkg ${ISO_PKGS}
 ok "all ISO packages present in the pacman cache"
 
@@ -731,8 +735,14 @@ rm -rf "${OUT}/isofs" 2>/dev/null || true
 # installations. Purging /var/cache/pacman/pkg at this exact moment reclaims disk space
 # on the host pacman cache right as airootfs.sfs is being compressed.
 (
+    # Bounded wait: if mksquashfs never appears (mkarchiso failed early, or a
+    # different image type is configured) this helper must not pin the job.
+    # 1800s is well past any real pacstrap duration.
+    waited=0
     while ! pgrep -x mksquashfs >/dev/null 2>&1; do
+        [[ "${waited}" -ge 1800 ]] && exit 0
         sleep 5
+        waited=$((waited + 5))
     done
     sleep 3
     printf '%s\n' "==> [Disk Optimizer] mksquashfs is running — purging package cache to reclaim disk space"

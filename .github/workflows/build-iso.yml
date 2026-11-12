@@ -41,7 +41,10 @@ jobs:
   build-iso:
     name: Build ISO
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # The full build needs ~3h on a free runner (run #38 was killed at 84% of
+    # mksquashfs by a 150-min cap; run #72 was cancelled at exactly 120 min
+    # with the build still running). 360 is GitHub's job maximum.
+    timeout-minutes: 360
     env:
       # github.event.inputs.* are strings ("true"/"false"/""); this keeps the
       # logic robust whether triggered manually or by a tag push (no inputs).
@@ -157,9 +160,10 @@ jobs:
               echo "==> Building Aegis OS (tool set: ${AEGIS_TOOL_SET}, blackarch: ${AEGIS_ENABLE_BLACKARCH})"
               bash scripts/build-iso.sh
             ' ; rc=$?
-          # Mirror the log into the checkout (also bound as /aegis) so the
-          # artifact upload step sees it even when /mnt is cleaned up.
-          cp -f work/build.log ./build.log 2>/dev/null || true
+          # /aegis/work is the /mnt/aegis-work bind mount; the container's
+          # `work/` inside the checkout is a different (worktree) path. Copy
+          # from the real location so the artifact step can find it.
+          cp -f /mnt/aegis-work/build.log ./build.log 2>/dev/null || true
           exit "$rc"
 
       - name: Upload build log (always)
