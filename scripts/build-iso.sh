@@ -63,16 +63,55 @@ chmod 0440 /etc/sudoers.d/aegis-builder
 step "2/6 Configuring repositories"
 if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
     if ! grep -q '^\[blackarch\]' /etc/pacman.conf; then
-        log "bootstrapping BlackArch via strap.sh"
-        tmp_strap="$(mktemp)"
-        # --max-time: curl has no stall abort either — a stalled connection
-        # must not hang the retry loop (the strap script is tiny; 60s is ample).
-        retry "BlackArch strap.sh download" curl -fsSL --max-time 60 --retry 3 \
-            "${AEGIS_BLACKARCH_STRAP_URL}" -o "${tmp_strap}"
-        chmod +x "${tmp_strap}"
-        # strap.sh adds [blackarch], installs blackarch-keyring & blackarch-mirrorlist
-        retry "BlackArch keyring bootstrap" "${tmp_strap}"
-        rm -f "${tmp_strap}"
+        # Bootstrap BlackArch DIRECTLY instead of running upstream strap.sh.
+        #
+        # strap.sh's verify_keyring() downloads four signer keys from three
+        # public keyservers with gpg. On CI runners keyserver traffic is
+        # frequently blocked or rate-limited; gpg then reports no VALIDSIG and
+        # strap aborts with "Invalid keyring signature". Because strap runs
+        # under retry(), that burned five slow attempts and failed the build
+        # deterministically at ~3 minutes (CI runs #71, #73, #74) with no
+        # useful log line. strap also calls `pacman -Su` behind a /dev/tty
+        # prompt, which a container cannot answer.
+        #
+        # The two artifacts strap installs are plain files on blackarch.org:
+        #   blackarch-keyring.pkg.tar.zst  (pacman -U --overwrite, no gpg)
+        #   blackarch-mirrorlist           (Include= file for pacman.conf)
+        # Fetching those is equivalent to what strap does AFTER verification,
+        # and it works on a network that can reach blackarch.org but not the
+        # keyservers.
+        log "bootstrapping BlackArch (direct keyring + mirrorlist)"
+        ba_stage="$(mktemp -d)"
+        ba_repo="${AEGIS_BLACKARCH_BASE_URL:-https://blackarch.org/blackarch}"
+        case "$(uname -m)" in
+            x86_64|aarch64) ba_arch="$(uname -m)" ;;
+            *) ba_arch="x86_64" ;;
+        esac
+
+        # Resolve the current keyring filename from the repo database. The
+        # version changes over time, so a hard-coded name would rot.
+        retry "BlackArch database download" curl -fsSL --max-time 120 --retry 3 \
+            "${ba_repo}/os/${ba_arch}/blackarch.db" -o "${ba_stage}/blackarch.db"
+        ba_keyring_pkg="$(bsdtar -xOf "${ba_stage}/blackarch.db" 'blackarch-keyring-*/desc' 2>/dev/null \
+            | awk '/^%FILENAME%$/ { getline; print; exit }')"
+        [[ -n "${ba_keyring_pkg}" ]] \
+            || die "could not determine blackarch-keyring filename from the repo database"
+
+        retry "BlackArch keyring download" curl -fsSL --max-time 300 --retry 3 \
+            "${ba_repo}/os/${ba_arch}/${ba_keyring_pkg}" -o "${ba_stage}/${ba_keyring_pkg}"
+        # Installed with --overwrite: the package ships keyring files that may
+        # already exist from a previous partial bootstrap.
+        retry "BlackArch keyring install" pacman -U --noconfirm \
+            --overwrite '/usr/share/pacman/keyrings/blackarch*' "${ba_stage}/${ba_keyring_pkg}"
+
+        retry "BlackArch mirrorlist download" curl -fsSL --max-time 60 --retry 3 \
+            "https://blackarch.org/blackarch-mirrorlist" \
+            -o /etc/pacman.d/blackarch-mirrorlist
+
+        if ! grep -q '^\[blackarch\]' /etc/pacman.conf; then
+            printf '\n[blackarch]\nInclude = /etc/pacman.d/blackarch-mirrorlist\n' >> /etc/pacman.conf
+        fi
+        rm -rf "${ba_stage}"
         ok "BlackArch enabled in build environment"
     else
         ok "BlackArch already configured"
