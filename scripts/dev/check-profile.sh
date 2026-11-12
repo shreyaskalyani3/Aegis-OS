@@ -122,8 +122,12 @@ H=profile/airootfs/etc/skel/.config/hypr
 [[ -f "$H/xdg-portal-hyprland" ]] || bad "XDG portal launcher missing"
 grep -Fq 'bash "${portal}"' profile/airootfs/usr/local/bin/aegis-session-start \
     || bad "ordered session helper does not invoke the portal launcher through bash"
-grep -q '^exec-once = waybar &' "$H/hyprland.conf" || bad "Waybar autostart missing"
-grep -q '^exec-once = mako &' "$H/hyprland.conf" || bad "Mako autostart missing"
+for startup in "$H/startup.lua" "$H/hyprland.conf"; do
+    grep -Fq 'aegis-shell-fallback' "$startup" || bad "$startup has no Waybar/Mako fallback"
+    if grep -Eq '^[[:space:]]*(hl\.exec_cmd\("|exec-once = )(waybar|mako)' "$startup"; then
+        bad "$startup starts Waybar/Mako alongside Aphotic (two bars, notification race)"
+    fi
+done
 grep -q '^Session=hyprland\.desktop$' profile/airootfs/etc/sddm.conf.d/autologin.conf \
     || bad "SDDM autologin does not select Hyprland"
 grep -q 'desktopFile: "hyprland"' profile/airootfs/etc/calamares/modules/displaymanager.conf \

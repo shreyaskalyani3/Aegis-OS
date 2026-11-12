@@ -90,6 +90,11 @@ hl.bind(mainMod .. " + ALT + Q", hl.dsp.window.kill(), { description = "Force-ki
 hl.bind(mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen(), { description = "Toggle fullscreen" })
 hl.bind(mainMod .. " + CTRL + F", hl.dsp.window.pin(), { description = "Pin window (all workspaces)" })
 
+-- Scratchpad: a hidden workspace that drops over the current one, handy for
+-- a listener, notes, or a long scan you want one key away.
+hl.bind(mainMod .. " + grave",         hl.dsp.workspace.toggle_special("scratch"), { description = "Toggle scratchpad" })
+hl.bind(mainMod .. " + SHIFT + grave", hl.dsp.window.move({ workspace = "special:scratch" }), { description = "Move window to scratchpad" })
+
 -- Group navigation
 hl.bind(mainMod .. " + CTRL + H", hl.dsp.group.prev(), { description = "Previous window in group" })
 hl.bind(mainMod .. " + CTRL + L", hl.dsp.group.next(), { description = "Next window in group" })

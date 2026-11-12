@@ -1,13 +1,11 @@
 -- Window rules — see https://wiki.hypr.land/Configuring/Basics/Window-Rules/
 
--- Opacity
+-- Opacity (kitty and Thunar are set in custom.lua)
 hl.window_rule({ name = "opacity-firefox",   match = { class = "^(firefox)$" },              opacity = "0.90 0.90" })
-hl.window_rule({ name = "opacity-kitty",     match = { class = "^(kitty)$" },                 opacity = "0.90 0.90" })
 hl.window_rule({ name = "opacity-steam",     match = { class = "^(Steam|steam|steamwebhelper)$" }, opacity = "0.80 0.80" })
 hl.window_rule({ name = "opacity-spotify",   match = { class = "^(Spotify)$" },               opacity = "0.80 0.80" })
 hl.window_rule({ name = "opacity-elisa",     match = { class = "^(org.kde.elisa)$" },         opacity = "0.80 0.80" })
 hl.window_rule({ name = "opacity-code",      match = { class = "^(Code)$" },                  opacity = "0.80 0.80" })
-hl.window_rule({ name = "opacity-thunar",    match = { class = "^(thunar)$" },                opacity = "0.70 0.70" })
 hl.window_rule({ name = "opacity-fileroller",match = { class = "^(file-roller)$" },           opacity = "0.80 0.80" })
 hl.window_rule({ name = "opacity-nwg-look",  match = { class = "^(nwg-look)$" },              opacity = "0.80 0.80" })
 hl.window_rule({ name = "opacity-qt5ct",     match = { class = "^(qt5ct)$" },                 opacity = "0.80 0.80" })
@@ -24,7 +22,7 @@ hl.window_rule({ name = "opacity-sysmon",    match = { title = "^(System Monitor
 -- tag check (rather than only float) is what makes it runtime-toggleable:
 -- the rule only matches once the tag is present. "override" is required,
 -- since a plain opacity multiplies with the global decoration.active_opacity
--- (0.70) and the window would still look translucent.
+-- and the window would still look translucent.
 hl.window_rule({
     name    = "opacity-tiled-toggle",
     match   = { float = false, tag = "opaque" },

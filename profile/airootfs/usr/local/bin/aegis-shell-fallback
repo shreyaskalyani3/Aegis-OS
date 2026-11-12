@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Start Waybar and Mako only when the Aphotic shell never comes up.
+# Aphotic owns the bar and org.freedesktop.Notifications itself; starting
+# both unconditionally stacked two bars and raced two notification daemons
+# for the same D-Bus name.
+set -uo pipefail
+
+log(){ printf 'aegis-shell-fallback: %s\n' "$*" >&2; }
+
+# aphotic-shell.service restarts after 2s; leave room for a couple of tries.
+for _ in $(seq 1 20); do
+    pgrep -x quickshell >/dev/null 2>&1 && exit 0
+    sleep 0.5
+done
+
+log "Aphotic shell is not running; starting Waybar and Mako"
+command -v waybar >/dev/null 2>&1 && { waybar >/dev/null 2>&1 & }
+command -v mako >/dev/null 2>&1 && { mako >/dev/null 2>&1 & }
+exit 0

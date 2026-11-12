@@ -5,8 +5,8 @@ hl.on("hyprland.start", function()
     -- If user-systemd is unavailable, keep the shell accessible directly.
     hl.exec_cmd("aegis-session-start || qs -c aphotic")
     hl.exec_cmd("sh -c 'test -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 && /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 || /usr/lib/polkit-kde-authentication-agent-1 &'")
-    hl.exec_cmd("mako &")
-    hl.exec_cmd("waybar &")
+    -- Aphotic provides the bar and notifications; Waybar/Mako only if it fails.
+    hl.exec_cmd("aegis-shell-fallback")
     hl.exec_cmd("sh -c 'wl-paste --type text --watch cliphist store & wl-paste --type image --watch cliphist store &'")
     hl.exec_cmd("hypridle &")
     hl.exec_cmd("blueman-applet &")

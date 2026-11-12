@@ -6,10 +6,12 @@
 #  logind, the display manager, or screen blanking if necessary.
 #
 #  Order:
-#    1. loginctl lock-session
-#    2. qdbus / qdbus6 org.freedesktop.ScreenSaver /ScreenSaver Lock
-#    3. dm-tool lock                       (greeter fallback)
-#    4. xset s activate                    (blank screen, last resort)
+#    1. qs -c aphotic ipc call lock engage (Aphotic lockscreen)
+#    2. hyprlock
+#    3. swaylock
+#    4. loginctl lock-session
+#    5. dm-tool lock                       (greeter fallback)
+#    6. xset s activate                    (blank screen, last resort)
 #
 #  Unlocking uses the live password (aegis / aegis) or the installed user's
 #  password — PAM verified, never bypassed.
@@ -45,7 +47,7 @@ if command -v dm-tool >/dev/null 2>&1 && dm-tool lock 2>/dev/null; then
     exit 0
 fi
 
-# 3. Nothing else available — blank the screen rather than do nothing.
+# 6. Nothing else available — blank the screen rather than do nothing.
 if command -v xset >/dev/null 2>&1; then
     xset s activate 2>/dev/null || true
     log "no locker found; blanked the screen via xset (this is NOT locked)"

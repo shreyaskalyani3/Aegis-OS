@@ -51,6 +51,7 @@ file_permissions=(
   ["/usr/local/bin/aegis-welcome"]="0:0:755"
   ["/usr/local/bin/aegis-desktop-setup"]="0:0:755"
   ["/usr/local/bin/aegis-session-start"]="0:0:755"
+  ["/usr/local/bin/aegis-shell-fallback"]="0:0:755"
   ["/usr/local/bin/aegis-credentials"]="0:0:755"
   ["/usr/local/bin/aegis-live-setup"]="0:0:755"
   ["/usr/local/bin/aegis-vm-guest-setup"]="0:0:755"
