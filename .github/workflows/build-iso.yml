@@ -140,12 +140,12 @@ jobs:
           df -h / /mnt
 
       - name: Build the ISO inside a privileged Arch container
+        # The log is captured on the HOST by piping `docker run` through tee.
+        # Teeing from inside the container is unreliable: if the container is
+        # killed (OOM, daemon restart) its tee dies with it and the artifact
+        # step has nothing to upload. Capturing outside survives any exit.
         run: |
           mkdir -p work
-          # The build log is written to the bind-mounted work/ dir so it
-          # survives a container exit and can be uploaded as an artifact on
-          # failure. GitHub job logs require authentication to read, which
-          # made earlier 2-minute failures impossible to diagnose.
           set -o pipefail
           docker run --rm --privileged \
             -v "$PWD":/aegis -w /aegis \
@@ -153,17 +153,53 @@ jobs:
             -v /home/runner/pacman-cache:/var/cache/pacman/pkg \
             -e AEGIS_TOOL_SET \
             -e AEGIS_ENABLE_BLACKARCH \
+            -e TERM=dumb \
             archlinux:latest bash -eo pipefail -c '
-              exec > >(tee /aegis/work/build.log) 2>&1
-              echo "==> Refreshing pacman keyring"
-              pacman -Sy --noconfirm archlinux-keyring
+              echo "==> Container preflight"
+              pacman -V | head -1
+
+              # 1. Pin real mirrors. The image default is the geo CDN, which
+              #    has stalled/timed out repeatedly in this repo history.
+              #    pacman tries these in order; ParallelDownloads parallelises
+              #    within the first responsive one.
+              printf "%s\n" \
+                "Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch" \
+                "Server = https://mirrors.kernel.org/archlinux/\$repo/os/\$arch" \
+                "Server = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch" \
+                > /etc/pacman.d/mirrorlist
+              cat /etc/pacman.d/mirrorlist
+
+              # 2. Initialise/populate the keyring. A fresh archlinux image can
+              #    have no populated keyring, which makes every pacman sync fail
+              #    deterministically with a PGP error. Both commands are
+              #    idempotent; failures here are surfaced, not swallowed.
+              pacman-key --init
+              pacman-key --populate archlinux || true
+
+              # 3. Keyring package with visible retries and diagnostics.
+              ok=0
+              for i in 1 2 3 4 5; do
+                if pacman -Sy --noconfirm archlinux-keyring; then ok=1; break; fi
+                echo "!! keyring sync attempt ${i}/5 failed"
+                sleep 10
+              done
+              if [ "$ok" -ne 1 ]; then
+                echo "=== DIAGNOSTICS: mirror reachability ==="
+                for m in https://mirror.rackspace.com/archlinux/core/os/x86_64/core.db \
+                         https://mirrors.kernel.org/archlinux/core/os/x86_64/core.db \
+                         https://geo.mirror.pkgbuild.com/core/os/x86_64/core.db; do
+                  curl -sI --max-time 10 -o /dev/null -w "%{http_code} %{time_total}s $m\n" "$m" || echo "FAIL $m"
+                done
+                echo "=== DIAGNOSTICS: pacman.conf ==="
+                grep -vE "^\s*#|^\s*$" /etc/pacman.conf
+                exit 1
+              fi
+
               echo "==> Building Aegis OS (tool set: ${AEGIS_TOOL_SET}, blackarch: ${AEGIS_ENABLE_BLACKARCH})"
               bash scripts/build-iso.sh
-            ' ; rc=$?
-          # /aegis/work is the /mnt/aegis-work bind mount; the container's
-          # `work/` inside the checkout is a different (worktree) path. Copy
-          # from the real location so the artifact step can find it.
-          cp -f /mnt/aegis-work/build.log ./build.log 2>/dev/null || true
+            ' 2>&1 | tee build.log; rc=${PIPESTATUS[0]}
+          echo "--- container exit code: ${rc} ---" | tee -a build.log
+          cp -f build.log /mnt/aegis-work/build.log 2>/dev/null || true
           exit "$rc"
 
       - name: Upload build log (always)
@@ -192,6 +228,11 @@ jobs:
           ls -la /home/runner/pacman-cache 2>/dev/null || true
           echo "=== Output directory ==="
           ls -la out/ 2>/dev/null || true
+          for f in build.log /mnt/aegis-work/build.log; do
+            [[ -f "$f" ]] || continue
+            echo "=== tail -100 of ${f} ==="
+            tail -100 "$f" || true
+          done
 
       - name: Normalize output ownership
         # Files created by root inside the container are root-owned on the host;
