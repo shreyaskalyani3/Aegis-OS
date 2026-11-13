@@ -82,7 +82,9 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
         # keyservers.
         log "bootstrapping BlackArch (direct keyring + mirrorlist)"
         ba_stage="$(mktemp -d)"
-        ba_repo="${AEGIS_BLACKARCH_BASE_URL:-https://blackarch.org/blackarch}"
+        # Repo root is <mirror>/blackarch/$repo/os/$arch, and $repo is also
+        # "blackarch" -- hence the doubled segment (single one is a 404).
+        ba_repo="${AEGIS_BLACKARCH_BASE_URL:-https://blackarch.org/blackarch/blackarch}"
         case "$(uname -m)" in
             x86_64|aarch64) ba_arch="$(uname -m)" ;;
             *) ba_arch="x86_64" ;;
@@ -99,8 +101,13 @@ if [[ "${AEGIS_ENABLE_BLACKARCH}" -eq 1 ]]; then
 
         retry "BlackArch keyring download" curl -fsSL --max-time 300 --retry 3 \
             "${ba_repo}/os/${ba_arch}/${ba_keyring_pkg}" -o "${ba_stage}/${ba_keyring_pkg}"
-        # Installed with --overwrite: the package ships keyring files that may
-        # already exist from a previous partial bootstrap.
+        # Load the BlackArch keys first, as strap.sh does: pacman -U checks the
+        # package's own signature, which needs these keys to already be trusted.
+        mkdir -p "${ba_stage}/pkg"
+        bsdtar -xf "${ba_stage}/${ba_keyring_pkg}" -C "${ba_stage}/pkg" usr/share/pacman/keyrings             || die "could not extract ${ba_keyring_pkg}"
+        cp "${ba_stage}/pkg/usr/share/pacman/keyrings/"* /usr/share/pacman/keyrings/
+        pacman-key --populate blackarch || die "pacman-key --populate blackarch failed"
+        # Installed with --overwrite: the keyring files were just copied above.
         retry "BlackArch keyring install" pacman -U --noconfirm \
             --overwrite '/usr/share/pacman/keyrings/blackarch*' "${ba_stage}/${ba_keyring_pkg}"
 
